@@ -20,7 +20,7 @@ import ruamel.yaml
 
 from apollo.conf import configuration
 
-HOST_VAULT_DIR = configuration.cve_manager.get('HOST_VAULT_DIR')
+HOST_VAULT_DIR = configuration.apollo.get('HOST_VAULT_DIR')
 INVENTORY_DIR = os.path.join(HOST_VAULT_DIR, 'inventory')
 PLAYBOOK_DIR = os.path.join(HOST_VAULT_DIR, 'playbook')
 REPO_DIR = os.path.join(HOST_VAULT_DIR, 'repo')

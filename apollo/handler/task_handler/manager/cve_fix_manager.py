@@ -15,8 +15,8 @@ Time:
 Author:
 Description: Task manager for cve fixing
 """
-from aops_utils.log.log import LOGGER
-from aops_utils.restful.status import SUCCEED
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.status import SUCCEED
 from apollo.conf.constant import CVE_HOST_STATUS
 from apollo.handler.task_handler.manager import Manager
 from apollo.handler.task_handler.manager.task_manager import CveAnsible

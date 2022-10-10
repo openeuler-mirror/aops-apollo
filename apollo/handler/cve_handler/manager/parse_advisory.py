@@ -19,7 +19,7 @@ from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
 from collections import defaultdict
 
-from aops_utils.log.log import LOGGER
+from vulcanus.log.log import LOGGER
 from apollo.function.customize_exception import ParseAdvisoryError
 
 

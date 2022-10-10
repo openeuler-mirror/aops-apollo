@@ -13,7 +13,7 @@
 import os
 import zipfile
 
-from aops_utils.log.log import LOGGER
+from vulcanus.log.log import LOGGER
 
 
 __all__ = ["unzip"]

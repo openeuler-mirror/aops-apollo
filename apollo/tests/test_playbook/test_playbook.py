@@ -19,7 +19,7 @@ import os
 import unittest
 import yaml
 
-from aops_utils.compare import compare_two_object
+from vulcanus.compare import compare_two_object
 from apollo.handler.task_handler.manager.playbook_manager import Playbook
 
 

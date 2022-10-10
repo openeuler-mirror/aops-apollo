@@ -21,7 +21,7 @@ import unittest
 from unittest import mock
 from collections import namedtuple
 
-from aops_utils.restful.status import SUCCEED
+from vulcanus.restful.status import SUCCEED
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.manager.task_manager import CveAnsible
 from apollo.handler.task_handler.config import PLAYBOOK_DIR
