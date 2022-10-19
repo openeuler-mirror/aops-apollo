@@ -21,7 +21,7 @@ import unittest
 from unittest import mock
 from sqlalchemy.exc import SQLAlchemyError
 
-from aops_utils.restful.status import SUCCEED, NO_DATA, DATABASE_INSERT_ERROR, PARTIAL_SUCCEED, \
+from vulcanus.restful.status import SUCCEED, NO_DATA, DATABASE_INSERT_ERROR, PARTIAL_SUCCEED, \
     DATABASE_UPDATE_ERROR, SERVER_ERROR, DATABASE_QUERY_ERROR
 from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, setup_es_db, \
     tear_down_es_db, SESSION

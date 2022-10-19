@@ -15,7 +15,7 @@ Time:
 Author:
 Description: manager configuration
 """
-from aops_utils.conf import Config
+from vulcanus.conf import Config
 from apollo.conf import default_config
 from apollo.conf.constant import CVE_MANAGER_CONFIG_PATH
 

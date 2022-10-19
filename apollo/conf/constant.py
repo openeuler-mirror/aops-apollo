@@ -16,10 +16,10 @@ Author:
 Description: manager constant
 """
 import os
-from aops_utils.conf.constant import BASE_CONFIG_PATH
+from vulcanus.conf.constant import BASE_CONFIG_PATH
 
-# path of cve-manager configuration
-CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'cve-manager.ini')
+# path of apollo configuration
+CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'apollo.ini')
 
 # template repo for downloading
 TEMPLATE_REPO_STR = "[update]\n" \

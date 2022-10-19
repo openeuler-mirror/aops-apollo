@@ -22,12 +22,12 @@ from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
 from elasticsearch import ElasticsearchException
 
-from aops_utils.log.log import LOGGER
-from aops_utils.database.helper import sort_and_page, judge_return_code
-from aops_utils.database.proxy import MysqlProxy, ElasticsearchProxy
-from aops_utils.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
+from vulcanus.log.log import LOGGER
+from vulcanus.database.helper import sort_and_page, judge_return_code
+from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
     DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, SUCCEED, PARAM_ERROR, SERVER_ERROR, PARTIAL_SUCCEED
-from aops_utils.database.table import Host, User
+from vulcanus.database.table import Host, User
 from apollo.database.table import Cve, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
     CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
 from apollo.conf.constant import TASK_INDEX

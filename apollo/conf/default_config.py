@@ -13,9 +13,9 @@
 """
 Time:
 Author:
-Description: default config of cve-manager
+Description: default config of apollo
 """
-cve_manager = {
+apollo = {
     "IP": "127.0.0.1",
     "PORT": 11116,
     "HOST_VAULT_DIR": "/opt/aops",

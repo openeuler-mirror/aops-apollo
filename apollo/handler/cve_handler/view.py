@@ -21,11 +21,11 @@ import glob
 import shutil
 from flask import jsonify
 
-from aops_utils.log.log import LOGGER
-from aops_utils.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
     SERVER_ERROR, WRONG_FILE_FORMAT
-from aops_utils.restful.response import BaseResponse
-from aops_utils.database.helper import judge_return_code
+from vulcanus.restful.response import BaseResponse
+from vulcanus.database.helper import judge_return_code
 from apollo.database import SESSION
 from apollo.conf import configuration
 from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \

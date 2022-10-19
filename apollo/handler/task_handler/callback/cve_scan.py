@@ -15,7 +15,7 @@ Time:
 Author:
 Description: callback function of the cve scanning task.
 """
-from aops_utils.log.log import LOGGER
+from vulcanus.log.log import LOGGER
 from apollo.handler.task_handler.callback import TaskCallback
 from apollo.conf.constant import ANSIBLE_TASK_STATUS, CVE_SCAN_STATUS
 

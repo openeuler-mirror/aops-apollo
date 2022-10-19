@@ -21,8 +21,8 @@ import yaml
 import shutil
 from unittest import mock
 
-from aops_utils.compare import compare_two_object
-from aops_utils.restful.status import DATABASE_CONNECT_ERROR, NO_DATA, SUCCEED, WRONG_DATA
+from vulcanus.compare import compare_two_object
+from vulcanus.restful.status import DATABASE_CONNECT_ERROR, NO_DATA, SUCCEED, WRONG_DATA
 from apollo.handler.task_handler.config import REPO_DIR
 from apollo.handler.task_handler.manager.playbook_manager import RepoPlaybook
 from apollo.database.proxy.repo import RepoProxy

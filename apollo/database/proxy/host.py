@@ -18,11 +18,11 @@ Description: Host table operation
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func
 
-from aops_utils.log.log import LOGGER
-from aops_utils.restful.status import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
-from aops_utils.database.helper import sort_and_page, judge_return_code
-from aops_utils.database.proxy import MysqlProxy
-from aops_utils.database.table import Host
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.status import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
+from vulcanus.database.helper import sort_and_page, judge_return_code
+from vulcanus.database.proxy import MysqlProxy
+from vulcanus.database.table import Host
 from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation
 from apollo.database.proxy.cve import CveEsProxy
 

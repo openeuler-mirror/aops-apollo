@@ -17,7 +17,7 @@ Description:
 """
 import unittest
 
-from aops_utils.restful.status import SUCCEED, PARTIAL_SUCCEED, NO_DATA
+from vulcanus.restful.status import SUCCEED, PARTIAL_SUCCEED, NO_DATA
 from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, \
     setup_es_db, tear_down_es_db, SESSION
 from apollo.conf import configuration

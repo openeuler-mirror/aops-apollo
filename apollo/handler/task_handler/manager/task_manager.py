@@ -23,7 +23,7 @@ from ansible.inventory.manager import InventoryManager
 from ansible import context
 from ansible.errors import AnsibleError
 
-from aops_utils.log.log import LOGGER
+from vulcanus.log.log import LOGGER
 
 
 class CveAnsible():

@@ -17,8 +17,8 @@ Description: mysql tables
 """
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.sql.sqltypes import Boolean, Integer, String
-from aops_utils.database.table import Base, MyBase
-from aops_utils.database.helper import create_tables
+from vulcanus.database.table import Base, MyBase
+from vulcanus.database.helper import create_tables
 from apollo.database import ENGINE
 
 
@@ -148,7 +148,7 @@ class Task(Base, MyBase):
 
 def create_vul_tables(engine=ENGINE):
     """
-    create vulnerability tables of cve-manager service
+    create vulnerability tables of apollo service
     Args:
         engine: mysql engine
 

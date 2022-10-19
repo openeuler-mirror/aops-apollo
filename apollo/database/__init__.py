@@ -14,8 +14,8 @@
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
 
-from aops_utils.database.helper import make_mysql_engine_url
-from aops_utils.database.helper import create_database_engine
+from vulcanus.database.helper import make_mysql_engine_url
+from vulcanus.database.helper import create_database_engine
 from apollo.conf import configuration
 
 

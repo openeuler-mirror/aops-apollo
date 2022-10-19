@@ -20,7 +20,7 @@ import time
 import json
 from abc import ABC, abstractmethod
 
-from aops_utils.log.log import LOGGER
+from vulcanus.log.log import LOGGER
 from apollo.conf.constant import ANSIBLE_TASK_STATUS
 from apollo.handler.task_handler.config import INVENTORY_DIR, PLAYBOOK_DIR
 

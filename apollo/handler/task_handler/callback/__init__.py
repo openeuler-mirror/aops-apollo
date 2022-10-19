@@ -18,7 +18,7 @@ Description: callback function of the cve task.
 from collections import defaultdict
 from ansible.plugins.callback import CallbackBase
 
-from aops_utils.log.log import LOGGER
+from vulcanus.log.log import LOGGER
 
 
 class TaskCallback(CallbackBase):

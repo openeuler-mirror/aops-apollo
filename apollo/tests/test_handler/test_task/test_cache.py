@@ -19,7 +19,7 @@ import unittest
 from unittest import mock
 
 from apollo.handler.task_handler.cache import TaskCache
-from aops_utils.restful.status import SUCCEED
+from vulcanus.restful.status import SUCCEED
 
 
 class TestCache(unittest.TestCase):

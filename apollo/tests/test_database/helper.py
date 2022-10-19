@@ -20,9 +20,9 @@ from time import sleep
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
 
-from aops_utils.database.proxy import MysqlProxy, ElasticsearchProxy
-from aops_utils.database.helper import drop_tables, create_database_engine
-from aops_utils.database.table import Base, User, Host, HostGroup, create_utils_tables
+from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.database.helper import drop_tables, create_database_engine
+from vulcanus.database.table import Base, User, Host, HostGroup, create_utils_tables
 from apollo.database.table import CveHostAssociation, TaskHostRepoAssociation, \
     CveUserAssociation, Cve, CveTaskAssociation, TaskCveHostAssociation, Task, Repo, CveAffectedPkgs
 from apollo.database.table import create_vul_tables

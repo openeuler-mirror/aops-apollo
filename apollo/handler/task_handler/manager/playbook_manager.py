@@ -19,8 +19,8 @@ import os
 import uuid
 import json
 
-from aops_utils.restful.status import DATABASE_CONNECT_ERROR, NO_DATA, SUCCEED, WRONG_DATA
-from aops_utils.log.log import LOGGER
+from vulcanus.restful.status import DATABASE_CONNECT_ERROR, NO_DATA, SUCCEED, WRONG_DATA
+from vulcanus.log.log import LOGGER
 from apollo.handler.task_handler.config import\
     YAML, INVENTORY_DIR, PLAYBOOK_DIR, REPO_DIR, DIR_MAP
 from apollo.handler.task_handler.template import\
