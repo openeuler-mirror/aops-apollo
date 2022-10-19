@@ -13,7 +13,7 @@
 """
 Time:
 Author:
-Description: Define bluepoint of cve-manager
+Description: Define bluepoint of apollo
 """
 from flask.blueprints import Blueprint
 from flask_restful import Api
