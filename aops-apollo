@@ -1,0 +1,17 @@
+#!/bin/bash
+. /usr/bin/aops-vulcanus
+
+MANAGER_CONSTANT="apollo"
+MANAGER_CONFIG_FILE=$SYS_PATH/apollo.ini
+
+function main() {
+  if [ "${OPERATION}" = "start" ]; then
+    create_config_file "${MANAGER_CONFIG_FILE}" "apollo"
+    check_mysql_installed "${MANAGER_CONFIG_FILE}"
+    check_es_installed "${MANAGER_CONFIG_FILE}"
+  fi
+  start_or_stop_service "${MANAGER_CONSTANT}"
+  exit $?
+}
+
+main
