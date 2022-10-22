@@ -21,8 +21,7 @@ REQUIRES = [
     'Flask-APScheduler',
     'setuptools',
     'SQLAlchemy',
-    'PyYAML',
-    'ruamel.base'
+    'PyYAML'
 ]
 
 setup(
@@ -35,8 +34,6 @@ setup(
         ('/etc/aops', ['conf/apollo.ini']),
         ('/usr/lib/systemd/system', ['aops-apollo.service'])
     ],
-    entry_points={
-        'console_scripts': ['aops-apollo=apollo.manage:main']
-    },
+    scripts=['aops-apollo'],
     zip_safe=False
 )
