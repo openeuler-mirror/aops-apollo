@@ -167,7 +167,7 @@ class TestMysqlDb(MysqlProxy):
     def add_cve_user_status(self):
         status_data_1 = {
             "cve_id": "qwfqwff3",
-            "user_name": "admin",
+            "username": "admin",
             "status": "in review"
         }
         status_1 = CveUserAssociation(**status_data_1)
@@ -175,7 +175,7 @@ class TestMysqlDb(MysqlProxy):
 
         status_data_2 = {
             "cve_id": "qwfqwff4",
-            "user_name": "admin",
+            "username": "admin",
             "status": "not reviewed"
         }
         status_2 = CveUserAssociation(**status_data_2)
@@ -183,7 +183,7 @@ class TestMysqlDb(MysqlProxy):
 
         status_data_3 = {
             "cve_id": "qwfqwff5",
-            "user_name": "admin",
+            "username": "admin",
             "status": "not reviewed"
         }
         status_3 = CveUserAssociation(**status_data_3)
@@ -191,7 +191,7 @@ class TestMysqlDb(MysqlProxy):
 
         status_data_4 = {
             "cve_id": "qwfqwff6",
-            "user_name": "admin",
+            "username": "admin",
             "status": "not reviewed"
         }
         status_4 = CveUserAssociation(**status_data_4)

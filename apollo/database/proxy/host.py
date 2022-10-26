@@ -527,7 +527,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                                             Cve.cvss_score, CveUserAssociation.status) \
             .join(CveHostAssociation, CveHostAssociation.cve_id == Cve.cve_id) \
             .join(CveUserAssociation) \
-            .filter(CveUserAssociation.user_name == username,
+            .filter(CveUserAssociation.username == username,
                     CveHostAssociation.host_id == host_id) \
             .filter(*filters)
 

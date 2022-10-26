@@ -108,7 +108,7 @@ class CveMysqlProxy(MysqlProxy):
         """
         cve_overview_query = self.session.query(Cve.severity, func.count(Cve.cve_id)) \
             .join(CveUserAssociation, Cve.cve_id == CveUserAssociation.cve_id) \
-            .filter(CveUserAssociation.user_name == username) \
+            .filter(CveUserAssociation.username == username) \
             .group_by(Cve.severity)
 
         return cve_overview_query
@@ -427,7 +427,7 @@ class CveMysqlProxy(MysqlProxy):
             sqlalchemy.orm.query.Query
         """
         cve_query = self.session.query(CveUserAssociation) \
-            .filter(CveUserAssociation.user_name == username,
+            .filter(CveUserAssociation.username == username,
                     CveUserAssociation.cve_id.in_(cve_list))
         return cve_query
 
@@ -692,7 +692,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                                        func.count(CveHostAssociation.host_id).label("host_num")) \
             .join(CveHostAssociation, Cve.cve_id == CveHostAssociation.cve_id) \
             .join(CveUserAssociation) \
-            .filter(CveUserAssociation.user_name == username) \
+            .filter(CveUserAssociation.username == username) \
             .filter(*filters) \
             .group_by(Cve.cve_id)
 
@@ -836,7 +836,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         cve_info_query = self.session.query(Cve.cve_id, Cve.publish_time, Cve.severity,
                                             Cve.cvss_score, CveUserAssociation.status) \
             .join(CveUserAssociation) \
-            .filter(Cve.cve_id == cve_id, CveUserAssociation.user_name == username)
+            .filter(Cve.cve_id == cve_id, CveUserAssociation.username == username)
 
         return cve_info_query
 
