@@ -294,13 +294,13 @@ class TaskMysqlProxy(MysqlProxy):
             None
         """
         exist_cve_query = self.session.query(CveUserAssociation.cve_id) \
-            .filter(CveUserAssociation.user_name == username)
+            .filter(CveUserAssociation.username == username)
         exist_cve = [row.cve_id for row in exist_cve_query]
 
         new_cve_list = list(cve_set-set(exist_cve))
         user_cve_rows = []
         for cve_id in new_cve_list:
-            user_cve_rows.append({"cve_id": cve_id, "user_name": username,
+            user_cve_rows.append({"cve_id": cve_id, "username": username,
                                   "status": "not reviewed"})
         self.session.bulk_insert_mappings(CveUserAssociation, user_cve_rows)
 

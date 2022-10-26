@@ -103,12 +103,12 @@ class TestCveMysqlProxy(unittest.TestCase):
         self.assertEqual(self.cve_database.set_cve_status(data), SUCCEED)
 
         status_1 = self.cve_database.session.query(CveUserAssociation). \
-            filter(CveUserAssociation.user_name == "admin", CveUserAssociation.cve_id == "qwfqwff4"). \
+            filter(CveUserAssociation.username == "admin", CveUserAssociation.cve_id == "qwfqwff4"). \
             one().status
         self.assertEqual("on-hold", status_1)
 
         status_2 = self.cve_database.session.query(CveUserAssociation). \
-            filter(CveUserAssociation.user_name == "admin", CveUserAssociation.cve_id == "qwfqwff5"). \
+            filter(CveUserAssociation.username == "admin", CveUserAssociation.cve_id == "qwfqwff5"). \
             one().status
         self.assertEqual("on-hold", status_2)
 

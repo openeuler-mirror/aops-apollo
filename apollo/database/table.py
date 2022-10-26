@@ -40,7 +40,7 @@ class CveUserAssociation(Base, MyBase):
     __tablename__ = "cve_user_status"
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    user_name = Column(String(40), ForeignKey('user.username'), primary_key=True)
+    username = Column(String(40), ForeignKey('user.username'), primary_key=True)
     # default status is "not reviewed"
     status = Column(String(20))
 
