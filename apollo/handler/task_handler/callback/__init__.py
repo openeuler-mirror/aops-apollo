@@ -16,12 +16,11 @@ Author:
 Description: callback function of the cve task.
 """
 from collections import defaultdict
-from ansible.plugins.callback import CallbackBase
 
 from vulcanus.log.log import LOGGER
 
 
-class TaskCallback(CallbackBase):
+class TaskCallback:
     """
     Callback function for cve task.
     """

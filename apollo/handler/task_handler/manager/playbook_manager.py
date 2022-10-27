@@ -18,11 +18,12 @@ Description: playbook creating related function
 import os
 import uuid
 import json
+import yaml
 
 from vulcanus.restful.status import DATABASE_CONNECT_ERROR, NO_DATA, SUCCEED, WRONG_DATA
 from vulcanus.log.log import LOGGER
 from apollo.handler.task_handler.config import\
-    YAML, INVENTORY_DIR, PLAYBOOK_DIR, REPO_DIR, DIR_MAP
+    INVENTORY_DIR, PLAYBOOK_DIR, REPO_DIR, DIR_MAP
 from apollo.handler.task_handler.template import\
     COPY_SCRIPT_TEMPLATE, REBOOT_TEMPLATE
 from apollo.database.proxy.task import TaskProxy
@@ -43,7 +44,7 @@ def yaml_write(file_dir, file_name, content):
         os.makedirs(file_dir)
     file_path = os.path.join(file_dir, file_name)
     with open(file_path, 'w', encoding='utf-8') as stream:
-        YAML.dump(content, stream)
+        yaml.dump(content, stream)
 
 
 def is_existed(file_name, file_type='inventory'):
@@ -201,7 +202,7 @@ class Playbook():
             if not os.path.exists(file_dir):
                 os.makedirs(file_dir)
             with open(file_path, 'w', encoding='utf-8') as stream:
-                YAML.dump(json.loads(content), stream)
+                yaml.dump(json.loads(content), stream)
 
         return True
 

@@ -14,15 +14,13 @@ VERSION = "2.0.0"
 
 REQUIRES = [
     'elasticsearch',
-    'ansible',
     'marshmallow>=3.13.0',
     'Flask',
     'Flask-RESTful',
     'Flask-APScheduler',
     'setuptools',
     'SQLAlchemy',
-    'PyYAML',
-    'ruamel.base'
+    'PyYAML'
 ]
 
 setup(

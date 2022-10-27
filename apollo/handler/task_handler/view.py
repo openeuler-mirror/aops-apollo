@@ -21,6 +21,7 @@ import time
 import json
 import threading
 from flask import jsonify
+import yaml
 
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
@@ -31,11 +32,11 @@ from apollo.function.schema.task import *
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.utils import make_download_response
 from apollo.handler.task_handler.config import\
-    cve_fix_func, PLAYBOOK_DIR, INVENTORY_DIR, configuration, YAML,\
+    cve_fix_func, PLAYBOOK_DIR, INVENTORY_DIR, configuration,\
     CVE_CHECK_ITEMS, REPO_CHECK_ITEMS
 from apollo.conf.constant import CVE_SCAN_STATUS
 from apollo.handler.task_handler.manager.playbook_manager import\
-    CveFixPlaybook, RepoPlaybook, Playbook, is_existed, yaml_write
+    CveFixPlaybook, RepoPlaybook, Playbook
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
@@ -902,7 +903,7 @@ class VulGetTaskPlaybook(BaseResponse):
             if status_code == SUCCEED and playbook:
                 playbook = json.loads(playbook)
                 with open(self.file_path, 'w', encoding='utf-8') as stream:
-                    YAML.dump(playbook, stream)
+                    yaml.dump(playbook, stream)
             else:
                 LOGGER.info(
                     "the queried playbook doesn't exist in database, try to regenerate it")
