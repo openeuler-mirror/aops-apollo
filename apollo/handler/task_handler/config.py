@@ -16,7 +16,6 @@ Author:
 Description: task related configuration, constant
 """
 import os
-import ruamel.yaml
 
 from apollo.conf import configuration
 
@@ -27,8 +26,6 @@ REPO_DIR = os.path.join(HOST_VAULT_DIR, 'repo')
 cve_fix_func = configuration.cve.get("CVE_FIX_FUNCTION")
 cve_scan_time = configuration.cve.get("CVE_SCAN_TIME")
 
-YAML = ruamel.yaml.YAML()
-YAML.representer.ignore_aliases = lambda *data: True
 
 DIR_MAP = {
     "inventory": INVENTORY_DIR,

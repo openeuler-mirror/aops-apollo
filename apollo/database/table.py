@@ -156,7 +156,7 @@ def create_vul_tables(engine=ENGINE):
 
     """
     # pay attention, the sequence of list is important. Base table need to be listed first.
-    tables = [Cve, CveHostAssociation, CveUserAssociation, CveHostAssociation, Task, Repo,
+    tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo,
               CveTaskAssociation, TaskHostRepoAssociation, TaskCveHostAssociation, CveAffectedPkgs]
     tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]
     create_tables(Base, engine, tables=tables_objects)

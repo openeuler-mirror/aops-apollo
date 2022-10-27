@@ -36,8 +36,9 @@ def init_mysql():
     try:
         create_vul_tables(ENGINE)
         LOGGER.info("initialize mysql tables for aops-apollo succeed.")
-    except sqlalchemy.exc.SQLAlchemyError:
-        LOGGER.info("initialize mysql tables for aops-apollo failed.")
+    except sqlalchemy.exc.SQLAlchemyError as err:
+        LOGGER.error(err)
+        LOGGER.error("initialize mysql tables for aops-apollo failed.")
         raise sqlalchemy.exc.SQLAlchemyError("create tables fail")
 
 
