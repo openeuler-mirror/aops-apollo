@@ -15,8 +15,8 @@ Time:
 Author:
 Description: LRU cache, it's implemented by OrderDict
 """
-from collections import OrderedDict
 import threading
+from collections import OrderedDict
 
 
 class LRUCache:
@@ -24,6 +24,7 @@ class LRUCache:
     Base class of LRU cache, user needs to extend from the class to implement specific
     info cache.
     """
+
     def __init__(self, capacity):
         """
         Args:
@@ -68,3 +69,21 @@ class LRUCache:
                 self.queue.popitem(last=False)
 
             self.queue[key] = value
+
+    def pop(self, key):
+        """
+        Pop (key, value) from the cache.
+
+        Args:
+            key (str)
+
+        Returns:
+            object
+        """
+        value = None
+
+        with self.mutex:
+            if key in self.queue:
+                value = self.queue.pop(key)
+
+        return value
