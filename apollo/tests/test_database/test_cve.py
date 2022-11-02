@@ -66,11 +66,11 @@ class TestCveMysqlProxy(unittest.TestCase):
 
         data = {"cve_id": "qwfqwff6", "username": "admin"}
         expected_query_result = {"total_count": 0, "total_page": 1, "result": []}
-        self.assertEqual(self.cve_database.get_cve_host(data), (NO_DATA, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_host(data), (SUCCEED, expected_query_result))
 
         data = {"cve_id": "not_exist_id", "username": "admin"}
         expected_query_result = {"total_count": 0, "total_page": 1, "result": []}
-        self.assertEqual(self.cve_database.get_cve_host(data), (NO_DATA, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_host(data), (SUCCEED, expected_query_result))
 
     def test_get_cve_task_host(self):
         data = {"cve_list": ["qwfqwff5"], "username": "admin"}

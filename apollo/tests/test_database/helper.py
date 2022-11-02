@@ -65,7 +65,6 @@ class TestMysqlDb(MysqlProxy):
             "host_id": "id1",
             "public_ip": "127.0.0.1",
             "management": False,
-            "ssh_port": 22,
             "status": "done",
             "repo_name": "repo1",
             "last_scan": 123836100
@@ -81,7 +80,6 @@ class TestMysqlDb(MysqlProxy):
             "host_id": "id2",
             "public_ip": "127.0.0.2",
             "management": False,
-            "ssh_port": 22,
             "status": "scanning",
             "repo_name": "repo1",
             "last_scan": 123836152
