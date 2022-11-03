@@ -142,6 +142,7 @@ class Task(Base, MyBase):
     auto_reboot = Column(Boolean, default=False)
     create_time = Column(Integer)
     host_num = Column(Integer)
+    check_items = Column(String(32))
 
     username = Column(String(40), ForeignKey('user.username'))
 
