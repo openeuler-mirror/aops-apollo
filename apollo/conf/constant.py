@@ -96,7 +96,8 @@ VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
 VUL_TASK_PLAYBOOK_GET = "/vulnerability/task/playbook/get"
-
+# route of callback
+VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 
 # elasticsearch index
 CVE_PKG_INDEX = 'cve_pkg'
@@ -106,3 +107,5 @@ TASK_INDEX = "task"
 # elasticsearch testcase run flag. NEVER TURN IT TO TRUE IN PRODUCTION ENVIRONMENT.
 # The test cases will remove the all the data of the es.
 ES_TEST_FLAG = False
+
+REPO_FILE = "/etc/yum.repos.d/aops-update.repo"

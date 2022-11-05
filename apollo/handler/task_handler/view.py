@@ -20,7 +20,7 @@ import uuid
 import time
 import json
 import threading
-from flask import jsonify
+from flask import jsonify, request
 import yaml
 
 from vulcanus.log.log import LOGGER
@@ -40,6 +40,7 @@ from apollo.handler.task_handler.manager.playbook_manager import\
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
+from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.database import SESSION
@@ -473,6 +474,7 @@ class VulRollbackCveTask(BaseResponse):
     """
     Restful interface for rollback a cve task.
     """
+
     def _handle(self, args):
         """
         Handle rollback task.
@@ -519,44 +521,22 @@ class VulGenerateRepoTask(BaseResponse):
             int: status code
             dict: body including task id
         """
-        result = {"task_id": ""}
+        task_id = str(uuid.uuid1()).replace('-', '')
+        task_info = dict(task_id=task_id, task_type="repo set",
+                         create_time=int(time.time()), username=args["username"])
+        task_info.update(args)
+
         # connect to database
         task_proxy = TaskProxy(configuration)
         if not task_proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR, result
-
-        basic_info = args['info']
-        task_id = str(uuid.uuid1()).replace('-', '')
-        pb_manager = RepoPlaybook(task_id, True, REPO_CHECK_ITEMS)
-
-        # check repo, and dump repo data to xxx.repo
-        status_code = pb_manager.check_repo(
-            args['repo_name'], args['username'], basic_info)
-        if status_code != SUCCEED:
-            LOGGER.error(
-                "Generate repo setting task fail, there is no matched repo.")
-            return status_code, result
-        LOGGER.debug("Check repo succeed")
+            return DATABASE_CONNECT_ERROR, task_info
 
         # save task info to database
-        args['task_id'] = task_id
-        args['task_type'] = 'repo'
-        args['create_time'] = int(time.time())
-        status_code = task_proxy.generate_repo_task(args)
+        status_code = task_proxy.generate_repo_task(task_info)
         if status_code != SUCCEED:
             LOGGER.error("Generate repo setting task fail.")
-            return status_code, result
 
-        time.sleep(1)
-        # generate playbook and hosts, dump to file and save to es database.
-        inventory = pb_manager.create_inventory(basic_info)
-        playbook = pb_manager.create_playbook()
-        task_proxy.save_task_info(task_id, json.dumps(
-            playbook), json.dumps(inventory))
-        task_proxy.close()
-        result['task_id'] = task_id
-
-        return SUCCEED, result
+        return status_code, dict(task_id=task_id)
 
     def post(self):
         """
@@ -626,7 +606,7 @@ class VulExecuteTask(BaseResponse):
     """
     type_map = {
         "cve": "_handle_cve",
-        "repo": "_handle_repo"
+        "repo set": "_handle_repo"
     }
 
     @staticmethod
@@ -650,7 +630,8 @@ class VulExecuteTask(BaseResponse):
                 task_info = TASK_CACHE.make_cve_info(info)
                 TASK_CACHE.put(task_id, task_info)
             else:
-                LOGGER.error("There is no data about host info, stop cve fixing.")
+                LOGGER.error(
+                    "There is no data about host info, stop cve fixing.")
                 return NO_DATA
 
         # check playbook and inventory
@@ -681,40 +662,18 @@ class VulExecuteTask(BaseResponse):
         Returns:
             int: status code
         """
-        task_id = args['task_id']
-        username = args['username']
+        repo_manager = RepoManager(proxy, args['task_id'])
 
-        # before executing task, need to check repo
-        status_code, repo_info = proxy.get_repo_task_info(
-            {'task_id': task_id, 'username': username})
-        if status_code != SUCCEED or repo_info['total_count'] == 0:
-            return NO_DATA
-        repo_name = repo_info['result'][0]['repo_name']
-        # check repo, and dump repo data to xxx.repo
-        if not RepoPlaybook(task_id).check_repo(repo_name, username):
-            LOGGER.error(
-                "There is no matched repo, stop running task %s", task_id)
-            return NO_DATA
+        repo_manager.token = args['token']
+        status_code = repo_manager.create_task(args['username'])
+        if status_code != SUCCEED:
+            return status_code
 
-        # check playbook and inventory
-        if not RepoPlaybook.check_pb_and_inventory(task_id, proxy):
-            LOGGER.error(
-                "Check playbook and inventory failed before running task %s.", task_id)
-            return NO_DATA
-
-        # check host info
-        task_info = TASK_CACHE.query_repo_info(task_id, repo_info)
-        if task_info is None:
-            LOGGER.error(
-                "There is no data about host info, stop repo setting.")
-            return NO_DATA
-
-        manager = RepoManager(proxy, task_id, task_info)
-        if not manager.pre_handle():
+        if not repo_manager.pre_handle():
             return DATABASE_UPDATE_ERROR
 
         # After several check, run the task in a thread
-        task_thread = threading.Thread(target=manager.execute_task)
+        task_thread = threading.Thread(target=repo_manager.execute_task)
         task_thread.start()
 
         return SUCCEED
@@ -729,6 +688,9 @@ class VulExecuteTask(BaseResponse):
         Returns:
             int: status code
         """
+        access_token = request.headers.get('access_token')
+        args['token'] = access_token
+
         proxy = TaskProxy(configuration)
         if not proxy.connect(SESSION):
             return DATABASE_CONNECT_ERROR
@@ -929,3 +891,41 @@ class VulGetTaskPlaybook(BaseResponse):
             return make_download_response(self.file_path, self.file_name)
 
         return jsonify(response)
+
+
+class VulRepoSetTaskCallback(BaseResponse):
+    """
+    Restful interface for set repo callback.
+    """
+    @staticmethod
+    def _handle(args):
+        """
+        Handle set repo callback.
+
+        Args:
+            args (dict): request parameter
+
+        Returns:
+            int: status code
+        """
+        proxy = TaskProxy(configuration)
+        if not proxy.connect(SESSION):
+            return DATABASE_CONNECT_ERROR
+        task_info = dict(
+            status=args["status"], repo_name=args["repo_name"], host_id=args["host_id"])
+
+        repo_set_callback = RepoSetCallback(proxy)
+        return repo_set_callback.callback(args['task_id'], task_info)
+
+    def post(self):
+        """
+        Args:
+            host_id (str)
+            status (str)
+            task_id (str)
+            repo_name (str)
+
+        Returns:
+            dict: response body
+        """
+        return jsonify(self.handle_request(RepoSetCallbackSchema, self))

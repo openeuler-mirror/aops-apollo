@@ -15,8 +15,8 @@ Time:
 Author:
 Description: callback function of the cve task.
 """
-from collections import defaultdict
 
+from apollo.database.proxy.task import TaskProxy
 from vulcanus.log.log import LOGGER
 
 
@@ -25,19 +25,12 @@ class TaskCallback:
     Callback function for cve task.
     """
 
-    def __init__(self, task_id, proxy, task_info):
+    def __init__(self, proxy: TaskProxy):
         """
         Args:
-            task_id (str): the current task id
             proxy (object): database proxy
-            task_info (dict): host info or some specific task info
         """
-        self.result = defaultdict(dict)
-        self.check_result = defaultdict(dict)
-        self.task_id = task_id
         self.proxy = proxy
-        self.task_info = task_info
-        super().__init__()
 
     @staticmethod
     def _get_info(result):
@@ -76,11 +69,11 @@ class TaskCallback:
 
         host_name, result_info, task_name = self._get_info(result)
         self.result[host_name][task_name] = {
-            "info": result_info.get('stdout') or\
-                    result_info.get('stderr') or\
-                    result_info.get('msg'),
+            "info": result_info.get('stdout') or
+            result_info.get('stderr') or
+            result_info.get('msg'),
             "status": status
-            }
+        }
 
         LOGGER.debug("task id: %s, task name: %s, host name: %s, result: %s",
                      self.task_id, task_name, host_name, status)
