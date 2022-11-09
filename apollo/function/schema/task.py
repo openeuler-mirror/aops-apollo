@@ -213,6 +213,13 @@ class RepoSetCallbackSchema(Schema):
     repo_name = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
+class CveFixCallbackSchema(Schema):
+    task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    cves = fields.Dict(keys=fields.Str(), values=fields.Str(
+        validate=validate.OneOf(["fixed", "unfixed"])))
+
+
 __all__ = [
     'GetTaskListSchema',
     'GetTaskProgressSchema',
@@ -229,5 +236,6 @@ __all__ = [
     'ExecuteTaskSchema',
     'DeleteTaskSchema',
     'GetTaskPlaybookSchema',
-    'RepoSetCallbackSchema'
+    'RepoSetCallbackSchema',
+    'CveFixCallbackSchema'
 ]

@@ -2404,8 +2404,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
     def generate_cve_task(self, data):
         """
-        For generating, save cve task basic info to mysql, init task info in es, then return the
-        basic info for generating playbook.
+        For generating, save cve task basic info to mysql, init task info in es.
 
         Args:
             data (dict): e.g.
@@ -2435,32 +2434,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         Returns:
             int: status code
-            list: basic info after judging whether to reboot.e.g.
-                [
-                    {
-                        "cve_id": "cve-11-11",
-                        "host_info": [
-                            {
-                                "host_name": "name1",
-                                "host_ip": "11.1.1.1",
-                                "host_id": "id1"
-                            }
-                        ],
-                        "reboot": True
-                    }
-                ]
         """
-        result = []
         try:
-            result = self._gen_cve_task(data)
+            self._gen_cve_task(data)
             self.session.commit()
             LOGGER.debug("Finished generating cve task.")
-            return SUCCEED, result
+            return SUCCEED
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("Generating cve task failed due to internal error.")
-            return DATABASE_INSERT_ERROR, result
+            return DATABASE_INSERT_ERROR
 
     def _gen_cve_task(self, data):
         """
@@ -2472,9 +2456,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         4. insert task's id and username into elasticsearch
         Args:
             data (dict): cve task info
-
-        Returns:
-            list: basic info after judging whether to reboot. (host id is popped)
 
         Raises:
             EsOperationError
@@ -2517,7 +2498,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         # insert task id and username into es
         self._init_task_in_es(task_id, data["username"])
-        return cve_host_info
 
     def _insert_cve_task_tables(
             self, task_data, task_cve_rows, task_cve_host_rows):
