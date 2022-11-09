@@ -16,7 +16,8 @@ Author:
 Description: callback function of the repo setting task.
 """
 from apollo.handler.task_handler.callback import TaskCallback
-from apollo.conf.constant import REPO_STATUS, ANSIBLE_TASK_STATUS
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.status import SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class RepoSetCallback(TaskCallback):
@@ -24,35 +25,23 @@ class RepoSetCallback(TaskCallback):
     Callback function for repo setting.
     """
 
-    def v2_runner_on_unreachable(self, result):
-        host_name, task_name = self._record_info(result, ANSIBLE_TASK_STATUS.UNREACHABLE)
-        self.save_to_db(task_name, host_name, REPO_STATUS.FAIL)
-
-    def v2_runner_on_ok(self, result):
-        host_name, task_name = self._record_info(result, ANSIBLE_TASK_STATUS.SUCCEED)
-        self.save_to_db(task_name, host_name, REPO_STATUS.SUCCEED)
-
-    def v2_runner_on_failed(self, result, ignore_errors=False):
-        host_name, task_name = self._record_info(result, ANSIBLE_TASK_STATUS.FAIL)
-        self.save_to_db(task_name, host_name, REPO_STATUS.FAIL)
-
-    def save_to_db(self, task_name, host_name, status):
+    def callback(self, task_id: str, task_info: dict) -> int:
         """
-        When it's a check task, save the check result to member variable.
-        Otherwise update the status of the host to database.
+        Set the callback after the repo task is completed
 
-        Args:
-            task_name (str): task name in playbook.
-            host_name (str)
-            status (str)
+        Returns:
+            status_code: repo setting status
         """
         # it means it's a task for setting repo.
-        if task_name == 'set repo':
-            self.result[host_name][task_name]['status'] = status
-            host_id = self.task_info[host_name]['host_id']
-            self.proxy.set_repo_status(self.task_id, [host_id], status)
-            if status == REPO_STATUS.SUCCEED:
-                self.proxy.set_host_repo(self.task_info[host_name]['repo_name'], [host_id])
-        elif task_name.startswith('check'):
-            self.check_result[host_name][task_name] = self.result[host_name].pop(
-                task_name)
+        host_ids = [task_info["host_id"]]
+        data = dict(task_id=task_id,
+                    status=task_info['status'], repo_name=task_info['repo_name'])
+        status_code = self.proxy.update_repo_host_status_and_host_reponame(
+            data, host_ids)
+
+        if status_code != SUCCEED:
+            LOGGER.debug(
+                f"Setting repo name to hosts and upate repo host state failed, repo name: {task_info['repo_name']}, task id: {task_id}.")
+            return DATABASE_UPDATE_ERROR
+
+        return SUCCEED

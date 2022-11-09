@@ -15,18 +15,49 @@ Time:
 Author:
 Description: Task manager for repo setting
 """
+from vulcanus.conf.constant import URL_FORMAT, EXECUTE_REPO_SET
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED
-from apollo.conf.constant import REPO_STATUS
-from apollo.handler.task_handler.manager.task_manager import CveAnsible
+from vulcanus.restful.status import SUCCEED, PARAM_ERROR
+from vulcanus.restful.response import BaseResponse
+
+from apollo.conf import configuration
+from apollo.conf.constant import REPO_STATUS, VUL_TASK_REPO_SET_CALLBACK
 from apollo.handler.task_handler.manager import Manager
-from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
+from apollo.handler.task_handler.cache import TASK_CACHE
 
 
 class RepoManager(Manager):
     """
     Manager for repo setting
     """
+
+    def create_task(self, username) -> int:
+        """
+        Create a task template for setting repo
+
+        Returns:
+            int: status code
+        """
+        self.task = TASK_CACHE.get(self.task_id)
+        if self.task is not None:
+            return SUCCEED
+
+        # query from database
+        if not self.proxy:
+            LOGGER.error("The database proxy need to be inited first.")
+            return PARAM_ERROR
+
+        status_code, self.task = self.proxy.get_repo_set_task_template(
+            self.task_id, username)
+        if status_code != SUCCEED:
+            LOGGER.error("There is no data about host info, stop repo set.")
+            return status_code
+
+        self.task['callback'] = VUL_TASK_REPO_SET_CALLBACK
+        # save to cache
+        TASK_CACHE.put(self.task_id, self.task)
+
+        return SUCCEED
 
     def pre_handle(self):
         """
@@ -51,49 +82,36 @@ class RepoManager(Manager):
         Execute repo setting task.
         """
         LOGGER.info("Repo setting task %s start to execute.", self.task_id)
-        self.task = CveAnsible(inventory=self.inventory_path,
-                               callback=RepoSetCallback(self.task_id, self.proxy, self.task_info))
-        self.task.playbook([self.playbook_path])
+        manager_url = URL_FORMAT % (configuration.zeus.get('IP'),
+                                    configuration.zeus.get('PORT'),
+                                    EXECUTE_REPO_SET)
+        header = {
+            "access_token": self.token,
+            "Content-Type": "application/json; charset=UTF-8"
+        }
+
+        response = BaseResponse.get_response(
+            'POST', manager_url, self.task, header)
+
+        if response.get('code') != SUCCEED:
+            LOGGER.error("Set repo task %s execute failed.", self.task_id)
+            return
+
         LOGGER.info(
-            "Repo setting task %s end, begin to handle result.", self.task_id)
+            "Set repo task %s end, begin to handle result.", self.task_id)
+        self.result = response["result"]
 
     def post_handle(self):
         """
         After executing the task, parse the checking and executing result, then
         save to database.
         """
-        LOGGER.debug(self.task.result)
-        LOGGER.debug(self.task.check)
-        LOGGER.debug(self.task.info)
-
-        task_result = []
-        for host_name, host_info in self.task.info.items():
-            temp = {
-                "host_id": host_info['host_id'],
-                "host_name": host_name,
-                "host_ip": host_info['host_ip'],
-                "repo": host_info['repo_name'],
-                "status": "succeed",
-                "check_items": [],
-                "log": ""
-            }
-
-            self._record_check_info(self.task.check.get(host_name), temp)
-
-            if self.task.result[host_name].get('set repo') is not None:
-                temp['log'] = self.task.result[host_name]['set repo']['info']
-                if self.task.result[host_name]['set repo']['status'] != REPO_STATUS.SUCCEED:
-                    temp['status'] = 'fail'
-            else:
-                temp['status'] = REPO_STATUS.UNKNOWN
-
-            task_result.append(temp)
-
-        self._save_result(task_result, "repo")
+        LOGGER.debug("Set repo task %s result: %s", self.task_id, self.result)
+        self._save_result(self.result)
         self.fault_handle()
 
     def fault_handle(self):
         """
         When the task is completed or execute fail, set the host status to 'unknown'.
         """
-        self.proxy.fix_task_status(self.task_id, 'repo')
+        self.proxy.fix_task_status(self.task_id, 'repo set')

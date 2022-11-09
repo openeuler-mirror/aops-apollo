@@ -37,7 +37,7 @@ class GetTaskListSchema(Schema):
         ["host_num", "create_time"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(TaskListFilterSchema, required=False)
 
@@ -106,7 +106,7 @@ class GetCveTaskInfoSchema(Schema):
         ["host_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(CveTaskInfoFilterSchema, required=False)
 
@@ -169,7 +169,7 @@ class GetRepoTaskInfoSchema(Schema):
     validators for parameter of /vulnerability/task/repo/info/get
     """
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(RepoTaskInfoFilterSchema, required=False)
 
@@ -206,6 +206,13 @@ class GetTaskPlaybookSchema(Schema):
         required=True, validate=validate.OneOf(["cve", "repo"]))
 
 
+class RepoSetCallbackSchema(Schema):
+    task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    status = fields.String(required=True, validate=lambda s: len(s) != 0)
+    repo_name = fields.String(required=True, validate=lambda s: len(s) != 0)
+
+
 __all__ = [
     'GetTaskListSchema',
     'GetTaskProgressSchema',
@@ -221,5 +228,6 @@ __all__ = [
     'GetRepoTaskResultSchema',
     'ExecuteTaskSchema',
     'DeleteTaskSchema',
-    'GetTaskPlaybookSchema'
+    'GetTaskPlaybookSchema',
+    'RepoSetCallbackSchema'
 ]
