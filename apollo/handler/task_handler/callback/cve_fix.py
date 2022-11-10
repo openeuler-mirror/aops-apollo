@@ -15,41 +15,35 @@ Time:
 Author:
 Description: callback function of the cve fixing task.
 """
+from typing import Dict
+
 from apollo.handler.task_handler.callback import TaskCallback
-from apollo.conf.constant import ANSIBLE_TASK_STATUS, CVE_HOST_STATUS
 
 
 class CveFixCallback(TaskCallback):
     """
     Callback function for cve fixing.
     """
-    def v2_runner_on_unreachable(self, result):
-        host_name, task_name = self._record_info(result, ANSIBLE_TASK_STATUS.UNREACHABLE)
-        self.save_to_db(task_name, host_name, CVE_HOST_STATUS.UNFIXED)
-
-    def v2_runner_on_ok(self, result):
-        host_name, task_name = self._record_info(result, ANSIBLE_TASK_STATUS.SUCCEED)
-        self.save_to_db(task_name, host_name, CVE_HOST_STATUS.FIXED)
-
-    def v2_runner_on_failed(self, result, ignore_errors=False):
-        host_name, task_name = self._record_info(result, ANSIBLE_TASK_STATUS.FAIL)
-        self.save_to_db(task_name, host_name, CVE_HOST_STATUS.UNFIXED)
-
-    def save_to_db(self, cve_id, host_name, status):
+    def callback(self, task_id: str, host_id: str, cves: Dict[str, str]) -> int:
         """
-        When it's a check task, save the check result to member variable. 
-        Otherwise update the status of the cve of the host to database.
+        Update cve status for the host and add the progress for the cves.
 
         Args:
-            cve_id (str): it corresponds to the task name in playbook.
-            host_name (str)
-            status (str)
+            task_id
+            host_id
+            cves: e.g.
+                {
+                    "cve-1-1": "fixed"
+                }
+
+        Returns:
+            int: status code
         """
-        # it means it's a cve fixing task.
-        if self.task_info['cve'].get(cve_id) is not None:
-            self.result[host_name][cve_id]['status'] = status
-            host_id = self.task_info['host'][host_name]['host_id']
-            self.proxy.update_cve_status(self.task_id, cve_id, host_id, status)
-            self.proxy.set_cve_progress(self.task_id, [cve_id])
-        else:
-            self.check_result[host_name][cve_id] = self.result[host_name].pop(cve_id)
+        cve_list = []
+        for cve_id, status in cves.items():
+            cve_list.append(cve_id)
+            self.proxy.update_cve_status(task_id, cve_id, host_id, status)
+
+        status_code = self.proxy.set_cve_progress(task_id, cve_list)
+
+        return status_code

@@ -15,35 +15,37 @@ Time:
 Author:
 Description: Handle about task related operation
 """
-import os
-import uuid
-import time
 import json
+import os
 import threading
-from flask import jsonify, request
-import yaml
+import time
+import uuid
+from typing import Dict, Tuple
 
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import\
-    DATABASE_CONNECT_ERROR, NO_DATA, REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR,\
-    DATABASE_UPDATE_ERROR
-from apollo.function.schema.task import *
-from apollo.function.schema.host import ScanHostSchema
-from apollo.function.utils import make_download_response
-from apollo.handler.task_handler.config import\
-    cve_fix_func, PLAYBOOK_DIR, INVENTORY_DIR, configuration,\
-    CVE_CHECK_ITEMS, REPO_CHECK_ITEMS
+import yaml
+from flask import jsonify, request
+
 from apollo.conf.constant import CVE_SCAN_STATUS
-from apollo.handler.task_handler.manager.playbook_manager import\
-    CveFixPlaybook, RepoPlaybook, Playbook
+from apollo.database import SESSION
+from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
+from apollo.function.schema.host import ScanHostSchema
+from apollo.function.schema.task import *
+from apollo.function.utils import make_download_response
+from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
+from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
+from apollo.handler.task_handler.config import \
+    cve_fix_func, PLAYBOOK_DIR, INVENTORY_DIR, configuration, \
+    CVE_CHECK_ITEMS, REPO_CHECK_ITEMS
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
+from apollo.handler.task_handler.manager.playbook_manager import \
+    CveFixPlaybook, RepoPlaybook
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
-from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
-from apollo.handler.task_handler.cache import TASK_CACHE
-from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
-from apollo.database import SESSION
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.status import \
+    DATABASE_CONNECT_ERROR, REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR, \
+    DATABASE_UPDATE_ERROR
 
 
 class VulScanHost(BaseResponse):
@@ -894,3 +896,38 @@ class VulRepoSetTaskCallback(BaseResponse):
             dict: response body
         """
         return jsonify(self.handle_request(RepoSetCallbackSchema, self))
+
+
+class VulCveFixTaskCallback(BaseResponse):
+    """
+    Restful interface for cve fix callback.
+    """
+    @staticmethod
+    def _handle(args):
+        """
+        Handle cve fix callback.
+
+        Args:
+            args (dict): request parameter
+
+        Returns:
+            int: status code
+        """
+        proxy = TaskProxy(configuration)
+        if not proxy.connect(SESSION):
+            return DATABASE_CONNECT_ERROR
+
+        return CveFixCallback(proxy).callback(
+            args['task_id'], args['host_id'], args['cves'])
+
+    def post(self):
+        """
+        Args:
+            task_id (str)
+            host_id (str)
+            cves (dict)
+
+        Returns:
+            dict: response body
+        """
+        return jsonify(self.handle_request(CveFixCallbackSchema, self))

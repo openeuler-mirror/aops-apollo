@@ -98,10 +98,11 @@ VUL_TASK_DELETE = "/vulnerability/task/delete"
 VUL_TASK_PLAYBOOK_GET = "/vulnerability/task/playbook/get"
 # route of callback
 VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
+VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
 
 # elasticsearch index
 CVE_PKG_INDEX = 'cve_pkg'
-TASK_INDEX = "task"
+TASK_INDEX = "cve_task"
 
 
 # elasticsearch testcase run flag. NEVER TURN IT TO TRUE IN PRODUCTION ENVIRONMENT.
