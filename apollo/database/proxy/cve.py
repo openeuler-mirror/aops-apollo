@@ -92,7 +92,8 @@ class CveMysqlProxy(MysqlProxy):
 
         for severity, count in cve_overview_query:
             if severity not in result:
-                LOGGER.debug("Unknown cve severity '%s' when getting overview." % severity)
+                LOGGER.debug(
+                    "Unknown cve severity '%s' when getting overview." % severity)
                 continue
             result[severity] = count
         return {"result": result}
@@ -179,15 +180,18 @@ class CveMysqlProxy(MysqlProxy):
 
         cve_id = data["cve_id"]
         filters = self._get_cve_hosts_filters(data.get("filter"))
-        cve_hosts_query = self._query_cve_hosts(data["username"], cve_id, filters)
+        cve_hosts_query = self._query_cve_hosts(
+            data["username"], cve_id, filters)
 
         total_count = len(cve_hosts_query.all())
         if not total_count:
-            LOGGER.debug("No data found when getting the hosts of cve: %s." % cve_id)
+            LOGGER.debug(
+                "No data found when getting the hosts of cve: %s." % cve_id)
             return SUCCEED, result
 
         sort_column = getattr(Host, data['sort']) if "sort" in data else None
-        direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
+        direction, page, per_page = data.get(
+            'direction'), data.get('page'), data.get('per_page')
 
         processed_query, total_page = sort_and_page(cve_hosts_query, sort_column,
                                                     direction, per_page, page)
@@ -218,12 +222,12 @@ class CveMysqlProxy(MysqlProxy):
             return filters
 
         if filter_dict.get("host_name"):
-            filters.add(Host.host_id.like("%" + filter_dict["host_name"] + "%"))
+            filters.add(Host.host_id.like(
+                "%" + filter_dict["host_name"] + "%"))
         if filter_dict.get("host_group"):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
         if filter_dict.get("repo"):
             filters.add(Host.repo_name.in_(filter_dict["repo"]))
-
         return filters
 
     def _query_cve_hosts(self, username, cve_id, filters):
@@ -304,7 +308,8 @@ class CveMysqlProxy(MysqlProxy):
             return status_code, result
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("Getting cve task hosts failed due to internal error.")
+            LOGGER.error(
+                "Getting cve task hosts failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
     def _get_processed_cve_task_hosts(self, data):
@@ -330,7 +335,8 @@ class CveMysqlProxy(MysqlProxy):
         fail_list = list(set(cve_list) - set(succeed_list))
 
         if fail_list:
-            LOGGER.debug("No data found when getting the task hosts of cve: %s." % fail_list)
+            LOGGER.debug(
+                "No data found when getting the task hosts of cve: %s." % fail_list)
 
         status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
         status_code = judge_return_code(status_dict, NO_DATA)
@@ -409,11 +415,13 @@ class CveMysqlProxy(MysqlProxy):
         succeed_list = [row.cve_id for row in cve_status_query]
         fail_list = list(set(cve_list) - set(succeed_list))
         if fail_list:
-            LOGGER.debug("No data found when setting the status of cve: %s." % fail_list)
+            LOGGER.debug(
+                "No data found when setting the status of cve: %s." % fail_list)
             return NO_DATA
 
         # update() is not applicable to 'in_' method without synchronize_session=False
-        cve_status_query.update({CveUserAssociation.status: status}, synchronize_session=False)
+        cve_status_query.update(
+            {CveUserAssociation.status: status}, synchronize_session=False)
         return SUCCEED
 
     def _query_cve_status(self, username, cve_list):
@@ -483,14 +491,16 @@ class CveMysqlProxy(MysqlProxy):
 
         for row in cve_action_query:
             if row.cve_id not in result:
-                result[row.cve_id] = {"reboot": row.reboot, "package": row.package}
+                result[row.cve_id] = {
+                    "reboot": row.reboot, "package": row.package}
             else:
                 result[row.cve_id]["package"] += "," + row.package
 
         succeed_list = [row.cve_id for row in cve_action_query]
         fail_list = list(set(cve_list) - set(succeed_list))
         if fail_list:
-            LOGGER.debug("No data found when getting the action of cve: %s." % fail_list)
+            LOGGER.debug(
+                "No data found when getting the action of cve: %s." % fail_list)
 
         status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
         status_code = judge_return_code(status_dict, NO_DATA)
@@ -537,7 +547,8 @@ class CveEsProxy(ElasticsearchProxy):  # pylint:disable=too-few-public-methods
                                          source=["cve_id", "description"])
 
         if not operation_code:
-            raise EsOperationError("Query cve description in elasticsearch failed.")
+            raise EsOperationError(
+                "Query cve description in elasticsearch failed.")
 
         description_dict = {}
         for hit in res["hits"]["hits"]:
@@ -591,7 +602,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     "filter": {
                         "cve_id": "cve-2021",
                         "severity": "medium",
-                        "status": "in review"
+                        "status": "in review",
+                        "affected": True
                     }
                 }
 
@@ -649,13 +661,16 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             return result
 
         sort_column = self._get_cve_list_sort_column(data.get('sort'))
-        direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
+        direction, page, per_page = data.get(
+            'direction'), data.get('page'), data.get('per_page')
 
         processed_query, total_page = sort_and_page(cve_query, sort_column,
                                                     direction, per_page, page)
-        description_dict = self._get_cve_description([row.cve_id for row in processed_query])
+        description_dict = self._get_cve_description(
+            [row.cve_id for row in processed_query])
 
-        result['result'] = self._cve_list_row2dict(processed_query, description_dict)
+        result['result'] = self._cve_list_row2dict(
+            processed_query, description_dict)
         result['total_page'] = total_page
         result['total_count'] = total_count
 
@@ -750,7 +765,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
         if filter_dict.get("status"):
             filters.add(CveUserAssociation.status.in_(filter_dict["status"]))
-
+        if "affected" in filter_dict:
+            filters.add(CveHostAssociation.affected == filter_dict["affected"])
         return filters
 
     def get_cve_info(self, data):
@@ -811,7 +827,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         cve_info_query = self._query_cve_info(username, cve_id)
         if not cve_info_query.all():
-            LOGGER.debug("No data found when getting the info of cve: %s." % cve_id)
+            LOGGER.debug(
+                "No data found when getting the info of cve: %s." % cve_id)
             return NO_DATA, {"result": {}}
 
         # raise exception when multiple record found
@@ -819,8 +836,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         description_dict = self._get_cve_description([cve_info_data.cve_id])
         pkg_list = self._get_affected_pkgs(cve_id)
 
-        info_dict = self._cve_info_row2dict(cve_info_data, description_dict, pkg_list)
-        info_dict["related_cve"] = self._get_related_cve(username, cve_id, pkg_list)
+        info_dict = self._cve_info_row2dict(
+            cve_info_data, description_dict, pkg_list)
+        info_dict["related_cve"] = self._get_related_cve(
+            username, cve_id, pkg_list)
         return SUCCEED, {"result": info_dict}
 
     def _query_cve_info(self, username, cve_id):
@@ -929,7 +948,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error("Saving security advisory '%s' failed due to internal error." % file_name)
+            LOGGER.error(
+                "Saving security advisory '%s' failed due to internal error." % file_name)
             return DATABASE_INSERT_ERROR
 
     def _save_security_advisory(self, cve_rows, cve_pkg_rows, cve_pkg_docs):
@@ -945,7 +965,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             SQLAlchemyError, ElasticsearchException, EsOperationError
         """
         cve_list = [row_dict["cve_id"] for row_dict in cve_rows]
-        cve_query = self.session.query(Cve.cve_id).filter(Cve.cve_id.in_(cve_list))
+        cve_query = self.session.query(
+            Cve.cve_id).filter(Cve.cve_id.in_(cve_list))
         update_cve_set = {row.cve_id for row in cve_query}
 
         update_cve_rows = []
@@ -982,7 +1003,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 [{"cve_id": "cve-2021-1001", "package": "redis"}]
         """
         # get the tuples of cve_id and package name
-        cve_pkg_keys = [(row["cve_id"], row["package"]) for row in cve_pkg_rows]
+        cve_pkg_keys = [(row["cve_id"], row["package"])
+                        for row in cve_pkg_rows]
 
         # delete the exist records first then insert the rows
         self.session.query(CveAffectedPkgs) \
@@ -1048,7 +1070,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         query_body = self._general_body()
         query_body['query']['bool']['must'].append(
             {"terms": {"_id": cve_list}})
-        operation_code, res = self.query(CVE_PKG_INDEX, query_body, source=True)
+        operation_code, res = self.query(
+            CVE_PKG_INDEX, query_body, source=True)
 
         if not operation_code:
             raise EsOperationError("Query exist cve in elasticsearch failed.")
@@ -1153,7 +1176,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 arch_name = new_arch_info["arch"]
                 if arch_name in old_arch_dict:
                     old_arch_info = old_arch_dict.pop(arch_name)
-                    pkgs_set = set(new_arch_info["package"]) | set(old_arch_info["package"])
+                    pkgs_set = set(new_arch_info["package"]) | set(
+                        old_arch_info["package"])
                     new_arch_info["package"] = list(pkgs_set)
             for left_arch_info in old_arch_dict.values():
                 new_arch_list.append(left_arch_info)

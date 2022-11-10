@@ -10,103 +10,44 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-"""
-Time:
-Author:
-Description:
-"""
+import copy
 import unittest
 from unittest import mock
 
-from apollo.conf.constant import REPO_STATUS, ANSIBLE_TASK_STATUS
+from vulcanus.restful.status import DATABASE_UPDATE_ERROR
+from apollo.conf import configuration
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
-from apollo.database.proxy.task import TaskMysqlProxy
-from apollo.tests.test_callback import Host, Test
+from apollo.database.proxy.task import TaskProxy
+from apollo.database import SESSION
 
 
 class TestCveRollbackCallback(unittest.TestCase):
     def setUp(self):
-        task_info = {
-            "name1": {
-                "host_id": "id1",
-                "repo_name": "a"
-            },
-            "name2": {
-                "host_id": "id2",
-                "repo_Name": "c"
-            },
-            "name3": {
-                "host_id": "id3",
-                "repo_name": "b"
-            }
+        self.task_info = {
+            "status": "set",
+            "repo_name": "repo name",
+            "host_id": "host id"
         }
-        proxy = TaskMysqlProxy()
-        self.call = RepoSetCallback('1', proxy, task_info)
+        self.call = RepoSetCallback(TaskProxy(configuration))
 
-    def tearDown(self):
-        pass
+    @mock.patch.object(TaskProxy, 'update_repo_host_status_and_host_reponame')
+    def test_repo_set_callback_should_success_when_update_repo_host(self, mock_update_repo_host):
+        self.call.callback("a", self.task_info)
+        host_ids = ["host id"]
+        data = dict(
+            task_id="a", status=self.task_info["status"], repo_name=self.task_info["repo_name"])
+        mock_update_repo_host.assert_called_with(data, host_ids)
 
-    @mock.patch.object(TaskMysqlProxy, 'set_host_repo')
-    @mock.patch.object(TaskMysqlProxy, 'set_repo_status')
-    def test_result(self, mock_set_repo_status, mock_set_host_repo):
-        result1 = Test(Host('name1'), {'stdout': "11"}, "check1")
-        self.call.v2_runner_on_ok(result1)
+    @mock.patch.object(TaskProxy, 'update_repo_host_status_and_host_reponame')
+    def test_repo_set_callback_should_failed_when_update_repo_host_status(self, mock_update_repo_host):
+        mock_update_repo_host.return_value = DATABASE_UPDATE_ERROR
+        update_status = self.call.callback("a", self.task_info)
+        self.assertEqual(DATABASE_UPDATE_ERROR, update_status)
 
-        result2 = Test(Host('name1'), {'msg': "222"}, "set repo")
-        self.call.v2_runner_on_unreachable(result2)
-
-        result3 = Test(Host('name2'), {'stdout': "12"}, "check1")
-        self.call.v2_runner_on_ok(result3)
-
-        result4 = Test(Host('name2'), {'stderr': "13"}, "set repo")
-        self.call.v2_runner_on_failed(result4)
-        
-        result5 = Test(Host('name3'), {'stdout': "12"}, "check1")
-        self.call.v2_runner_on_ok(result5)
-
-        result6 = Test(Host('name3'), {'stdout': "13"}, "set repo")
-        self.call.v2_runner_on_ok(result6)
-
-        expected_res = {
-            "name1": {
-                "set repo": {
-                    "info": "222",
-                    "status": REPO_STATUS.FAIL
-                }
-            },
-            "name2": {
-                "set repo": {
-                    "info": "13",
-                    "status": REPO_STATUS.FAIL
-                }
-            },
-            "name3": {
-                "set repo": {
-                    "info": "13",
-                    "status": REPO_STATUS.SUCCEED
-                }
-            }
-        }
-        expected_check_res = {
-            "name1": {
-                "check1": {
-                    "info": "11",
-                    "status": ANSIBLE_TASK_STATUS.SUCCEED
-                }
-            },
-            "name2": {
-                "check1": {
-                    "info": "12",
-                    "status": ANSIBLE_TASK_STATUS.SUCCEED
-                }
-            },
-            "name3": {
-                "check1": {
-                    "info": "12",
-                    "status": ANSIBLE_TASK_STATUS.SUCCEED
-                }
-            }
-        }
-        self.assertDictEqual(expected_res, self.call.result)
-        self.assertDictEqual(expected_check_res, self.call.check_result)
-        mock_set_host_repo.assert_called_with('b', ['id3'])
+    @mock.patch.object(TaskProxy, '_update_host_repo')
+    def test_repo_set_callback_should_not_upate_host_repo_when_status_is_unset(self, mock_update_host_repo):
+        self.call.proxy.connect(SESSION)
+        task_info = copy.deepcopy(self.task_info)
+        task_info["status"] = "unset"
+        self.call.callback("a", task_info)
+        mock_update_host_repo.assert_not_called()

@@ -31,7 +31,8 @@ class CveHostAssociation(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     host_id = Column(String(40), ForeignKey('host.host_id', ondelete="CASCADE"), primary_key=True)
-
+    affected = Column(Boolean)
+    
 
 class CveUserAssociation(Base, MyBase):
     """

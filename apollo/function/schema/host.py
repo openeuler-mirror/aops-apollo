@@ -87,7 +87,8 @@ class HostCvesFilterSchema(Schema):
     status = fields.List(fields.String(
         validate=validate.OneOf(["not reviewed", "in review", "on-hold", "resolved",
                                  "no action"])), required=False)
-
+    affected = fields.Boolean(required=False, default=True)
+    
 
 class GetHostCvesSchema(Schema):
     """
