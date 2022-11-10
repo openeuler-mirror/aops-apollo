@@ -15,12 +15,15 @@ Time:
 Author:
 Description: Task manager for cve fixing
 """
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED
-from apollo.conf.constant import CVE_HOST_STATUS
+
+from apollo.conf import configuration
+from apollo.conf.constant import CVE_HOST_STATUS, VUL_TASK_CVE_FIX_CALLBACK
+from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager import Manager
-from apollo.handler.task_handler.manager.task_manager import CveAnsible
-from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
+from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.status import SUCCEED, PARAM_ERROR
 
 
 class CveFixManager(Manager):
@@ -28,12 +31,37 @@ class CveFixManager(Manager):
     Manager for cve fixing
     """
 
-    def pre_handle(self):
+    def create_task(self) -> int:
+        """
+        Returns:
+            int: status code
+        """
+        self.task = TASK_CACHE.get(self.task_id)
+        if self.task is not None:
+            return SUCCEED
+
+        # query from database
+        if not self.proxy:
+            LOGGER.error("The database proxy need to be inited first.")
+            return PARAM_ERROR
+
+        status_code, self.task = self.proxy.get_cve_basic_info(self.task_id)
+        if status_code != SUCCEED:
+            LOGGER.error("There is no data about host info, stop cve fixing.")
+            return status_code
+
+        self.task['callback'] = VUL_TASK_CVE_FIX_CALLBACK
+        # save to cache
+        TASK_CACHE.put(self.task_id, self.task)
+
+        return SUCCEED
+
+    def pre_handle(self) -> bool:
         """
         Init host status to 'running', and update latest task execute time.
 
         Returns:
-            bool
+            bool: succeed or fail
         """
         if self.proxy.init_cve_task(self.task_id, []) != SUCCEED:
             LOGGER.error(
@@ -51,38 +79,44 @@ class CveFixManager(Manager):
         Executing cve fix task.
         """
         LOGGER.info("Cve fixing task %s start to execute.", self.task_id)
-        self.task = CveAnsible(inventory=self.inventory_path,
-                               callback=CveFixCallback(self.task_id, self.proxy, self.task_info))
-        self.task.playbook([self.playbook_path])
-        LOGGER.info(
-            "Cve fixing task %s end, begin to handle result.", self.task_id)
+        manager_url = URL_FORMAT % (configuration.zeus.get('IP'),
+                                    configuration.zeus.get('PORT'),
+                                    EXECUTE_CVE_FIX)
+        header = {
+            "access_token": self.token,
+            "Content-Type": "application/json; charset=UTF-8"
+        }
+        pyload = self.task
+
+        response = BaseResponse.get_response('POST', manager_url, pyload, header)
+        if response.get('code') != SUCCEED or not response.get("result"):
+            LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
+        else:
+            LOGGER.info(
+                "Cve fixing task %s end, begin to handle result.", self.task_id)
+        self.result = response.get("result") or []
 
     def post_handle(self):
         """
         After executing the task, parse the checking and executing result, then
         save to database.
         """
-        LOGGER.debug(self.task.result)
-        LOGGER.debug(self.task.check)
-        LOGGER.debug(self.task.info)
-        task_result = []
-        for host_name, host_info in self.task.info['host'].items():
-            temp = {
-                "host_id": host_info['host_id'],
-                "host_name": host_name,
-                "host_ip": host_info['host_ip'],
-                "status": "succeed",
-                "check_items": [],
-                "cves": []
-            }
+        LOGGER.debug("Cve fixing task %s result: %s", self.task_id, self.result)
 
-            self._record_check_info(self.task.check.get(host_name), temp)
-            self._record_fix_info(
-                self.task.result.get(host_name), temp, host_info)
+        for host in self.result:
+            host['status'] = 'succeed'
+            for check_item in host['check_items']:
+                if not check_item.get('result'):
+                    host['status'] = 'fail'
+                    break
+            if host['status'] == 'fail':
+                continue
 
-            task_result.append(temp)
-
-        self._save_result(task_result, "cve")
+            for cve in host['cves']:
+                if cve.get('result') is None or cve.get('result') != CVE_HOST_STATUS.FIXED:
+                    host['status'] = 'fail'
+                    break
+        self._save_result(self.result)
         self.fault_handle()
 
     def fault_handle(self):
@@ -91,30 +125,4 @@ class CveFixManager(Manager):
         host status to 'unknown'.
         """
         self.proxy.set_cve_progress(self.task_id, [], 'fill')
-        self.proxy.fix_task_status(self.task_id, 'cve')
-
-    @staticmethod
-    def _record_fix_info(info, res, host_info):
-        """
-        Record cve fixing info, set status to fail if one of the task failed.
-
-        Args:
-            info (dict): task result
-            res (dict): data record
-            host_info (dict): host info including cve info
-        """
-        cve_info = host_info['cve']
-        for cve_id in cve_info.keys():
-            fix_info = info.get(cve_id)
-            # the fix status of the cve is unknown
-            if fix_info is None:
-                res['status'] = 'fail'
-                log = ""
-                fix_result = CVE_HOST_STATUS.UNKNOWN
-            else:
-                log = fix_info['info']
-                fix_result = fix_info['status']
-                if fix_result == CVE_HOST_STATUS.UNFIXED:
-                    res['status'] = 'fail'
-            res['cves'].append(
-                {"cve_id": cve_id, "log": log, "result": fix_result})
+        self.proxy.fix_task_status(self.task_id, 'cve fix')
