@@ -26,7 +26,7 @@ class TaskListFilterSchema(Schema):
     """
     task_name = fields.String(required=False, validate=lambda s: len(s) > 0)
     task_type = fields.List(fields.String(
-        validate=validate.OneOf(["cve", "repo"])), required=False)
+        validate=validate.OneOf(["cve fix", "repo set"])), required=False)
 
 
 class GetTaskListSchema(Schema):

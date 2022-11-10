@@ -729,41 +729,6 @@ class VulDeleteTask(BaseResponse):
     """
     Restful interface for deleting tasks.
     """
-    @staticmethod
-    def _delete_task_file(task_list):
-        """
-        When the task is deleted, the related local files, e.g. plabook and inventory
-        need to be deleted too.
-
-        Args:
-            task_list (list): task id list
-        """
-        for task_id in task_list:
-            need_deleted_path = [os.path.join(INVENTORY_DIR, task_id),
-                                 os.path.join(PLAYBOOK_DIR, task_id + '.yml')]
-            for path in need_deleted_path:
-                if os.path.exists(path):
-                    os.remove(path)
-
-    def _handle(self, args):
-        """
-        Handle executing task, now support cve and repo.
-
-        Args:
-            args (dict): request parameter
-
-        Returns:
-            int: status code
-        """
-        proxy = TaskProxy(configuration)
-        if not proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
-
-        status_code = proxy.delete_task(args)
-        if status_code == SUCCEED:
-            self._delete_task_file(args['task_list'])
-
-        return status_code
 
     def delete(self):
         """
@@ -773,7 +738,7 @@ class VulDeleteTask(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request(DeleteTaskSchema, self))
+        return jsonify(self.handle_request_db(DeleteTaskSchema, TaskProxy(configuration), "delete_task", SESSION))
 
 
 class VulGetTaskPlaybook(BaseResponse):

@@ -15,32 +15,24 @@ Time:
 Author:
 Description:
 """
-import os
 import json
 import unittest
 from unittest import mock
-from collections import namedtuple
 
-from apollo.handler.task_handler.manager.repo_manager import RepoManager
-from apollo.handler.task_handler.manager.task_manager import CveAnsible
-from apollo.handler.task_handler.config import PLAYBOOK_DIR
+from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.status import SERVER_ERROR, SUCCEED
+
 from apollo.conf import configuration
 from apollo.database.proxy.task import TaskProxy
-from apollo.conf.constant import REPO_STATUS, ANSIBLE_TASK_STATUS
-
-from vulcanus.restful.status import SUCCEED
+from apollo.handler.task_handler.manager.repo_manager import RepoManager
 
 
 class TestRepoManager(unittest.TestCase):
     def setUp(self):
         proxy = TaskProxy(configuration)
-        self.manager = RepoManager(proxy, 'a', 'a')
-        self.manager.cur_time = 5
+        self.manager = RepoManager(proxy, 'task+_id')
 
-    def tearDown(self):
-        pass
-
-    def test_pre_handle(self):
+    def test_pre_handle_should_success_when_update_repo_status_is_running(self):
         with mock.patch.object(TaskProxy, 'set_repo_status') as mock_init_status:
             mock_init_status.return_value = 1
             res = self.manager.pre_handle()
@@ -53,69 +45,39 @@ class TestRepoManager(unittest.TestCase):
                 res = self.manager.pre_handle()
                 self.assertEqual(res, True)
 
-    def test_handle(self):
-        path = os.path.join(PLAYBOOK_DIR, 'a' + '.yml')
-        with mock.patch.object(CveAnsible, 'playbook') as mock_pb:
-            mock_pb.return_value = True
+    def test_handle_call_agent_api_should_success_when_call_agent_is_right(self):
+        with mock.patch.object(BaseResponse, 'get_response') as mock_agent:
+            mock_agent.return_value = dict(result=list())
             self.manager.handle()
-            mock_pb.assert_called_with([path])
+            header = {
+                "access_token": None,
+                "Content-Type": "application/json; charset=UTF-8"
+            }
+            manager_url = "http://127.0.0.1:11111/manage/vulnerability/repo/set"
+            mock_agent.assert_called_with(
+                "POST", manager_url, None, header)
+
+    def test_handle_call_agent_api_should_failed_when_call_agent_return_code_is_fail(self):
+        with mock.patch.object(BaseResponse, 'get_response') as mock_agent:
+            mock_agent.return_value = dict(result=list(), code=SERVER_ERROR)
+            self.manager.handle()
+            result = getattr(self.manager, "result", None)
+            self.assertEqual(result, None)
+
+    def test_handle_call_agent_api_should_success_when_call_agent_return_code_is_success(self):
+        with mock.patch.object(BaseResponse, 'get_response') as mock_agent:
+            mock_agent.return_value = dict(
+                result=["host id1", "host id2"], code=SUCCEED)
+            self.manager.handle()
+            self.assertNotEqual(getattr(self.manager, "result", None), None)
 
     @mock.patch.object(TaskProxy, 'fix_task_status')
     @mock.patch.object(TaskProxy, 'save_task_info')
-    def test_post_handle(self, mock_save_result, mock_fix_status):
-        task = namedtuple('task', ['result', 'check', 'info'])
-        task.result = {
-            "name1": {
-                "set repo": {
-                    "status": REPO_STATUS.SUCCEED,
-                    "info": "1"
-                }
-            },
-            "name2": {
-                "set repo": {
-                    "status": REPO_STATUS.FAIL,
-                    "info": "2"
-                }
-            },
-            "name3": {}
-        }
-        task.check = {
-            "name1": {
-                "check1": {
-                    "status": ANSIBLE_TASK_STATUS.SUCCEED
-                }
-            },
-            "name2": {
-                "check1": {
-                    "status": ANSIBLE_TASK_STATUS.SUCCEED
-                }
-            },
-            "name3": {}
-        }
-        task.info = {
-            "name1": {
-                "host_id": "id1",
-                "host_name": "name1",
-                "host_ip": "ip1",
-                "repo_name": "a"
-            },
-            "name2": {
-                "host_id": "id2",
-                "host_name": "name2",
-                "host_ip": "ip2",
-                "repo_name": "a"
-            },
-            "name3": {
-                "host_id": "id3",
-                "host_name": "name3",
-                "host_ip": "ip3",
-                "repo_name": "a"
-            }
-        }
-        expected_res = {
+    def test_post_handle_should_success_when_callbacked_save_task_info(self, mock_save_result, mock_fix_status):
+        self.manager.task = dict(task_type="repo set")
+        self.manager.result = {
             "task_id": "a",
-            "task_type": "repo",
-            "latest_execute_time": 5,
+            "task_name": "repo",
             "task_result": [
                 {
                     "host_id": "id1",
@@ -123,40 +85,16 @@ class TestRepoManager(unittest.TestCase):
                     "host_ip": "ip1",
                     "repo": "a",
                     "status": "succeed",
-                    "check_items": [
-                        {
-                            "item": "check1",
-                            "result": True
-                        }
-                    ],
                     "log": "1"
                 },
-                {
-                    "host_id": "id2",
-                    "host_name": "name2",
-                    "host_ip": "ip2",
-                    "repo": "a",
-                    "status": "fail",
-                    "check_items": [
-                        {
-                            "item": "check1",
-                            "result": True
-                        }
-                    ],
-                    "log": "2"
-                },
-                {
-                    "host_id": "id3",
-                    "host_name": "name3",
-                    "host_ip": "ip3",
-                    "repo": "a",
-                    "status": "unknown",
-                    "check_items": [
-                    ],
-                    "log": ""
-                }
             ]
         }
-        self.manager.task = task
+        result = {
+            "task_id": self.manager.task_id,
+            "task_type": "repo set",
+            "latest_execute_time": self.manager.cur_time,
+            "task_result": self.manager.result
+        }
         self.manager.post_handle()
-        mock_save_result.assert_called_with('a', log=json.dumps(expected_res))
+        mock_save_result.assert_called_with(
+            'task+_id', log=json.dumps(result))

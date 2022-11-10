@@ -30,6 +30,7 @@ class CveListFilterSchema(Schema):
     status = fields.List(fields.String(
         validate=validate.OneOf(["not reviewed", "in review", "on-hold", "resolved",
                                  "no action"])), required=False)
+    affected = fields.Boolean(required=False, default=True)
 
 
 class GetCveListSchema(Schema):
@@ -40,7 +41,7 @@ class GetCveListSchema(Schema):
         ["cve_id", "publish_time", "cvss_score", "host_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(CveListFilterSchema, required=False)
 
@@ -57,8 +58,10 @@ class CveHostFilterSchema(Schema):
     filter schema of cve host list getting interface
     """
     host_name = fields.String(required=False, validate=lambda s: len(s) != 0)
-    host_group = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
-    repo = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
+    host_group = fields.List(fields.String(
+        validate=lambda s: len(s) != 0), required=False)
+    repo = fields.List(fields.String(
+        validate=lambda s: len(s) != 0), required=False)
 
 
 class GetCveHostsSchema(Schema):
@@ -70,7 +73,7 @@ class GetCveHostsSchema(Schema):
         ["last_scan"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(CveHostFilterSchema, required=False)
 
