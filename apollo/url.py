@@ -62,8 +62,7 @@ SPECIFIC_URLS = {
         (cve_task_view.VulGenerateRepoTask, VUL_TASK_REPO_GENERATE),
         (cve_task_view.VulGetRepoTaskInfo, VUL_TASK_REPO_INFO_GET),
         (cve_task_view.VulGetRepoTaskResult, VUL_TASK_REPO_RESULT_GET),
-        (cve_task_view.VulDeleteTask, VUL_TASK_DELETE),
-        (cve_task_view.VulGetTaskPlaybook, VUL_TASK_PLAYBOOK_GET),
+        (cve_task_view.VulDeleteTask, VUL_TASK_DELETE)
     ],
     "CVE_TASK_CALLBACK_URLS": [
         (cve_task_view.VulRepoSetTaskCallback, VUL_TASK_REPO_SET_CALLBACK),

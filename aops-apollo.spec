@@ -8,7 +8,7 @@ Source0:	%{name}-%{version}.tar.gz
 
 BuildRequires:  python3-setuptools
 Requires:   aops-vulcanus = %{version}-%{release}
-Requires:   python3-elasticsearch ansible python3-flask-restful python3-marshmallow >= 3.13.0
+Requires:   python3-elasticsearch python3-flask-restful python3-marshmallow >= 3.13.0
 Requires:   python3-sqlalchemy python3-PyMySQL python3-Flask-APScheduler >= 1.11.0
 Requires:   python3-PyYAML python3-flask
 Provides:   aops-apollo

@@ -27,7 +27,6 @@ from apollo.conf.constant import VUL_TASk_EXECUTE
 from apollo.database.proxy.task import TaskProxy, TaskMysqlProxy
 from apollo.handler.task_handler.cache import TaskCache
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
-from apollo.handler.task_handler.manager.playbook_manager import RepoPlaybook, Playbook
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.view import VulExecuteTask
 
@@ -99,65 +98,3 @@ class TestExecuteTaskView(unittest.TestCase):
         mock_handle_repo.return_value = 4
         res = interface._handle(args)
         self.assertEqual(res, 4)
-
-    @mock.patch.object(RepoManager, 'execute_task')
-    @mock.patch.object(RepoManager, 'pre_handle')
-    @mock.patch.object(TaskCache, 'query_repo_info')
-    @mock.patch.object(RepoPlaybook, 'check_pb_and_inventory')
-    @mock.patch.object(RepoPlaybook, 'check_repo')
-    @mock.patch.object(TaskProxy, 'get_repo_task_info')
-    def test_handle_repo(self, mock_get_repo, mock_check_repo, mock_check_pb, mock_query_repo, mock_pre_handle, mock_execute_task):
-        args = {
-            "task_id": "a",
-            "username": "b"
-        }
-        proxy = TaskProxy(configuration)
-        mock_get_repo.return_value = 1, {"total_count": 0}
-        res = VulExecuteTask._handle_repo(args, proxy)
-        self.assertEqual(res, NO_DATA)
-
-        mock_get_repo.return_value = SUCCEED, {"result": [{"repo_name": "a"}], "total_count": 1}
-        mock_check_repo.return_value = False
-        res = VulExecuteTask._handle_repo(args, proxy)
-        self.assertEqual(res, NO_DATA)
-
-        mock_check_repo.return_value = True
-        mock_check_pb.return_value = False
-        res = VulExecuteTask._handle_repo(args, proxy)
-        self.assertEqual(res, NO_DATA)
-
-        mock_check_pb.return_value = True
-        mock_query_repo.return_value = None
-        res = VulExecuteTask._handle_repo(args, proxy)
-        self.assertEqual(res, NO_DATA)
-
-        mock_query_repo.return_value = [1]
-        mock_pre_handle.return_value = True
-        res = VulExecuteTask._handle_repo(args, proxy)
-        self.assertEqual(res, SUCCEED)
-
-    @mock.patch.object(CveFixManager, 'execute_task')
-    @mock.patch.object(CveFixManager, 'pre_handle')
-    @mock.patch.object(TaskMysqlProxy, 'get_cve_basic_info')
-    @mock.patch.object(TaskCache, 'make_cve_info')
-    @mock.patch.object(Playbook, 'check_pb_and_inventory')
-    def test_handle_cve(self, mock_check_pb, mock_make_cve_info, mock_get_cve_info, mock_pre_handle, mock_execute_task):
-        args = {
-            "task_id": "a",
-            "username": "b"
-        }
-        proxy = TaskProxy(configuration)
-        mock_get_cve_info.return_value = (NO_DATA, '')
-        res = VulExecuteTask._handle_cve(args, proxy)
-        self.assertEqual(res, NO_DATA)
-
-        mock_get_cve_info.return_value = (SUCCEED, '')
-        mock_make_cve_info.return_value = '1'
-        mock_check_pb.return_value = False
-        res = VulExecuteTask._handle_cve(args, proxy)
-        self.assertEqual(res, NO_DATA)
-
-        mock_check_pb.return_value = True
-        mock_pre_handle.return_value = True
-        res = VulExecuteTask._handle_cve(args, proxy)
-        self.assertEqual(res, SUCCEED)

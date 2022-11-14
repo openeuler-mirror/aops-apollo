@@ -25,12 +25,6 @@ MAPPINGS = {
                     "type": "keyword",
                     "ignore_above": 256
                 },
-                "playbook": {
-                    "type": "text"
-                },
-                "inventory": {
-                    "type": "text"
-                },
                 "log": {
                     "type": "text"
                 },
@@ -50,37 +44,6 @@ MAPPINGS = {
                 },
                 "description": {
                     "type": "text"
-                },
-                "os_list": {
-                    "type": "nested",
-                    "properties": {
-                        "os_version": {
-                            "type": "keyword",
-                            "ignore_above": 256
-                        },
-                        "update_time": {
-                            "type": "keyword",
-                            "ignore_above": 256
-                        },
-                        "arch_list": {
-                            "type": "nested",
-                            "properties": {
-                                "arch": {
-                                    "type": "keyword",
-                                    "ignore_above": 256
-                                },
-                                "package": {
-                                    "type": "text",
-                                    "fields": {
-                                        "keyword": {
-                                            "type": "keyword",
-                                            "ignore_above": 256
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

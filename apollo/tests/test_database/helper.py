@@ -484,8 +484,6 @@ class TestEsDb(ElasticsearchProxy):
         }
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "playbook": "test_playbook",
-            "inventory": "test_inventory",
             "log": json.dumps(cve_task_result),
             "username": "admin"
         }
@@ -514,8 +512,6 @@ class TestEsDb(ElasticsearchProxy):
         }
         data = {
             "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
-            "playbook": "test_playbook",
-            "inventory": "test_inventory",
             "log": json.dumps(repo_task_result),
             "username": "admin"
         }

@@ -17,7 +17,6 @@ Description: callback function of the cve task.
 """
 
 from apollo.database.proxy.task import TaskProxy
-from vulcanus.log.log import LOGGER
 
 
 class TaskCallback:
@@ -31,50 +30,3 @@ class TaskCallback:
             proxy (object): database proxy
         """
         self.proxy = proxy
-
-    @staticmethod
-    def _get_info(result):
-        """
-        Get the running task info from the ansible result.
-
-        Args:
-            result (object): result class of the ansible
-
-        Returns:
-            str: host name of the current sub task
-            dict: result information
-            str: name of the sub task
-        """
-        # The parameter:result is the only result that we can get from ansible,
-        # since we need to get task info, it's inevitable to access its private
-        # member.
-        host_name = result._host.get_name()  # pylint: disable=W0212
-        result_info = result._result  # pylint: disable=W0212
-        task_name = result.task_name
-
-        return host_name, result_info, task_name
-
-    def _record_info(self, result, status):
-        """
-        Get task info and record the result.
-
-        Args:
-            result (object): result class of the ansible
-            status (str): task status
-
-        Returns:
-            str: host name of the sub task
-            str: name of the sub task
-        """
-
-        host_name, result_info, task_name = self._get_info(result)
-        self.result[host_name][task_name] = {
-            "info": result_info.get('stdout') or
-            result_info.get('stderr') or
-            result_info.get('msg'),
-            "status": status
-        }
-
-        LOGGER.debug("task id: %s, task name: %s, host name: %s, result: %s",
-                     self.task_id, task_name, host_name, status)
-        return host_name, task_name
