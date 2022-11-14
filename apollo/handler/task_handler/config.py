@@ -20,18 +20,10 @@ import os
 from apollo.conf import configuration
 
 HOST_VAULT_DIR = configuration.apollo.get('HOST_VAULT_DIR')
-INVENTORY_DIR = os.path.join(HOST_VAULT_DIR, 'inventory')
-PLAYBOOK_DIR = os.path.join(HOST_VAULT_DIR, 'playbook')
 REPO_DIR = os.path.join(HOST_VAULT_DIR, 'repo')
 cve_fix_func = configuration.cve.get("CVE_FIX_FUNCTION")
 cve_scan_time = configuration.cve.get("CVE_SCAN_TIME")
 
-
-DIR_MAP = {
-    "inventory": INVENTORY_DIR,
-    "playbook": PLAYBOOK_DIR,
-    "repo": REPO_DIR
-}
 
 CVE_CHECK_ITEMS = [
 ]

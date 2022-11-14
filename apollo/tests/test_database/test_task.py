@@ -59,7 +59,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 "status": "scanning"
             }
         ]
-        self.assertEqual(self.task_database.get_scan_host_info("admin", []), expected_result)
+        self.assertEqual(self.task_database.get_scan_host_info(
+            "admin", []), expected_result)
 
         # query one host's info
         expected_result = [
@@ -70,14 +71,17 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 "status": "scanning"
             }
         ]
-        self.assertEqual(self.task_database.get_scan_host_info("admin", ["id2"]), expected_result)
+        self.assertEqual(self.task_database.get_scan_host_info(
+            "admin", ["id2"]), expected_result)
 
     def test_init_host_scan_status(self):
         # update not exist host
-        self.assertEqual(self.task_database.init_host_scan("admin", ["not_exist_id1", "id1"]), NO_DATA)
+        self.assertEqual(self.task_database.init_host_scan(
+            "admin", ["not_exist_id1", "id1"]), NO_DATA)
 
         # update exist host
-        self.assertEqual(self.task_database.init_host_scan("admin", ["id1", "id2"]), SUCCEED)
+        self.assertEqual(self.task_database.init_host_scan(
+            "admin", ["id1", "id2"]), SUCCEED)
 
         host_database = HostProxy(configuration)
         host_database.connect(SESSION)
@@ -89,16 +93,19 @@ class TestTaskMysqlFirst(unittest.TestCase):
         self.task_database.update_scan_status(["id1", "id2"])
         self.assertEqual(host_database.get_hosts_status({"host_list": ["id1", "id2"], "username": "admin"}),
                          (SUCCEED, {"result": {"id1": "done", "id2": "done"}}))
-        self.assertEqual(self.task_database.init_host_scan("admin", ["id1", "id2"]), SUCCEED)
+        self.assertEqual(self.task_database.init_host_scan(
+            "admin", ["id1", "id2"]), SUCCEED)
         self.assertEqual(host_database.get_hosts_status({"host_list": ["id1", "id2"], "username": "admin"}),
                          (SUCCEED, {"result": {"id1": "scanning", "id2": "scanning"}}))
 
     def test_update_host_scan_status(self):
         # update not exist host
-        self.assertEqual(self.task_database.update_scan_status(["not_exist_id1", "id1"]), NO_DATA)
+        self.assertEqual(self.task_database.update_scan_status(
+            ["not_exist_id1", "id1"]), NO_DATA)
 
         # update exist host
-        self.assertEqual(self.task_database.update_scan_status(["id1", "id2"]), SUCCEED)
+        self.assertEqual(self.task_database.update_scan_status(
+            ["id1", "id2"]), SUCCEED)
 
         host_database = HostProxy(configuration)
         host_database.connect(SESSION)
@@ -135,7 +142,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.task_database.get_task_list(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.get_task_list(
+            data), (SUCCEED, expected_query_result))
 
         data = {
             "sort": "create_time",
@@ -166,7 +174,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.task_database.get_task_list(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.get_task_list(
+            data), (SUCCEED, expected_query_result))
 
     def test_get_cve_list_filter(self):
         data = {
@@ -188,7 +197,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.task_database.get_task_list(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.get_task_list(
+            data), (SUCCEED, expected_query_result))
 
     def test_get_task_progress(self):
         data = {"username": "admin",
@@ -217,7 +227,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(self.task_database.get_task_progress(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.get_task_progress(
+            data), (SUCCEED, expected_query_result))
 
     def test_get_task_info(self):
         data = {"username": "admin",
@@ -232,7 +243,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 "latest_execute_time": 128467234,
             }
         }
-        self.assertEqual(self.task_database.get_task_info(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.get_task_info(
+            data), (SUCCEED, expected_query_result))
 
     def test_task_info_get(self):
         data = {
@@ -249,7 +261,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "total_count": 0,
             "result": []
         }
-        self.assertEqual(self.task_database.get_cve_task_info(data), (SUCCEED, expected_result))
+        self.assertEqual(self.task_database.get_cve_task_info(
+            data), (SUCCEED, expected_result))
 
         data = {
             "username": "admin",
@@ -382,21 +395,24 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (SUCCEED, expected_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            data), (SUCCEED, expected_result))
 
         data = {
             "username": "admin",
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "cve_list": ["qwfqwff3", "not_exist_id"]
         }
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (PARTIAL_SUCCEED, expected_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            data), (PARTIAL_SUCCEED, expected_result))
 
         data = {
             "username": "admin",
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "cve_list": ["not_exist_id"]
         }
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (NO_DATA, {"result": {}}))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            data), (NO_DATA, {"result": {}}))
 
         data = {
             "username": "admin",
@@ -415,7 +431,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (SUCCEED, expected_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            data), (SUCCEED, expected_result))
 
     def test_get_rollback_cve_list(self):
         data = {
@@ -423,7 +440,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "task_id": "1111111111poiuytrewqasdfghjklmnb"
         }
         expected_result = ["qwfqwff4"]
-        self.assertEqual(self.task_database.get_rollback_cve_list(data), expected_result)
+        self.assertEqual(
+            self.task_database.get_rollback_cve_list(data), expected_result)
 
     def test_get_cve_basic_info(self):
         task_id = "1111111111poiuytrewqasdfghjklmnb"
@@ -440,11 +458,13 @@ class TestTaskMysqlFirst(unittest.TestCase):
                 "reboot": True
             }
         ]
-        self.assertEqual(self.task_database.get_cve_basic_info(task_id), (SUCCEED, expected_result))
+        self.assertEqual(self.task_database.get_cve_basic_info(
+            task_id), (SUCCEED, expected_result))
 
         task_id = "not_exist_id"
         expected_result = []
-        self.assertEqual(self.task_database.get_cve_basic_info(task_id), (NO_DATA, expected_result))
+        self.assertEqual(self.task_database.get_cve_basic_info(
+            task_id), (NO_DATA, expected_result))
 
     def test_update_cve_host_status(self):
         data = {
@@ -461,7 +481,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "host_id": "id1",
             "status": "fixed"
         }
-        self.assertEqual(self.task_database.update_cve_status(**data), DATABASE_UPDATE_ERROR)
+        self.assertEqual(self.task_database.update_cve_status(
+            **data), DATABASE_UPDATE_ERROR)
 
 
 class TestTaskMysqlSecond(unittest.TestCase):
@@ -482,10 +503,12 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "cve_list": ["qwfqwff3"]
         }
         self.assertEqual(self.task_database.init_cve_task(**data), SUCCEED)
-        progress_data = {"task_id": "1111111111poiuytrewqasdfghjklmnb", "username": "admin", "cve_list": []}
+        progress_data = {"task_id": "1111111111poiuytrewqasdfghjklmnb",
+                         "username": "admin", "cve_list": []}
         expected_progress_result = {"result": {"qwfqwff3": {"progress": 0, "status": "running"},
                                                "qwfqwff4": {"progress": 1, "status": "succeed"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(progress_data), (SUCCEED, expected_progress_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            progress_data), (SUCCEED, expected_progress_result))
 
         # test all cve
         data = {
@@ -495,7 +518,8 @@ class TestTaskMysqlSecond(unittest.TestCase):
         self.assertEqual(self.task_database.init_cve_task(**data), SUCCEED)
         expected_progress_result = {"result": {"qwfqwff3": {"progress": 0, "status": "running"},
                                                "qwfqwff4": {"progress": 0, "status": "running"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(progress_data), (SUCCEED, expected_progress_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            progress_data), (SUCCEED, expected_progress_result))
 
     def test_set_cve_progress(self):
         # previous test case set the cve's progress to 0
@@ -504,11 +528,13 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "cve_list": [],
             "method": "add"
         }
-        progress_data = {"task_id": "1111111111poiuytrewqasdfghjklmnb", "username": "admin", "cve_list": []}
+        progress_data = {"task_id": "1111111111poiuytrewqasdfghjklmnb",
+                         "username": "admin", "cve_list": []}
         self.assertEqual(self.task_database.set_cve_progress(**data), SUCCEED)
         expected_progress_result = {"result": {"qwfqwff3": {"progress": 1, "status": "running"},
                                                "qwfqwff4": {"progress": 1, "status": "running"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(progress_data), (SUCCEED, expected_progress_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            progress_data), (SUCCEED, expected_progress_result))
 
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
@@ -518,7 +544,8 @@ class TestTaskMysqlSecond(unittest.TestCase):
         self.assertEqual(self.task_database.set_cve_progress(**data), SUCCEED)
         expected_progress_result = {"result": {"qwfqwff3": {"progress": 2, "status": "running"},
                                                "qwfqwff4": {"progress": 1, "status": "running"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(progress_data), (SUCCEED, expected_progress_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            progress_data), (SUCCEED, expected_progress_result))
 
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
@@ -528,7 +555,8 @@ class TestTaskMysqlSecond(unittest.TestCase):
         self.assertEqual(self.task_database.set_cve_progress(**data), SUCCEED)
         expected_progress_result = {"result": {"qwfqwff3": {"progress": 0, "status": "running"},
                                                "qwfqwff4": {"progress": 0, "status": "running"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(progress_data), (SUCCEED, expected_progress_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            progress_data), (SUCCEED, expected_progress_result))
 
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
@@ -538,14 +566,16 @@ class TestTaskMysqlSecond(unittest.TestCase):
         self.assertEqual(self.task_database.set_cve_progress(**data), SUCCEED)
         expected_progress_result = {"result": {"qwfqwff3": {"progress": 1, "status": "running"},
                                                "qwfqwff4": {"progress": 0, "status": "running"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(progress_data), (SUCCEED, expected_progress_result))
+        self.assertEqual(self.task_database.get_task_cve_progress(
+            progress_data), (SUCCEED, expected_progress_result))
 
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "cve_list": ["qwfqwff3"],
             "method": "wrong_method"
         }
-        self.assertEqual(self.task_database.set_cve_progress(**data), SERVER_ERROR)
+        self.assertEqual(
+            self.task_database.set_cve_progress(**data), SERVER_ERROR)
 
     def test_get_repo_task_info(self):
         data = {
@@ -575,26 +605,30 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "total_count": 2,
             "total_page": 1
         }
-        self.assertEqual(self.task_database.get_repo_task_info(data), (SUCCEED, expected_result))
+        self.assertEqual(self.task_database.get_repo_task_info(
+            data), (SUCCEED, expected_result))
 
         expected_result_2 = deepcopy(expected_result)
         expected_result_2["result"] = [expected_result["result"][0]]
         expected_result_2["total_count"] = 1
         data["filter"] = {"host_name": "1", "status": []}
-        self.assertEqual(self.task_database.get_repo_task_info(data), (SUCCEED, expected_result_2))
+        self.assertEqual(self.task_database.get_repo_task_info(
+            data), (SUCCEED, expected_result_2))
 
         expected_result_3 = deepcopy(expected_result)
         expected_result_3["result"] = [expected_result["result"][1]]
         expected_result_3["total_count"] = 1
         data["filter"] = {"host_name": "", "status": ["unset"]}
-        self.assertEqual(self.task_database.get_repo_task_info(data), (SUCCEED, expected_result_3))
+        self.assertEqual(self.task_database.get_repo_task_info(
+            data), (SUCCEED, expected_result_3))
 
         data2["per_page"] = 1
         expected_result_4 = deepcopy(expected_result)
         expected_result_4["result"] = [expected_result["result"][0]]
         expected_result_4["total_page"] = 2
         print(self.task_database.get_repo_task_info(data2))
-        self.assertEqual(self.task_database.get_repo_task_info(data2), (SUCCEED, expected_result_4))
+        self.assertEqual(self.task_database.get_repo_task_info(
+            data2), (SUCCEED, expected_result_4))
 
     def test_set_repo_status(self):
         data = {
@@ -681,9 +715,11 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "username": "admin"
         }
-        self.assertEqual(self.task_database.update_task_execute_time(data["task_id"], 1234567890), SUCCEED)
+        self.assertEqual(self.task_database.update_task_execute_time(
+            data["task_id"], 1234567890), SUCCEED)
         changed_task_info = self.task_database.get_task_info(data)
-        self.assertEqual(changed_task_info[1]["result"]["latest_execute_time"], 1234567890)
+        self.assertEqual(
+            changed_task_info[1]["result"]["latest_execute_time"], 1234567890)
 
     def test_save_scan_result(self):
         host_database = HostProxy(configuration)
@@ -710,13 +746,15 @@ class TestTaskMysqlSecond(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(host_database.get_host_list(host_data), (SUCCEED, expected_host_list))
+        self.assertEqual(host_database.get_host_list(
+            host_data), (SUCCEED, expected_host_list))
 
         data = {
             "id1": [],
             "id2": ["qwfqwff4", "qwfqwff5", "qwfqwff6"],
         }
-        self.assertEqual(self.task_database.save_scan_result("admin", data), SUCCEED)
+        self.assertEqual(self.task_database.save_scan_result(
+            "admin", data), SUCCEED)
 
         expected_host_list = {
             "total_count": 2,
@@ -732,16 +770,20 @@ class TestTaskMysqlSecond(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(host_database.get_host_list(host_data), (SUCCEED, expected_host_list))
+        self.assertEqual(host_database.get_host_list(
+            host_data), (SUCCEED, expected_host_list))
 
     def test_check_task_status(self):
-        result = self.task_database.check_task_status("1111111111poiuytrewqasdfghjklmnb", 'cve')
+        result = self.task_database.check_task_status(
+            "1111111111poiuytrewqasdfghjklmnb", 'cve')
         self.assertEqual(result, False)
 
-        result = self.task_database.check_task_status("2222222222poiuytrewqasdfghjklmnb", 'cve')
+        result = self.task_database.check_task_status(
+            "2222222222poiuytrewqasdfghjklmnb", 'cve')
         self.assertEqual(result, True)
 
-        result = self.task_database.check_task_status("aaaaaaaaaapoiuytrewqasdfghjklmnb", 'repo')
+        result = self.task_database.check_task_status(
+            "aaaaaaaaaapoiuytrewqasdfghjklmnb", 'repo')
         self.assertEqual(result, True)
 
 
@@ -760,46 +802,31 @@ class TestTaskEsProxy(unittest.TestCase):
         tear_down_es_db()
 
     def test_save_task_info(self):
-        status_code = self.task_database.save_task_info("1111111111poiuytrewqasdfghjklmnb", "changed_playbook")
+        status_code = self.task_database.save_task_info(
+            "1111111111poiuytrewqasdfghjklmnb", "changed_playbook")
         self.assertEqual(status_code, SUCCEED)
         sleep(1)
-        _, result = self.task_database._query_task_info_from_es("1111111111poiuytrewqasdfghjklmnb")
+        _, result = self.task_database._query_task_info_from_es(
+            "1111111111poiuytrewqasdfghjklmnb")
         result["hits"]["hits"][0]["_source"].pop("log")
         self.assertEqual(result["hits"]["hits"][0]["_source"],
                          {"task_id": "1111111111poiuytrewqasdfghjklmnb", "playbook": "changed_playbook",
                                      "inventory": "test_inventory", "username": "admin"})
 
-        status_code = self.task_database.save_task_info("1111111111poiuytrewqasdfghjklmnb", inventory="changed_inventory")
+        status_code = self.task_database.save_task_info(
+            "1111111111poiuytrewqasdfghjklmnb", inventory="changed_inventory")
         self.assertEqual(status_code, SUCCEED)
         sleep(1)
-        _, result = self.task_database._query_task_info_from_es("1111111111poiuytrewqasdfghjklmnb")
+        _, result = self.task_database._query_task_info_from_es(
+            "1111111111poiuytrewqasdfghjklmnb")
         result["hits"]["hits"][0]["_source"].pop("log")
         self.assertEqual(result["hits"]["hits"][0]["_source"],
                          {"task_id": "1111111111poiuytrewqasdfghjklmnb", "playbook": "changed_playbook",
                                      "inventory": "changed_inventory", "username": "admin"})
 
-        status_code = self.task_database.save_task_info("new_task", "new_playbook")
+        status_code = self.task_database.save_task_info(
+            "new_task", "new_playbook")
         self.assertEqual(status_code, DATABASE_INSERT_ERROR)
-
-    def test_get_playbook(self):
-        result = self.task_database.get_task_ansible_info("1111111111poiuytrewqasdfghjklmnb", "playbook")
-        self.assertEqual(result, (SUCCEED, "test_playbook"))
-
-    @mock.patch.object(TaskEsProxy, "_query_task_info_from_es")
-    def test_get_playbook_error(self, mock_query):
-        mock_query.return_value = (False, [])
-        result = self.task_database.get_task_ansible_info("1111111111poiuytrewqasdfghjklmnb", "playbook")
-        self.assertEqual(result, (DATABASE_QUERY_ERROR, ""))
-
-    def test_get_inventory(self):
-        result = self.task_database.get_task_ansible_info("1111111111poiuytrewqasdfghjklmnb", "inventory")
-        self.assertEqual(result, (SUCCEED, "test_inventory"))
-
-    @mock.patch.object(TaskEsProxy, "_query_task_info_from_es")
-    def test_get_inventory_error(self, mock_query):
-        mock_query.return_value = (False, [])
-        result = self.task_database.get_task_ansible_info("1111111111poiuytrewqasdfghjklmnb", "inventory")
-        self.assertEqual(result, (DATABASE_QUERY_ERROR, ""))
 
     def test_get_cve_task_result(self):
         data = {
@@ -942,13 +969,15 @@ class TestTaskProxy(unittest.TestCase):
                 "reboot": False
             }
         ]
-        self.assertEqual(self.task_database.generate_cve_task(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.generate_cve_task(
+            data), (SUCCEED, expected_query_result))
 
         new_data["task_id"] = "4444444444poiuytrewqasdfghjklmnb"
         new_data["create_time"] = 123836145
         new_data["auto_reboot"] = False
         expected_query_result[1]["reboot"] = False
-        self.assertEqual(self.task_database.generate_cve_task(new_data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.task_database.generate_cve_task(
+            new_data), (SUCCEED, expected_query_result))
 
     @mock.patch.object(TaskProxy, "_insert_cve_task_tables")
     def test_generate_cve_task_error(self, mock_insert):
@@ -975,7 +1004,8 @@ class TestTaskProxy(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.task_database.generate_cve_task(data), (DATABASE_INSERT_ERROR, []))
+        self.assertEqual(self.task_database.generate_cve_task(
+            data), (DATABASE_INSERT_ERROR, []))
 
     def test_gen_repo_task(self):
         data = {
@@ -1041,16 +1071,8 @@ class TestTaskProxy(unittest.TestCase):
             "info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
                      {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}]
         }
-        self.assertEqual(self.task_database.generate_repo_task(data), DATABASE_INSERT_ERROR)
+        self.assertEqual(self.task_database.generate_repo_task(
+            data), DATABASE_INSERT_ERROR)
         self.assertEqual(self.task_database.get_task_info({"username": "admin",
                                                            "task_id": "ccccccccccpoiuytrewqasdfghjklmnb"}),
                          (NO_DATA, {"result": {}}))
-
-    def test_z_delete(self):
-        result = self.task_database.delete_task({"task_list": ["1111111111poiuytrewqasdfghjklmnb"], "username": "admin"})
-        self.assertEqual(result, SUCCEED)
-        sleep(1)
-        query_result = self.task_database.get_task_info({"task_id": "1111111111poiuytrewqasdfghjklmnb", "username": "admin"})
-        self.assertEqual(query_result, (NO_DATA, {"result": {}}))
-        inventory_result = self.task_database.get_task_ansible_info("1111111111poiuytrewqasdfghjklmnb", "inventory")
-        self.assertEqual(inventory_result, (NO_DATA, ""))

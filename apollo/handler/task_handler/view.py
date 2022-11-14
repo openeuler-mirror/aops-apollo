@@ -15,14 +15,11 @@ Time:
 Author:
 Description: Handle about task related operation
 """
-import json
-import os
 import threading
 import time
 import uuid
 from typing import Dict, Tuple
 
-import yaml
 from flask import jsonify, request
 
 from apollo.conf.constant import CVE_SCAN_STATUS
@@ -33,12 +30,9 @@ from apollo.function.schema.task import *
 from apollo.function.utils import make_download_response
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
-from apollo.handler.task_handler.config import \
-    cve_fix_func, PLAYBOOK_DIR, INVENTORY_DIR, configuration, \
-    CVE_CHECK_ITEMS, REPO_CHECK_ITEMS
+from apollo.handler.task_handler.config import configuration
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
-from apollo.handler.task_handler.manager.playbook_manager import \
-    CveFixPlaybook, RepoPlaybook
+
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from vulcanus.log.log import LOGGER
@@ -116,7 +110,7 @@ class VulScanHost(BaseResponse):
             return PARAM_ERROR
 
         # generate playbook and inventory of the scanning task
-        task_id = ScanManager.generate_playbook_and_inventory(host_info)
+        task_id = str(uuid.uuid1()).replace('-', '')
         LOGGER.debug(task_id)
 
         # init status
@@ -279,20 +273,6 @@ class VulGenerateCveTask(BaseResponse):
                 "Generate cve fix task fail, fail to save task info to database.")
             return status_code, result
 
-        status_code, package_info = task_proxy.get_package_info(basic_info)
-        if status_code != SUCCEED:
-            LOGGER.error(
-                "Generate cve fix task fail, there is no package info about cve.")
-            return status_code, result
-
-        time.sleep(1)
-        # generate playbook and hosts, dump to file and save to es database.
-        pb_manager = CveFixPlaybook(
-            task_id, True, CVE_CHECK_ITEMS, cve_fix_func)
-        inventory = pb_manager.create_fix_inventory(basic_info)
-        playbook = pb_manager.create_fix_playbook(basic_info, package_info)
-        task_proxy.save_task_info(task_id, json.dumps(
-            playbook), json.dumps(inventory))
         result['task_id'] = task_id
 
         return SUCCEED, result
@@ -625,22 +605,7 @@ class VulExecuteTask(BaseResponse):
         """
         task_id = args['task_id']
         # check host info
-        task_info = TASK_CACHE.get(task_id)
-        if task_info is None:
-            status_code, info = proxy.get_cve_basic_info(task_id)
-            if status_code == SUCCEED:
-                task_info = TASK_CACHE.make_cve_info(info)
-                TASK_CACHE.put(task_id, task_info)
-            else:
-                LOGGER.error(
-                    "There is no data about host info, stop cve fixing.")
-                return NO_DATA
-
-        # check playbook and inventory
-        if not Playbook.check_pb_and_inventory(task_id, proxy):
-            LOGGER.error(
-                "Check playbook and inventory failed before running task %s.", task_id)
-            return NO_DATA
+        task_info = dict()
 
         manager = CveFixManager(proxy, task_id, task_info)
         if not manager.pre_handle():
@@ -741,123 +706,6 @@ class VulDeleteTask(BaseResponse):
             dict: response body
         """
         return jsonify(self.handle_request_db(DeleteTaskSchema, TaskProxy(configuration), "delete_task", SESSION))
-
-
-class VulGetTaskPlaybook(BaseResponse):
-    """
-    Restful interface for getting the playbook of a task.
-    """
-    type_map = {
-        "cve": "_handle_cve",
-        "repo": "_handle_repo"
-    }
-    proxy = None
-    file_name = ""
-    file_path = ""
-
-    def _handle_cve(self, task_id):
-        """
-        Handle playbook downloading of cve fixing task.
-
-        Args:
-            task_id (str)
-
-        Returns:
-            int: status code
-        """
-        status_code, basic_info = self.proxy.get_cve_basic_info(task_id)
-        if status_code != SUCCEED:
-            return status_code
-
-        status_code, package_info = self.proxy.get_package_info(basic_info)
-        if status_code != SUCCEED:
-            return status_code
-
-        pb_manager = CveFixPlaybook(
-            task_id, True, CVE_CHECK_ITEMS, cve_fix_func)
-        playbook = pb_manager.create_fix_playbook(basic_info, package_info)
-        self.proxy.save_task_info(task_id, json.dumps(playbook))
-
-        return SUCCEED
-
-    @staticmethod
-    def _handle_repo(task_id):
-        """
-        Handle playbook downloading of repo setting task.
-
-        Args:
-            proxy (object): database proxy instance
-            task_id (str)
-
-        Returns:
-            int: status code
-        """
-        pb_manager = RepoPlaybook(task_id, True, REPO_CHECK_ITEMS)
-        pb_manager.create_playbook()
-        return SUCCEED
-
-    def _handle(self, args):
-        """
-        Handle playbook download.
-
-        Args:
-            args (dict): request parameter
-
-        Returns:
-            int: status code
-        """
-        task_id = args['task_id']
-
-        self.proxy = TaskProxy(configuration)
-        if not self.proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
-
-        # verify the task:
-        # 1.belongs to the user;
-        # 2.task type is supported.
-        task_type = self.proxy.get_task_type(task_id, args['username'])
-        if task_type is None or task_type != args['task_type']:
-            LOGGER.error("The task id %s and task type %s is not matched, return.",
-                         task_id, args['task_type'])
-            return PARAM_ERROR
-
-        self.file_name = "{}.{}".format(task_id, "yml")
-        self.file_path = os.path.join(PLAYBOOK_DIR, self.file_name)
-        # when the playbook file is not existed in local
-        if not os.path.exists(self.file_path):
-            LOGGER.info(
-                "the queried playbook doesn't exist in local, try to query from database")
-            status_code, playbook = self.proxy.get_task_ansible_info(
-                task_id, 'playbook')
-            if status_code == SUCCEED and playbook:
-                playbook = json.loads(playbook)
-                with open(self.file_path, 'w', encoding='utf-8') as stream:
-                    yaml.dump(playbook, stream)
-            else:
-                LOGGER.info(
-                    "the queried playbook doesn't exist in database, try to regenerate it")
-                func_name = self.type_map[args['task_type']]
-                func = getattr(self, func_name)
-                status, _ = func(task_id)
-                if status != SUCCEED:
-                    return status
-
-        return SUCCEED
-
-    def get(self):
-        """
-        Args:
-            task_id (str): task id
-            task_type (str): task type (cve/repo)
-
-        Returns:
-            dict: response body
-        """
-        response = self.handle_request(GetTaskPlaybookSchema, self)
-        if response['code'] == SUCCEED:
-            return make_download_response(self.file_path, self.file_name)
-
-        return jsonify(response)
 
 
 class VulRepoSetTaskCallback(BaseResponse):

@@ -19,12 +19,10 @@ import unittest
 from unittest import mock
 from flask import Flask
 
-from vulcanus.restful.status import DATABASE_CONNECT_ERROR, PARAM_ERROR, StatusCode, SUCCEED
+from vulcanus.restful.status import PARAM_ERROR, StatusCode, SUCCEED
 from apollo import BLUE_POINT
 from apollo.conf import *
 from apollo.conf.constant import VUL_TASK_CVE_GENERATE
-from apollo.database.proxy.task import TaskProxy
-from apollo.handler.task_handler.manager.playbook_manager import CveFixPlaybook
 from apollo.handler.task_handler.view import VulGenerateCveTask
 
 
@@ -89,46 +87,3 @@ class TestGenerateCveTaskView(unittest.TestCase):
         res = response.json
         expected_res = StatusCode.make_response(PARAM_ERROR)
         self.assertDictEqual(res, expected_res)
-
-    
-    @mock.patch.object(CveFixPlaybook, 'create_fix_playbook')
-    @mock.patch.object(CveFixPlaybook, 'create_fix_inventory')
-    @mock.patch.object(TaskProxy, 'save_task_info')
-    @mock.patch.object(TaskProxy, 'get_package_info')
-    @mock.patch.object(TaskProxy, 'generate_cve_task')
-    @mock.patch.object(TaskProxy, 'connect')
-    def test_handle(self, mock_connect, mock_gen_cve_task, mock_get_package, mock_save_pb, mock_create_inv, mock_create_pb):
-        # test database connect
-        interface = VulGenerateCveTask()
-        mock_connect.return_value = False
-        res = interface._handle(1)
-        self.assertEqual(res[0], DATABASE_CONNECT_ERROR)
-
-        # test generate task fail
-        args = {
-            "username": "admin"
-        }
-        mock_connect.return_value = True
-        mock_gen_cve_task.return_value = 1, []
-        res = interface._handle(args)
-        self.assertEqual(res[0], 1)
-        
-        # test get package info fail
-        mock_gen_cve_task.return_value = SUCCEED, [
-            {
-                "cve_id": "id1"
-            },
-            {
-                "cve_id": "id2"
-            }
-        ]
-        mock_get_package.return_value = 2, {"id1": []}
-        res = interface._handle(args)
-        self.assertEqual(res[0], 2)
-        
-        # test succeed
-        mock_get_package.return_value = SUCCEED, {"id1": []}
-        mock_create_inv.return_value = {"a":1}
-        mock_create_pb.return_value = {"a":1}
-        res = interface._handle(args)
-        self.assertEqual(res[0], SUCCEED)

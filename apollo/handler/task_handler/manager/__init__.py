@@ -19,7 +19,6 @@ import json
 import time
 from abc import ABC, abstractmethod
 
-from apollo.conf.constant import ANSIBLE_TASK_STATUS
 from apollo.database.proxy.task import TaskProxy
 from vulcanus.log.log import LOGGER
 
@@ -90,7 +89,7 @@ class Manager(ABC):
     @abstractmethod
     def handle(self):
         """
-        Task executing, it's often an ansible playbook executing.
+        Task executing
         """
 
     @abstractmethod
@@ -111,27 +110,6 @@ class Manager(ABC):
         """
         self.handle()
         self.post_handle()
-
-    @staticmethod
-    def _record_check_info(info, res):
-        """
-        Record check info, set status to fail if one of the check item failed.
-
-        Args:
-            info (dict): check result
-            res (dict): record result
-        """
-        if not info:
-            return
-
-        for check_item_name, check_info in info.items():
-            if check_info['status'] != ANSIBLE_TASK_STATUS.SUCCEED:
-                res['status'] = 'fail'
-                check_item_result = False
-            else:
-                check_item_result = True
-            res['check_items'].append(
-                {"item": check_item_name, "result": check_item_result})
 
     def _save_result(self, task_result):
         """

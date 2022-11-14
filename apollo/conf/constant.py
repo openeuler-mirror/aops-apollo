@@ -31,12 +31,6 @@ TEMPLATE_REPO_STR = "[update]\n" \
                     "GPG-KEY-openEuler"
 
 
-class ANSIBLE_TASK_STATUS:
-    SUCCEED = "succeed"
-    UNREACHABLE = "unreachable"
-    FAIL = "fail"
-
-
 class CVE_HOST_STATUS:
     FIXED = "fixed"
     UNFIXED = "unfixed"
@@ -95,7 +89,6 @@ VUL_TASK_REPO_GENERATE = "/vulnerability/task/repo/generate"
 VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
-VUL_TASK_PLAYBOOK_GET = "/vulnerability/task/playbook/get"
 # route of callback
 VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"

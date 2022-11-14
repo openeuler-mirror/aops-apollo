@@ -2087,14 +2087,12 @@ class TaskEsProxy(ElasticsearchProxy):
         """
         return SUCCEED, {}
 
-    def save_task_info(self, task_id, playbook=None, inventory=None, log=None):
+    def save_task_info(self, task_id, log=None):
         """
-        Every time playbook, inventory, log are generated, save them to es database.
+         Every time log are generated, save them to es database.
 
         Args:
             task_id (str): task id
-            playbook (str): ansible playbook
-            inventory (str): ansible inventory
             log (str): task's log
 
         Returns:
@@ -2111,7 +2109,7 @@ class TaskEsProxy(ElasticsearchProxy):
             LOGGER.error("Task doesn't exist when save task info into es.")
             return DATABASE_INSERT_ERROR
 
-        operation_code = self._update_task(task_id, playbook, inventory, log)
+        operation_code = self._update_task(task_id, log)
 
         if operation_code:
             LOGGER.debug("Finished saving task info into es.")
@@ -2120,23 +2118,17 @@ class TaskEsProxy(ElasticsearchProxy):
         LOGGER.error("Saving task info into es failed due to internal error.")
         return DATABASE_INSERT_ERROR
 
-    def _update_task(self, task_id, playbook, inventory, log):
+    def _update_task(self, task_id,  log):
         """
         update task info into es.
         Args:
             task_id (str/None): task id
-            playbook (str/None): task's ansible playbook
-            inventory (str/None): ansible inventory
             log (str/None): task log
 
         Returns:
             bool
         """
         task_body = {"task_id": task_id}
-        if playbook is not None:
-            task_body["playbook"] = playbook
-        if inventory is not None:
-            task_body["inventory"] = inventory
         if log is not None:
             task_body["log"] = log
         action = [{"_id": task_id, "doc": task_body}]
@@ -2165,40 +2157,34 @@ class TaskEsProxy(ElasticsearchProxy):
         operation_code, res = self.query(TASK_INDEX, query_body, source)
         return operation_code, res
 
-    def get_task_ansible_info(self, task_id, info_type, username=None):
+    def get_task_log_info(self, task_id, username=None):
         """
-        Get task's ansible info (playbook/inventory/log) from es
+        Get task's info (log) from es
 
         Args:
             task_id (str): task id
-            info_type (str): 'playbook'/'inventory'/'log'
             username (str): user name, used for authorisation check
 
         Returns:
             int: status code
             str: needed task info
         """
-        if info_type not in ["playbook", "inventory", "log"]:
-            LOGGER.error("Unknown task info type '%s' were given when getting info of task '%s'."
-                         % (info_type, task_id))
-            return PARAM_ERROR, ""
 
         operation_code, res = self._query_task_info_from_es(
-            task_id, username, [info_type])
+            task_id, username, ["log"])
 
         if not operation_code:
-            LOGGER.debug("Querying %s info of task '%s' failed due to internal error."
-                         % (info_type, task_id))
+            LOGGER.debug("Querying log info of task '%s' failed due to internal error."
+                         % task_id)
             return DATABASE_QUERY_ERROR, ""
 
         if not res["hits"]["hits"]:
             LOGGER.debug(
-                "No data found when getting %s info of task '%s'." %
-                (info_type, task_id))
+                "No data found when getting log info of task '%s'." % task_id)
             return NO_DATA, ""
 
-        task_info = res["hits"]["hits"][0]["_source"][info_type]
-        LOGGER.debug("Querying task %s succeed." % info_type)
+        task_info = res["hits"]["hits"][0]["_source"]["log"]
+        LOGGER.debug("Querying task log succeed.")
         return SUCCEED, task_info
 
     def get_task_cve_result(self, data):
@@ -2266,8 +2252,7 @@ class TaskEsProxy(ElasticsearchProxy):
 
         # task log is in the format of returned dict of func
         # 'get_task_cve_result'
-        status_code, task_log = self.get_task_ansible_info(
-            task_id, "log", username)
+        status_code, task_log = self.get_task_log_info(task_id, username)
         if status_code != SUCCEED:
             return status_code, {}
 
@@ -2355,8 +2340,7 @@ class TaskEsProxy(ElasticsearchProxy):
 
         # task log is in the format of returned dict of func
         # 'get_task_cve_result'
-        status_code, task_log = self.get_task_ansible_info(
-            task_id, "log", username)
+        status_code, task_log = self.get_task_log_info(task_id, username)
         if status_code != SUCCEED:
             return status_code, {}
 
@@ -2563,8 +2547,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         task_body = {
             "task_id": task_id,
             "username": username,
-            "playbook": "",
-            "inventory": "",
             "log": ""
         }
         # assign task id as document id, make sure task id is unique

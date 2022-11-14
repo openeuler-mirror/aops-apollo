@@ -73,43 +73,6 @@ class TestHostScanView(unittest.TestCase):
         expected_res = StatusCode.make_response(PARAM_ERROR)
         self.assertDictEqual(res, expected_res)
 
-    @mock.patch.object(ScanManager, 'execute_task')
-    @mock.patch.object(ScanManager, 'pre_handle')
-    @mock.patch.object(ScanManager, 'generate_playbook_and_inventory')
-    @mock.patch.object(TaskMysqlProxy, 'get_scan_host_info')
-    @mock.patch.object(TaskMysqlProxy, 'connect')
-    def test_handle(self, mock_connect, mock_scan_info, mock_gen, mock_pre_handle, mock_execute):
-        # test database connect
-        interface = VulScanHost()
-        mock_connect.return_value = False
-        res = interface._handle(1)
-        self.assertEqual(res, DATABASE_CONNECT_ERROR)
-
-        # test param verify
-        mock_connect.return_value = True
-        mock_scan_info.return_value = [
-            {
-                "host_id": "id1",
-                "status": "done"
-            },
-            {
-                "host_id": "id2",
-                "status": "done"
-            }
-        ]
-        args = {
-            "username": "a",
-            "host_list": ["id1", "id3"]
-        }
-        res = interface._handle(args)
-        self.assertEqual(res, PARAM_ERROR)
-
-        # test succeed
-        args['host_list'] = ["id1", "id2"]
-        mock_pre_handle.return_value = True
-        res = interface._handle(args)
-        self.assertEqual(res, SUCCEED)
-
     def test_param_verify(self):
         interface = VulScanHost()
         host_list = []
