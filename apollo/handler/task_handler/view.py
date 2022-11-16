@@ -18,7 +18,7 @@ Description: Handle about task related operation
 import threading
 import time
 import uuid
-from typing import Dict, Tuple
+from typing import Dict
 
 from flask import jsonify, request
 
@@ -27,19 +27,21 @@ from apollo.database import SESSION
 from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
-from apollo.function.utils import make_download_response
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.config import configuration
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
-
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import \
-    DATABASE_CONNECT_ERROR, REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR, \
+from vulcanus.restful.status import (
+    DATABASE_CONNECT_ERROR,
+    REPEAT_TASK_EXECUTION,
+    SUCCEED,
+    PARAM_ERROR,
     DATABASE_UPDATE_ERROR
+)
 
 
 class VulScanHost(BaseResponse):
@@ -265,9 +267,9 @@ class VulGenerateCveTask(BaseResponse):
 
         task_id = str(uuid.uuid1()).replace('-', '')
         args['task_id'] = task_id
-        args['task_type'] = 'cve'
+        args['task_type'] = 'cve fix'
         args['create_time'] = int(time.time())
-        status_code, basic_info = task_proxy.generate_cve_task(args)
+        status_code = task_proxy.generate_cve_task(args)
         if status_code != SUCCEED:
             LOGGER.error(
                 "Generate cve fix task fail, fail to save task info to database.")
@@ -284,6 +286,7 @@ class VulGenerateCveTask(BaseResponse):
             description (str)
             auto_reboot (bool, optional): when auto_reboot is set and reboot is true,
                                 the host will be rebooted after fixing cve
+            check_items (str)
             info (list): task info including cve id and related host info
 
         Returns:
@@ -587,27 +590,30 @@ class VulExecuteTask(BaseResponse):
     Restful interface for executing task.
     """
     type_map = {
-        "cve": "_handle_cve",
+        "cve fix": "_handle_cve_fix",
         "repo set": "_handle_repo"
     }
 
     @staticmethod
-    def _handle_cve(args, proxy):
+    def _handle_cve_fix(args: Dict, proxy: TaskProxy) -> int:
         """
         Handle cve task
 
         Args:
             args (dict)
-            proxy (object)
+            proxy (TaskProxy)
 
         Returns:
             int: status code
         """
         task_id = args['task_id']
-        # check host info
-        task_info = dict()
 
-        manager = CveFixManager(proxy, task_id, task_info)
+        manager = CveFixManager(proxy, task_id)
+        manager.token = args['token']
+        status_code = manager.create_task()
+        if status_code != SUCCEED:
+            return status_code
+
         if not manager.pre_handle():
             return DATABASE_UPDATE_ERROR
 
@@ -705,7 +711,10 @@ class VulDeleteTask(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request_db(DeleteTaskSchema, TaskProxy(configuration), "delete_task", SESSION))
+        return jsonify(self.handle_request_db(DeleteTaskSchema,
+                                              TaskProxy(configuration),
+                                              "delete_task",
+                                              SESSION))
 
 
 class VulRepoSetTaskCallback(BaseResponse):
