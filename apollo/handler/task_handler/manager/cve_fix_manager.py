@@ -94,7 +94,7 @@ class CveFixManager(Manager):
         else:
             LOGGER.info(
                 "Cve fixing task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("result") or []
+        self.result = response.get("result", {}).get("task_result") or []
 
     def post_handle(self):
         """

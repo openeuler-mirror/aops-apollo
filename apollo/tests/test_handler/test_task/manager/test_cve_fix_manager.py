@@ -107,7 +107,7 @@ class CveFixManagerTestCase(unittest.TestCase):
         manager = CveFixManager(Mock(), Mock())
         fake_result = Mock()
         mock_response.return_value = {
-            "code": SUCCEED, "result": fake_result}
+            "code": SUCCEED, "result": {"task_result": fake_result}}
         manager.handle()
         self.assertEqual(manager.result, fake_result)
 
