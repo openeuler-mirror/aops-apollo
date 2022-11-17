@@ -82,6 +82,7 @@ class GenerateCveTaskSchema(Schema):
     task_name = fields.String(required=True, validate=lambda s: len(s) != 0)
     description = fields.String(required=True)
     auto_reboot = fields.Boolean(required=False, default=True)
+    check_items = fields.String(required=False)
     info = fields.List(fields.Nested(CveInfoDictSchema), required=True,
                        validate=lambda s: len(s) > 0)
 
