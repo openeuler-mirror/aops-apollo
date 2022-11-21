@@ -20,6 +20,7 @@ import math
 from collections import defaultdict
 from time import time
 from typing import Tuple, Dict
+from sqlalchemy import case
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
@@ -139,7 +140,8 @@ class TaskMysqlProxy(MysqlProxy):
         """
         try:
             status_code = self._update_host_scan("init", host_list, username)
-            self.session.commit()
+            if status_code == SUCCEED:
+                self.session.commit()
             LOGGER.debug("Finished init host scan status.")
             return status_code
         except SQLAlchemyError as error:
@@ -222,8 +224,7 @@ class TaskMysqlProxy(MysqlProxy):
         if username:
             filters.add(Host.user == username)
 
-        hosts_status_query = self.session.query(Host.host_id, Host.status, Host.last_scan) \
-            .filter(*filters)
+        hosts_status_query = self.session.query(Host).filter(*filters)
         return hosts_status_query
 
     def save_scan_result(self, username, host_dict):
@@ -311,7 +312,9 @@ class TaskMysqlProxy(MysqlProxy):
         for cve_id in new_cve_list:
             user_cve_rows.append({"cve_id": cve_id, "username": username,
                                   "status": "not reviewed"})
-        self.session.bulk_insert_mappings(CveUserAssociation, user_cve_rows)
+        if user_cve_rows:
+            self.session.bulk_insert_mappings(
+                CveUserAssociation, user_cve_rows)
 
     def get_task_list(self, data):
         """
@@ -376,7 +379,7 @@ class TaskMysqlProxy(MysqlProxy):
         filters = self._get_task_list_filters(data.get("filter"))
         task_list_query = self._query_task_list(data["username"], filters)
 
-        total_count = len(task_list_query.all())
+        total_count = task_list_query.count()
         if not total_count:
             return result
 
@@ -726,14 +729,13 @@ class TaskMysqlProxy(MysqlProxy):
         username = data["username"]
 
         task_info_query = self._query_task_info_from_mysql(username, task_id)
-        if not task_info_query.all():
-            LOGGER.debug(
-                "No data found when getting the info of task: %s." %
-                task_id)
-            return NO_DATA, {"result": {}}
 
         # raise exception when multiple record found
-        task_info_data = task_info_query.one()
+        task_info_data = task_info_query.one_or_none()
+        if not task_info_data:
+            LOGGER.debug(
+                "No data found when getting the info of task: %s." % task_id)
+            return NO_DATA, {"result": {}}
 
         info_dict = self._task_info_row2dict(task_info_data)
         return SUCCEED, {"result": info_dict}
@@ -1421,11 +1423,11 @@ class TaskMysqlProxy(MysqlProxy):
                     TaskCveHostAssociation.cve_id == cve_id,
                     TaskCveHostAssociation.host_id == host_id)
 
-        if not status_query.all():
+        if not status_query.count():
             LOGGER.error(
                 "Updating cve host status failed due to no data found.")
             return NO_DATA
-        if len(status_query.all()) > 1:
+        if status_query.count() > 1:
             LOGGER.error(
                 "Updating cve host status failed due to internal error.")
             return DATABASE_UPDATE_ERROR
@@ -1468,13 +1470,14 @@ class TaskMysqlProxy(MysqlProxy):
         if cve_list:
             filters.add(CveTaskAssociation.cve_id.in_(cve_list))
 
-        progress_query = self.session.query(CveTaskAssociation.progress,
-                                            CveTaskAssociation.host_num) \
-            .filter(*filters)
+        progress_query = self.session.query(
+            CveTaskAssociation).filter(*filters)
 
         if method == "add":
-            progress_query.update({CveTaskAssociation.progress: min(CveTaskAssociation.progress + 1,
-                                                                    CveTaskAssociation.host_num)},
+            progress_query.update({CveTaskAssociation.progress:
+                                   case([(CveTaskAssociation.progress+1 < CveTaskAssociation.host_num,
+                                          CveTaskAssociation.progress+1)],
+                                        else_=CveTaskAssociation.host_num)},
                                   synchronize_session=False)
         elif method == "fill":
             progress_query.update({CveTaskAssociation.progress: CveTaskAssociation.host_num},
@@ -1522,8 +1525,7 @@ class TaskMysqlProxy(MysqlProxy):
             filters.add(TaskCveHostAssociation.cve_id.in_(cve_list))
 
         status_query = self.session.query(
-            TaskCveHostAssociation.status).filter(
-            *filters)
+            TaskCveHostAssociation).filter(*filters)
         status_query.update(
             {TaskCveHostAssociation.status: "running"}, synchronize_session=False)
 
@@ -1532,9 +1534,7 @@ class TaskMysqlProxy(MysqlProxy):
         if cve_list:
             filters.add(CveTaskAssociation.cve_id.in_(cve_list))
 
-        status_query = self.session.query(
-            CveTaskAssociation.progress).filter(
-            *filters)
+        status_query = self.session.query(CveTaskAssociation).filter(*filters)
         status_query.update({CveTaskAssociation.progress: 0},
                             synchronize_session=False)
 
@@ -1574,13 +1574,13 @@ class TaskMysqlProxy(MysqlProxy):
         set failed task's running hosts' status to "unknown"
         """
         if task_type == "cve fix":
-            host_query = self.session.query(TaskCveHostAssociation.status) \
+            host_query = self.session.query(TaskCveHostAssociation) \
                 .filter(TaskCveHostAssociation.task_id == task_id,
                         TaskCveHostAssociation.status == "running")
             host_query.update(
                 {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
         elif task_type == "repo set":
-            host_query = self.session.query(TaskHostRepoAssociation.status) \
+            host_query = self.session.query(TaskHostRepoAssociation) \
                 .filter(TaskHostRepoAssociation.task_id == task_id,
                         TaskHostRepoAssociation.status == "running")
             host_query.update(
@@ -1850,15 +1850,13 @@ class TaskMysqlProxy(MysqlProxy):
         type_query = self.session.query(Task.task_type) \
             .filter(Task.task_id == task_id, Task.username == username)
 
-        if not type_query.all():
+        if not type_query.count():
             LOGGER.error(
-                "Querying type of task '%s' failed due to no data found." %
-                task_id)
+                "Querying type of task '%s' failed due to no data found." % task_id)
             return NO_DATA, None
-        if len(type_query.all()) > 1:
+        if type_query.count() > 1:
             LOGGER.error(
-                "Querying type of task '%s' failed due to internal error." %
-                task_id)
+                "Querying type of task '%s' failed due to internal error." % task_id)
             return DATABASE_QUERY_ERROR, None
 
         task_type = type_query.one().task_type
@@ -1894,11 +1892,11 @@ class TaskMysqlProxy(MysqlProxy):
         """
         status_query = self.session.query(Task).filter(Task.task_id == task_id)
 
-        if not status_query.all():
+        if not status_query.count():
             LOGGER.error("Updating latest execute time of task '%s' failed due to no data found."
                          % task_id)
             return NO_DATA
-        if len(status_query.all()) > 1:
+        if status_query.count() > 1:
             LOGGER.error("Updating latest execute time of task '%s' failed due to internal error."
                          % task_id)
             return DATABASE_UPDATE_ERROR

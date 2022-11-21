@@ -100,7 +100,7 @@ class HostMysqlProxy(MysqlProxy):
         filters = self._get_host_list_filters(data.get("filter"))
         host_query = self._query_host_list(data["username"], filters)
 
-        total_count = len(host_query.all())
+        total_count = host_query.count()
         if not total_count:
             return result
 
@@ -144,13 +144,17 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
+        cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
+            CveHostAssociation.host_id).label("cve_num"))\
+            .filter(CveHostAssociation.affected == True)\
+            .group_by(CveHostAssociation.host_id).subquery()
+
         host_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
                                         Host.host_group_name, Host.repo_name, Host.last_scan,
-                                        func.count(CveHostAssociation.cve_id).label("cve_num")) \
-            .outerjoin(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
-            .filter(Host.user == username, CveHostAssociation.affected == True) \
-            .filter(*filters) \
-            .group_by(Host.host_id)
+                                        cve_host_subquery.c.cve_num) \
+            .outerjoin(cve_host_subquery, Host.host_id == cve_host_subquery.c.host_id) \
+            .filter(Host.user == username) \
+            .filter(*filters)
 
         return host_query
 
@@ -334,7 +338,7 @@ class HostMysqlProxy(MysqlProxy):
         username = data["username"]
 
         host_info_query = self._query_host_info(username, host_id)
-        if not host_info_query.all():
+        if not host_info_query.count():
             LOGGER.debug(
                 "No data found when getting the info of host: %s." % host_id)
             return NO_DATA, {"result": {}}
@@ -474,7 +478,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         host_cve_query = self._query_host_cve(
             data["username"], host_id, filters)
 
-        total_count = len(host_cve_query.all())
+        total_count = host_cve_query.count()
         if not total_count:
             return SUCCEED, result
 
