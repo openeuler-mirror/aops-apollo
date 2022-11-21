@@ -1339,7 +1339,7 @@ class TaskMysqlProxy(MysqlProxy):
             "task_id": basic_task.task_id,
             "task_name": basic_task.task_name,
             "task_type": basic_task.task_type,
-            "check_items": [] if basic_task.check_items else basic_task.check_items.split(','),
+            "check_items": [] if not basic_task.check_items else basic_task.check_items.split(','),
             "total_hosts": [],
             "tasks": []
         }
