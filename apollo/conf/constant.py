@@ -110,7 +110,7 @@ VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
 
 # elasticsearch index
-CVE_INDEX = 'cve_pkg'
+CVE_INDEX = 'cve'
 TASK_INDEX = "task"
 
 

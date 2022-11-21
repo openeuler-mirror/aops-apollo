@@ -329,18 +329,25 @@ class VulUploadUnaffected(BaseResponse):
 
     @staticmethod
     def _save_unaffected_cve(proxy, file_path):
+        """
+        Save unaffected cve advisory to mysql
+        Args:
+            proxy (CveProxy): connected CveProxy object
+            file_path (str): unaffected cve xml file path
+        Returns:
+            int: status code
+        """
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_table_rows, doc_list = parse_unaffected_cve(file_path)
+            cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
             os.remove(file_path)
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
-            LOGGER.error("Some error occurred when parsing unaffected '%s'." % file_name)
+            LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
             LOGGER.error(error)
             return SERVER_ERROR
 
-        status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_table_rows, doc_list)
-
+        status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_rows, doc_list)
         return status_code
 
     @staticmethod
@@ -363,10 +370,10 @@ class VulUploadUnaffected(BaseResponse):
         for file_path in file_path_list:
             file_name = os.path.basename(file_path)
             try:
-                cve_rows, cve_pkg_table_rows, doc_list = parse_unaffected_cve(file_path)
+                cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
             except (KeyError, ParseAdvisoryError) as error:
                 fail_list.append(file_name)
-                LOGGER.error("Some error occurred when parsing unaffected '%s'." % file_name)
+                LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
                 LOGGER.error(error)
                 continue
             except IsADirectoryError as error:
@@ -374,7 +381,7 @@ class VulUploadUnaffected(BaseResponse):
                 LOGGER.error("Folder %s cannot be parsed as an unaffected." % file_name)
                 LOGGER.error(error)
                 continue
-            status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_table_rows, doc_list)
+            status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_rows, doc_list)
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:

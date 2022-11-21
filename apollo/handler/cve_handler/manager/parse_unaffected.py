@@ -17,13 +17,10 @@ Description: parse unaffected cve xml file, insert into database
 """
 from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
-from collections import defaultdict
 
-from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.conf.constant import CVE_SEVERITY, CVSS_SCORE
-from apollo.database.proxy.cve import CveProxy
-from apollo.conf import configuration
-from apollo.database import SESSION
+from apollo.function.customize_exception import ParseAdvisoryError
+from apollo.handler.cve_handler.manager.parse_advisory import etree_to_dict
 
 __all__ = ["parse_unaffected_cve"]
 
@@ -37,6 +34,7 @@ def parse_unaffected_cve(xml_path):
     Returns:
         list: list of dict, each dict is a row for mysql Cve table
         list: list of dict, each dict is a document for es cve package index
+        list: list of dict, each dict is a document for es cve description
 
     Raises:
         KeyError, ParseXmlError, IsADirectoryError
@@ -50,40 +48,8 @@ def parse_unaffected_cve(xml_path):
 
     root = tree.getroot()
     xml_dict = etree_to_dict(root)
-    cve_rows, cve_pkg_table_rows, doc_list = parse_cvrf_dict(xml_dict)
-    return cve_rows, cve_pkg_table_rows, doc_list
-
-
-def etree_to_dict(node):
-    """
-    parse the cvrf xml str to dict. openEuler is supported, other OS has not been tested yet.
-    Args:
-        node (xml.etree.ElementTree.Element): xml ElementTree's node
-
-    Returns:
-        dict
-    """
-    node_name = node.tag.split("}")[1]
-    node_dict = {node_name: {} if node.attrib else None}
-
-    children = list(node)
-    if children:
-        dd = defaultdict(list)
-        for dc in map(etree_to_dict, children):
-            for k, v in dc.items():
-                dd[k].append(v)
-        node_dict = {node_name: {k: v[0] if len(v) == 1 else v for k, v in dd.items()}}
-    # add node's attribute into node's dict
-    if node.attrib:
-        node_dict[node_name].update((k, v) for k, v in node.attrib.items())
-    if node.text:
-        text = node.text.strip()
-        if children or node.attrib:
-            if text:
-                node_dict[node_name]["text"] = text
-        else:
-            node_dict[node_name] = text
-    return node_dict
+    cve_rows, cve_pkg_rows, doc_list = parse_cvrf_dict(xml_dict)
+    return cve_rows, cve_pkg_rows, doc_list
 
 
 def parse_cvrf_dict(cvrf_dict):
@@ -98,14 +64,14 @@ def parse_cvrf_dict(cvrf_dict):
         list: e.g.
             [{'cve_id': 'CVE-2021-43809',
               'description': 'a long description',
-              }]  // SP2 dict is omitted here
+              }]
 
     Raises:
         ParseXmlError
     """
     cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
     cve_table_rows = []
-    cve_pkg_table_rows = []
+    cve_pkg_rows = []
     doc_list = []
     for cve_info in cve_info_list:
         product_id = cve_info["ProductStatuses"]["Status"]["ProductID"]
@@ -125,18 +91,18 @@ def parse_cvrf_dict(cvrf_dict):
             "affected_os": None,
             "unaffected_os": product_id
         }
-        cve_pkg_table_rows.append({
+        cve_table_rows.append(cve_row)
+        cve_pkg_rows.append({
             "cve_id": cve_info["CVE"],
             "package": remediation["Description"]
         })
-        cve_table_rows.append(cve_row)
         description = cve_info["Notes"]["Note"].get("text", "")
         doc_list.append({
             "cve_id": cve_info["CVE"],
             "description": description
         })
 
-    return cve_table_rows, cve_pkg_table_rows, doc_list
+    return cve_table_rows, cve_pkg_rows, doc_list
 
 
 def parse_cve_severity(cve_score: str) -> str:

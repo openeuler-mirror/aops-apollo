@@ -15,8 +15,7 @@ import zipfile
 
 from vulcanus.log.log import LOGGER
 
-
-__all__ = ["unzip"]
+__all__ = ["unzip", "compress_cve"]
 
 
 def unzip(file_path, max_size=20*1024*1024, max_num=500):
@@ -33,6 +32,7 @@ def unzip(file_path, max_size=20*1024*1024, max_num=500):
         srcfile = zipfile.ZipFile(file_path, 'r')
     except (FileNotFoundError, IsADirectoryError, zipfile.BadZipFile) as error:
         LOGGER.error(error)
+        srcfile.close()
         return ""
 
     file_num = len(srcfile.infolist())
@@ -40,6 +40,7 @@ def unzip(file_path, max_size=20*1024*1024, max_num=500):
         os.remove(file_path)
         LOGGER.error("The number of decompressed file exceeds the limit: %d > %d"
                      % (file_num, max_num))
+        srcfile.close()
         return ""
 
     total_size = 0
@@ -49,6 +50,7 @@ def unzip(file_path, max_size=20*1024*1024, max_num=500):
         os.remove(file_path)
         LOGGER.error("The size of decompressed file exceeds the limit: %d > %d"
                      % (total_size, max_size))
+        srcfile.close()
         return ""
 
     folder_path = file_path + "_dir"

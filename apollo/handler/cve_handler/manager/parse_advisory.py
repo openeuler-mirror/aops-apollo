@@ -22,7 +22,6 @@ from collections import defaultdict
 from vulcanus.log.log import LOGGER
 from apollo.function.customize_exception import ParseAdvisoryError
 
-
 __all__ = ["parse_security_advisory"]
 
 
@@ -117,12 +116,12 @@ def parse_cvrf_dict(cvrf_dict):
         cve_info_list = [cve_info_list]
 
     try:
-        cve_table_rows, cve_pkg_table_rows, cve_description = parse_cve_info(cve_info_list, pkg_list)
+        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, pkg_list)
         es_cve_pkg_docs = parse_arch_info(cve_description)
     except (KeyError, TypeError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the advisory xml.")
-    return cve_table_rows, cve_pkg_table_rows, es_cve_pkg_docs
+    return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs
 
 
 def parse_cve_info(cve_info_list, affected_pkgs):
@@ -164,14 +163,14 @@ def parse_cve_info(cve_info_list, affected_pkgs):
         dict: cve id mapped with its description
     """
     cve_table_rows = []
-    cve_pkg_table_rows = []
+    cve_pkg_rows = []
     cve_description = {}
 
     for cve_info in cve_info_list:
         cve_id = cve_info["CVE"]
         product_id = cve_info["ProductStatuses"]["Status"]["ProductID"]
         if isinstance(product_id, list):
-            product_id = ';'.join(product_id)
+            product_id = ','.join(product_id)
 
         cve_row = {
             "cve_id": cve_id,
@@ -184,13 +183,13 @@ def parse_cve_info(cve_info_list, affected_pkgs):
         }
         cve_table_rows.append(cve_row)
         for pkg in affected_pkgs:
-            cve_pkg_table_rows.append({"cve_id": cve_id, "package": pkg})
+            cve_pkg_rows.append({"cve_id": cve_id, "package": pkg})
 
         # some cve may not have the 'text' key, which is description
         description = cve_info["Notes"]["Note"].get("text", "")
         cve_description[cve_id] = description
 
-    return cve_table_rows, cve_pkg_table_rows, cve_description
+    return cve_table_rows, cve_pkg_rows, cve_description
 
 
 def parse_arch_info(cve_description):
@@ -200,9 +199,10 @@ def parse_arch_info(cve_description):
         cve_description (dict): cve id mapped with its description
     Returns:
         list: e.g.
-            [{'cve_id': 'CVE-2021-43809',
-              'description': 'a long description',
-              }]  // SP2 dict is omitted here
+            [{
+                'cve_id': 'CVE-2021-43809',
+                'description': 'a long description',
+            }]
     """
     doc_list = []
     for cve_id, description in cve_description.items():
