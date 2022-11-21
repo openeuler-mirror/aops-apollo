@@ -15,25 +15,27 @@ Time:
 Author:
 Description: Handle about cve related operation
 """
-import os
-from time import sleep
 import glob
+import os
 import shutil
+from time import sleep
+
 from flask import jsonify
 
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
-    SERVER_ERROR, WRONG_FILE_FORMAT
-from vulcanus.restful.response import BaseResponse
-from vulcanus.database.helper import judge_return_code
-from apollo.database import SESSION
 from apollo.conf import configuration
+from apollo.database import SESSION
+from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
+from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \
     GetCveTaskHostSchema, SetCveStatusSchema, GetCveActionSchema
-from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
-from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.decompress import unzip
-from apollo.function.customize_exception import ParseAdvisoryError
+from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
+from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
+from vulcanus.database.helper import judge_return_code
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
+    SERVER_ERROR, WRONG_FILE_FORMAT
 
 
 class VulGetCveOverview(BaseResponse):
@@ -287,3 +289,129 @@ class VulUploadAdvisory(BaseResponse):
             dict: response body
         """
         return jsonify(self.make_response(self._handle()))
+
+
+class VulUploadUnaffected(BaseResponse):
+    """
+    Restful interface for importing unaffected cve xml (compressed files or single file)
+    """
+
+    def _handle(self):
+        """
+        Handle uploading unaffected cve xml files
+        Returns:
+            int: status code
+        """
+        __here__ = os.path.dirname(os.path.abspath(__file__))
+        save_path = os.path.join(__here__, "upload_files/")
+        status, username, file_name = self.verify_upload_request(save_path)
+
+        if status != SUCCEED:
+            return status
+
+        file_path = os.path.join(save_path, username, file_name)
+        # connect to database
+        proxy = CveProxy(configuration)
+        if not proxy.connect(SESSION):
+            LOGGER.error("Connect to database fail.")
+            return DATABASE_CONNECT_ERROR
+
+        suffix = file_name.split('.')[-1]
+        if suffix == "xml":
+            status_code = self._save_unaffected_cve(proxy, file_path)
+        else:
+            folder_path = unzip(file_path)
+            if not folder_path:
+                LOGGER.error("Unzip file '%s' failed." % file_name)
+                return WRONG_FILE_FORMAT
+            status_code = self._save_compressed_unaffected_cve(proxy, folder_path)
+        return status_code
+
+    @staticmethod
+    def _save_unaffected_cve(proxy, file_path):
+        file_name = os.path.basename(file_path)
+        try:
+            cve_rows, cve_pkg_table_rows, doc_list = parse_unaffected_cve(file_path)
+            os.remove(file_path)
+        except (KeyError, ParseAdvisoryError) as error:
+            os.remove(file_path)
+            LOGGER.error("Some error occurred when parsing unaffected '%s'." % file_name)
+            LOGGER.error(error)
+            return SERVER_ERROR
+
+        status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_table_rows, doc_list)
+
+        return status_code
+
+    @staticmethod
+    def _save_compressed_unaffected_cve(proxy, folder_path):
+        """
+        save unaffected into database
+        Args:
+            proxy (CveProxy): connected CveProxy object
+            folder_path (str): decompressed folder
+        Returns:
+            int
+
+        Raises:
+            ParseXmlError
+        """
+        file_path_list = glob.glob(folder_path + '/*')
+
+        succeed_list = []
+        fail_list = []
+        for file_path in file_path_list:
+            file_name = os.path.basename(file_path)
+            try:
+                cve_rows, cve_pkg_table_rows, doc_list = parse_unaffected_cve(file_path)
+            except (KeyError, ParseAdvisoryError) as error:
+                fail_list.append(file_name)
+                LOGGER.error("Some error occurred when parsing unaffected '%s'." % file_name)
+                LOGGER.error(error)
+                continue
+            except IsADirectoryError as error:
+                fail_list.append(file_name)
+                LOGGER.error("Folder %s cannot be parsed as an unaffected." % file_name)
+                LOGGER.error(error)
+                continue
+            status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_table_rows, doc_list)
+            if status_code != SUCCEED:
+                fail_list.append(file_name)
+            else:
+                succeed_list.append(file_name)
+        shutil.rmtree(folder_path)
+
+        if fail_list:
+            fail_list_str = ','.join(fail_list)
+            LOGGER.warning("The unaffected cve '%s' insert failed." % fail_list_str)
+
+        status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
+        status_code = judge_return_code(status_dict, DATABASE_INSERT_ERROR)
+        return status_code
+
+    def post(self):
+        """
+        Get rar/zip/rar compressed package or single xml file, decompress and insert data
+        into database
+
+        Returns:
+            dict: response body
+        """
+        return jsonify(self.make_response(self._handle()))
+
+
+class VulExportExcel(BaseResponse):
+    """
+    Restful interface for export cve to excel
+    """
+
+    def post(self):
+        """
+        Get rar/zip/rar compressed package or single xml file, decompress and insert data
+        into database
+
+        Returns:
+            dict: response body
+        """
+        return self.handle_send_file(None, CveProxy(configuration),
+                                     "save_to_excel", SESSION)

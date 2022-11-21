@@ -15,21 +15,27 @@ Time:
 Author:
 Description: Host table operation
 """
-from time import sleep
+import os
+import shutil
 from collections import defaultdict
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import func, tuple_
-from elasticsearch import ElasticsearchException
+from time import sleep
 
-from vulcanus.log.log import LOGGER
+from elasticsearch import ElasticsearchException
+from sqlalchemy import func, tuple_
+from sqlalchemy.exc import SQLAlchemyError
+
+from apollo.conf.constant import FILE_NUMBER
+from apollo.database.mapping import CVE_INDEX
+from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
+from apollo.function.customize_exception import EsOperationError
+from apollo.handler.cve_handler.manager.decompress import compress_cve
+from apollo.handler.cve_handler.manager.save_to_excel import export_excel
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.database.table import Host
+from vulcanus.log.log import LOGGER
 from vulcanus.restful.status import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
     SUCCEED, DATABASE_UPDATE_ERROR
-from vulcanus.database.table import Host
-from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
-from apollo.database.mapping import CVE_PKG_INDEX
-from apollo.function.customize_exception import EsOperationError
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -540,10 +546,9 @@ class CveEsProxy(ElasticsearchProxy):  # pylint:disable=too-few-public-methods
             EsOperationError
         """
         query_body = self._general_body()
-
         query_body['query']['bool']['must'].append(
-            {"terms": {"cve_id": cve_list}})
-        operation_code, res = self.query(CVE_PKG_INDEX, query_body,
+            {"terms": {"cve_id.keyword": cve_list}})
+        operation_code, res = self.query(CVE_INDEX, query_body,
                                          source=["cve_id", "description"])
 
         if not operation_code:
@@ -928,6 +933,67 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         }
         return cve_info
 
+    def save_unaffected_cve(self, file_name, cve_rows, cve_pkg_table_rows, doc_list):
+        """
+        save unaffected cve to mysql and es
+        Args:
+            file_name (str): unaffected cve's name
+
+        Returns:
+            int: status code
+        """
+        try:
+            self._save_unaffected_cve(cve_rows, cve_pkg_table_rows, doc_list)
+            self.session.commit()
+            LOGGER.debug("Finished saving unaffected cve '%s'." % file_name)
+            return SUCCEED
+        except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error(
+                "Saving unaffected cve '%s' failed due to internal error." % file_name)
+            return DATABASE_INSERT_ERROR
+
+    def _save_unaffected_cve(self, cve_rows, cve_pkg_table_rows, doc_list):
+        """
+        save data into mysql
+
+        Args:
+            cve_rows (list): list of dict to insert to mysql Cve table
+
+        Raises:
+            SQLAlchemyError
+        """
+        cve_list = [row_dict["cve_id"] for row_dict in cve_rows]
+        cve_query = self.session.query(
+            Cve.cve_id).filter(Cve.cve_id.in_(cve_list))
+        update_cve_set = {row.cve_id for row in cve_query}
+
+        update_cve_rows = []
+        insert_cve_rows = []
+        for row in cve_rows:
+            if row["cve_id"] in update_cve_set:
+                update_cve_rows.append(row)
+            else:
+                insert_cve_rows.append(row)
+
+        # Cve table need commit after add, otherwise following insertion will fail due to
+        # Cve.cve_id foreign key constraint.
+        # In some case the cve may already exist and some info may changed like cvss score,
+        # here we choose insert + commit then update instead of session.merge(), so that when
+        # rolling back due to some error, the updated info can be rolled back
+        self.session.bulk_insert_mappings(Cve, insert_cve_rows)
+        self.session.commit()
+        try:
+            self.session.bulk_update_mappings(Cve, update_cve_rows)
+            self._insert_cve_pkg_rows(cve_pkg_table_rows)
+            self._save_cve_pkg_docs(doc_list)
+        except (SQLAlchemyError, ElasticsearchException, EsOperationError):
+            self.session.rollback()
+            self._delete_cve_rows(insert_cve_rows)
+            self.session.commit()
+            raise
+
     def save_security_advisory(self, file_name, cve_rows, cve_pkg_rows, cve_pkg_docs):
         """
         save security advisory to mysql and es
@@ -935,7 +1001,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             file_name (str): security advisory's name
             cve_rows (list): list of dict to insert to mysql Cve table
             cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
-            cve_pkg_docs (list): list of dict to insert to es CVE_PKG_INDEX
+            cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
 
         Returns:
             int: status code
@@ -959,7 +1025,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             cve_rows (list): list of dict to insert to mysql Cve table
             cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
-            cve_pkg_docs (list): list of dict to insert to es CVE_PKG_INDEX
+            cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
 
         Raises:
             SQLAlchemyError, ElasticsearchException, EsOperationError
@@ -1015,20 +1081,13 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
     def _save_cve_pkg_docs(self, cve_pkg_docs):
         """
-        insert docs into es CVE_PKG_INDEX, document id is cve's id
+        insert docs into es CVE_INDEX, document id is cve's id
         if the cve already exist, add rpm package to specific arch's package list (if a package's
         version or release update, still add it to list directly)
         Args:
             cve_pkg_docs (list):
                 [{'cve_id': 'CVE-2021-43809',
-                  'description': 'a long description',
-                  'os_list': [{'arch_list': [{'arch': 'noarch',
-                                              'package': ['xxx-1.0.0-1.oe1.noarch.rpm',
-                                                          'xxx-help-1.0.0-1.oe1.noarch.rpm']},
-                                             {'arch': 'src',
-                                              'package': ['xxx-1.0.0-1.oe1.src.rpm']}],
-                               'os_version': 'openEuler:20.03-LTS-SP1',
-                               'update_time': '2021-12-31'}]}]  // SP2 dict is omitted here
+                  'description': 'a long description'}]  // SP2 dict is omitted here
         Raises:
             EsOperationError
         """
@@ -1071,7 +1130,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         query_body['query']['bool']['must'].append(
             {"terms": {"_id": cve_list}})
         operation_code, res = self.query(
-            CVE_PKG_INDEX, query_body, source=True)
+            CVE_INDEX, query_body, source=True)
 
         if not operation_code:
             raise EsOperationError("Query exist cve in elasticsearch failed.")
@@ -1081,7 +1140,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
     def _insert_cve_pkg_docs(self, cve_pkg_docs):
         """
-        insert new cve info into es CVE_PKG_INDEX
+        insert new cve info into es CVE_INDEX
         Args:
             cve_pkg_docs (list): list of doc dict
 
@@ -1091,7 +1150,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         action = []
         for item in cve_pkg_docs:
             action.append({
-                "_index": CVE_PKG_INDEX,
+                "_index": CVE_INDEX,
                 "_source": item,
                 "_id": item["cve_id"]})
 
@@ -1101,7 +1160,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
     def _update_cve_pkg_docs(self, exist_docs, update_docs):
         """
-        update cve's package info in es CVE_PKG_INDEX
+        update cve's package info in es CVE_INDEX
         Args:
             exist_docs (list): the doc already exist in es
             update_docs (list): the doc to be updated to es
@@ -1126,7 +1185,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 action.append({
                     "_id": cve_id,
                     "_source": merged_doc,
-                    "_index": CVE_PKG_INDEX})
+                    "_index": CVE_INDEX})
         except (KeyError, TypeError) as error:
             raise EsOperationError("Update docs into elasticsearch failed when process data, "
                                    "%s." % error) from error
@@ -1141,14 +1200,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         merge two doc together
         doc format:
         {'cve_id': 'CVE-2021-43809',
-         'description': 'a long description',
-         'os_list': [{'arch_list': [{'arch': 'noarch',
-                                     'package': ['rubygem-bundler-2.2.33-1.oe1.noarch.rpm',
-                                                 'rubygem-bundler-help-2.2.33-1.oe1.noarch.rpm']},
-                                    {'arch': 'src',
-                                     'package': ['rubygem-bundler-2.2.33-1.oe1.src.rpm']}],
-                      'os_version': 'openEuler:20.03-LTS-SP1',
-                      'update_time': '2021-12-31'}]}
+         'description': 'a long description'
+         }
         Args:
             old_doc (dict): exist doc
             new_doc (dict): update doc
@@ -1157,42 +1210,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             dict: merged doc
         """
 
-        def reformat_os_list(os_list):
-            os_dict = {}
-            for os_info in os_list:
-                os_dict[os_info["os_version"]] = os_info
-            return os_dict
-
-        def reformat_arch_list(arch_list):
-            arch_dict = {}
-            for arch_info in arch_list:
-                arch_dict[arch_info["arch"]] = arch_info
-            return arch_dict
-
-        def merge_arch_list(old_os_data, new_os_data):
-            old_arch_dict = reformat_arch_list(old_os_data["arch_list"])
-            new_arch_list = new_os_data["arch_list"]
-            for new_arch_info in new_arch_list:
-                arch_name = new_arch_info["arch"]
-                if arch_name in old_arch_dict:
-                    old_arch_info = old_arch_dict.pop(arch_name)
-                    pkgs_set = set(new_arch_info["package"]) | set(
-                        old_arch_info["package"])
-                    new_arch_info["package"] = list(pkgs_set)
-            for left_arch_info in old_arch_dict.values():
-                new_arch_list.append(left_arch_info)
-
-        old_os_dict = reformat_os_list(old_doc["os_list"])
-        new_os_list = new_doc["os_list"]
-        for new_os_info in new_os_list:
-            os_version = new_os_info["os_version"]
-            if os_version in old_os_dict:
-                old_os_info = old_os_dict.pop(os_version)
-                merge_arch_list(old_os_info, new_os_info)
-
-        for left_os_info in old_os_dict.values():
-            new_os_list.append(left_os_info)
-        return new_doc
+        old_doc["cve_id"] = new_doc["cve_id"]
+        return old_doc
 
     def _delete_cve_pkg_docs(self, cve_list):
         """
@@ -1209,7 +1228,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         delete_body = self._general_body()
         delete_body["query"]["bool"]["must"].append(
             {"terms": {"_id": cve_list}})
-        status = self.delete(CVE_PKG_INDEX, delete_body)
+        status = self.delete(CVE_INDEX, delete_body)
         if not status:
             LOGGER.error("Roll back advisory insertion in es failed due to es error, record of "
                          "cve '%s' remain in es." % cve_list)

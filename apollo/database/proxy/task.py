@@ -15,28 +15,29 @@ Time:
 Author:
 Description: vulnerability related database operation
 """
-import json
-import math
-from collections import defaultdict
 from time import time
-from typing import Tuple, Dict
-
-import sqlalchemy.orm
-from elasticsearch import ElasticsearchException
+import math
+import json
+from collections import defaultdict
+from typing import Dict, Tuple
+import sqlalchemy
+from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
+from elasticsearch import ElasticsearchException
 
-from apollo.conf.constant import TASK_INDEX, REPO_FILE, REPO_STATUS
-from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
-    CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
-from apollo.function.customize_exception import EsOperationError
+from apollo.database import SESSION
+from vulcanus.log.log import LOGGER
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
-from vulcanus.database.table import Host, User
-from vulcanus.log.log import LOGGER
 from vulcanus.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
     DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, SUCCEED, PARAM_ERROR, SERVER_ERROR, PARTIAL_SUCCEED
+from vulcanus.database.table import Host, User
+from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
+    CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
+from apollo.conf.constant import REPO_FILE, REPO_STATUS, TASK_INDEX
+from apollo.function.customize_exception import EsOperationError
 
-task_types = ["cve fix", "repo set", "cve scan"]
+task_types = ["cve fix", "repo set"]
 
 
 class TaskMysqlProxy(MysqlProxy):

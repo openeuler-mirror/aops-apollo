@@ -58,6 +58,6 @@ def unzip(file_path, max_size=20*1024*1024, max_num=500):
 
     for info in srcfile.infolist():
         srcfile.extract(info.filename, folder_path)
-
+    srcfile.close()
     os.remove(file_path)
     return folder_path

@@ -99,8 +99,6 @@ def parse_cvrf_dict(cvrf_dict):
     Raises:
         ParseXmlError
     """
-    publish_time = cvrf_dict["cvrfdoc"]["DocumentTracking"]["RevisionHistory"]["Revision"]["Date"]
-
     # affected package of this security advisory. joined with ',' if have multiple packages
     cvrf_note = cvrf_dict["cvrfdoc"]["DocumentNotes"]["Note"]
     affected_pkgs = ""
@@ -113,7 +111,6 @@ def parse_cvrf_dict(cvrf_dict):
         raise ParseAdvisoryError("Affected component (packages) is not list in this xml file.")
 
     pkg_list = affected_pkgs.split(",")
-    arch_info_list = cvrf_dict["cvrfdoc"]["ProductTree"]["Branch"]
     cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
 
     if isinstance(cve_info_list, dict):
@@ -121,7 +118,7 @@ def parse_cvrf_dict(cvrf_dict):
 
     try:
         cve_table_rows, cve_pkg_table_rows, cve_description = parse_cve_info(cve_info_list, pkg_list)
-        es_cve_pkg_docs = parse_arch_info(arch_info_list, cve_description, publish_time)
+        es_cve_pkg_docs = parse_arch_info(cve_description)
     except (KeyError, TypeError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the advisory xml.")
@@ -172,12 +169,18 @@ def parse_cve_info(cve_info_list, affected_pkgs):
 
     for cve_info in cve_info_list:
         cve_id = cve_info["CVE"]
+        product_id = cve_info["ProductStatuses"]["Status"]["ProductID"]
+        if isinstance(product_id, list):
+            product_id = ';'.join(product_id)
+
         cve_row = {
             "cve_id": cve_id,
             "publish_time": cve_info["ReleaseDate"],
             "severity": cve_info["Threats"]["Threat"]["Description"],
             "cvss_score": cve_info["CVSSScoreSets"]["ScoreSet"]["BaseScore"],
-            "reboot": False
+            "reboot": False,
+            "affected_os": product_id,
+            "unaffected_os": None
         }
         cve_table_rows.append(cve_row)
         for pkg in affected_pkgs:
@@ -190,86 +193,19 @@ def parse_cve_info(cve_info_list, affected_pkgs):
     return cve_table_rows, cve_pkg_table_rows, cve_description
 
 
-def parse_arch_info(arch_info_list, cve_description, publish_time):
+def parse_arch_info(cve_description):
     """
     get es cve fixing documents for elasticsearch insertion
     Args:
         cve_description (dict): cve id mapped with its description
-        publish_time (str): publish time of the security advisory. For same cve and os version,
-                            new advisory will overwrite the old one
-        arch_info_list (list): affected os version and arch's packages' info. e.g.
-            [{'Name': 'openEuler',
-              'Type': 'Product Name',
-              'FullProductName': [{'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP1',
-                                   'ProductID': 'openEuler-20.03-LTS-SP1',
-                                   'text': 'openEuler-20.03-LTS-SP1'},
-                                  {'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP2',
-                                   'ProductID': 'openEuler-20.03-LTS-SP2',
-                                   'text': 'openEuler-20.03-LTS-SP2'}]},
-             {'Name': 'noarch',
-              'Type': 'Package Arch',
-              'FullProductName': [{'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP1',
-                                   'ProductID': 'rubygem-bundler-2.2.33-1',
-                                   'text': 'rubygem-bundler-2.2.33-1.oe1.noarch.rpm'},
-                                  {'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP1',
-                                   'ProductID': 'rubygem-bundler-help-2.2.33-1',
-                                   'text': 'rubygem-bundler-help-2.2.33-1.oe1.noarch.rpm'},
-                                  {'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP2',
-                                   'ProductID': 'rubygem-bundler-help-2.2.33-1',
-                                   'text': 'rubygem-bundler-help-2.2.33-1.oe1.noarch.rpm'},
-                                  {'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP2',
-                                   'ProductID': 'rubygem-bundler-2.2.33-1',
-                                   'text': 'rubygem-bundler-2.2.33-1.oe1.noarch.rpm'}]},
-             {'Name': 'src',
-              'Type': 'Package Arch',
-              'FullProductName': [{'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP1',
-                                   'ProductID': 'rubygem-bundler-2.2.33-1',
-                                   'text': 'rubygem-bundler-2.2.33-1.oe1.src.rpm'},
-                                  {'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP2',
-                                   'ProductID': 'rubygem-bundler-2.2.33-1',
-                                   'text': 'rubygem-bundler-2.2.33-1.oe1.src.rpm'}]}]
     Returns:
         list: e.g.
             [{'cve_id': 'CVE-2021-43809',
               'description': 'a long description',
-              'os_list': [{'arch_list': [{'arch': 'noarch',
-                                          'package': ['rubygem-bundler-2.2.33-1.oe1.noarch.rpm',
-                                                      'rubygem-bundler-help-2.2.33-1.oe1.noarch.rpm']},
-                                         {'arch': 'src',
-                                          'package': ['rubygem-bundler-2.2.33-1.oe1.src.rpm']}],
-                           'os_version': 'openEuler:20.03-LTS-SP1',
-                           'update_time': '2021-12-31'}]}]  // SP2 dict is omitted here
+              }]  // SP2 dict is omitted here
     """
-    def defaultdict_list():
-        return defaultdict(list)
-
-    # process xml data
-    os_dict = defaultdict(defaultdict_list)
-    for arch_info in arch_info_list:
-        if arch_info["Type"] == "Product Name":
-            continue
-        arch = arch_info["Name"]
-        pkg_info_list = arch_info["FullProductName"]
-        if isinstance(pkg_info_list, dict):
-            os_version = pkg_info_list["CPE"].split(":", 3)[-1]
-            os_dict[os_version][arch].append(pkg_info_list["text"])
-            continue
-        for pkg_info in pkg_info_list:
-            # split the cpe value 3 times and get the last part
-            os_version = pkg_info["CPE"].split(":", 3)[-1]
-            os_dict[os_version][arch].append(pkg_info["text"])
-
-    # change to the format we want
-    os_list = []
-    for os_version, arch_dict in os_dict.items():
-        arch_list = []
-        for arch_name, arch_pkgs in arch_dict.items():
-            arch_list.append({"arch": arch_name, "package": arch_pkgs})
-        current_os_dict = {"os_version": os_version, "update_time": publish_time, "arch_list": arch_list}
-        os_list.append(current_os_dict)
-
     doc_list = []
     for cve_id, description in cve_description.items():
-        doc_dict = {"cve_id": cve_id, "description": description, "os_list": os_list}
+        doc_dict = {"cve_id": cve_id, "description": description}
         doc_list.append(doc_dict)
     return doc_list

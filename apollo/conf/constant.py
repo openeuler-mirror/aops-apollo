@@ -50,6 +50,21 @@ class CVE_SCAN_STATUS:
     DONE = "done"
 
 
+class CVSS_SCORE:
+    HIGH = 9
+    MEDIUM = 7
+    LOW = 4
+    NONE = 0
+
+
+class CVE_SEVERITY:
+    CRITICAL = "Critical"
+    HIGH = "High"
+    MEDIUM = "Medium"
+    LOW = "Low"
+    NONE = "None"
+
+
 # route of repo related interface
 VUL_REPO_IMPORT = "/vulnerability/repo/import"
 VUL_REPO_GET = "/vulnerability/repo/get"
@@ -66,6 +81,7 @@ VUL_CVE_TASK_HOST_GET = "/vulnerability/cve/task/host/get"
 VUL_CVE_STATUS_SET = "/vulnerability/cve/status/set"
 VUL_CVE_ACTION_QUERY = "/vulnerability/cve/action/query"
 VUL_CVE_UPLOAD_ADVISORY = "/vulnerability/cve/advisory/upload"
+VUL_CVE_UPLOAD_UNAFFECTED = "/vulnerability/cve/unaffected/upload"
 
 # route of host related interface
 VUL_HOST_SCAN = "/vulnerability/host/scan"
@@ -94,8 +110,8 @@ VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
 
 # elasticsearch index
-CVE_PKG_INDEX = 'cve_pkg'
-TASK_INDEX = "cve_task"
+CVE_INDEX = 'cve_pkg'
+TASK_INDEX = "task"
 
 
 # elasticsearch testcase run flag. NEVER TURN IT TO TRUE IN PRODUCTION ENVIRONMENT.
