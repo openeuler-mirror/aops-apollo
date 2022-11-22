@@ -49,8 +49,9 @@ class RepoProxy(MysqlProxy):
         """
         try:
             status_code = self._insert_repo(data)
-            self.session.commit()
-            LOGGER.debug("Finished inserting new repo.")
+            if status_code == SUCCEED:
+                self.session.commit()
+                LOGGER.debug("Finished inserting new repo.")
             return status_code
         except SQLAlchemyError as error:
             self.session.rollback()
@@ -93,9 +94,8 @@ class RepoProxy(MysqlProxy):
         """
         repo_count = self.session.query(func.count(Repo.repo_id)) \
             .filter(Repo.repo_name == repo_name, Repo.username == username).scalar()
-        if repo_count:
-            return True
-        return False
+
+        return True if repo_count else False
 
     def update_repo(self, data):
         """
@@ -114,8 +114,9 @@ class RepoProxy(MysqlProxy):
         """
         try:
             status_code = self._update_repo(data)
-            self.session.commit()
-            LOGGER.debug("Finished Updating repo info.")
+            if status_code == SUCCEED:
+                self.session.commit()
+                LOGGER.debug("Finished Updating repo info.")
             return status_code
         except SQLAlchemyError as error:
             self.session.rollback()
@@ -136,7 +137,8 @@ class RepoProxy(MysqlProxy):
         username = data["username"]
 
         if not self._if_repo_name_exists(repo_name, username):
-            LOGGER.debug("Update repo failed due to repo '%s' doesn't exist." % repo_name)
+            LOGGER.debug(
+                "Update repo failed due to repo '%s' doesn't exist." % repo_name)
             return NO_DATA
 
         repo_data = data["repo_data"]
@@ -210,7 +212,8 @@ class RepoProxy(MysqlProxy):
         fail_list = list(set(repo_list) - set(succeed_list))
 
         if fail_list:
-            LOGGER.debug("No data found when getting the info of repo: %s." % fail_list)
+            LOGGER.debug(
+                "No data found when getting the info of repo: %s." % fail_list)
 
         status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
         status_code = judge_return_code(status_dict, NO_DATA)
@@ -263,8 +266,9 @@ class RepoProxy(MysqlProxy):
         """
         try:
             status_code = self._delete_repo(data)
-            self.session.commit()
-            LOGGER.debug("Finished deleting repo info.")
+            if status_code == SUCCEED:
+                self.session.commit()
+                LOGGER.debug("Finished deleting repo info.")
             return status_code
         except SQLAlchemyError as error:
             self.session.rollback()
@@ -286,12 +290,14 @@ class RepoProxy(MysqlProxy):
 
         fail_list = self._get_repo_in_use(username, repo_list)
         if fail_list:
-            LOGGER.debug("Repos are still in use when deleting repo: %s." % fail_list)
+            LOGGER.debug(
+                "Repos are still in use when deleting repo: %s." % fail_list)
             return DATA_DEPENDENCY_ERROR
 
         # query and delete.
         # delete() is not applicable to 'in_' method without synchronize_session=False
-        self._query_repo_list_info(username, repo_list).delete(synchronize_session=False)
+        self._query_repo_list_info(username, repo_list).delete(
+            synchronize_session=False)
         return SUCCEED
 
     def _get_repo_in_use(self, username, repo_list):

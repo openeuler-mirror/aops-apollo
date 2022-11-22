@@ -189,7 +189,7 @@ class CveMysqlProxy(MysqlProxy):
         cve_hosts_query = self._query_cve_hosts(
             data["username"], cve_id, filters)
 
-        total_count = len(cve_hosts_query.all())
+        total_count = cve_hosts_query.count()
         if not total_count:
             LOGGER.debug(
                 "No data found when getting the hosts of cve: %s." % cve_id)
@@ -390,8 +390,9 @@ class CveMysqlProxy(MysqlProxy):
         """
         try:
             status_code = self._update_cve_status(data)
-            self.session.commit()
-            LOGGER.debug("Finished updating cve status.")
+            if status_code == SUCCEED:
+                self.session.commit()
+                LOGGER.debug("Finished updating cve status.")
             return status_code
         except SQLAlchemyError as error:
             self.session.rollback()
