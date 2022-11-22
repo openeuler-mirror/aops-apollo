@@ -23,6 +23,7 @@ from time import sleep
 from flask import jsonify
 
 from apollo.conf import configuration
+from apollo.conf.constant import FILE_SAVED_PATH
 from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
@@ -190,8 +191,7 @@ class VulUploadAdvisory(BaseResponse):
         Returns:
             int: status code
         """
-        __here__ = os.path.dirname(os.path.abspath(__file__))
-        save_path = os.path.join(__here__, "upload_files/")
+        save_path = os.path.join(FILE_SAVED_PATH)
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -207,12 +207,14 @@ class VulUploadAdvisory(BaseResponse):
         suffix = file_name.split('.')[-1]
         if suffix == "xml":
             status_code = self._save_single_advisory(proxy, file_path)
-        else:
+        elif suffix == "zip":
             folder_path = unzip(file_path)
             if not folder_path:
                 LOGGER.error("Unzip file '%s' failed." % file_name)
                 return WRONG_FILE_FORMAT
             status_code = self._save_compressed_advisories(proxy, folder_path)
+        else:
+            status_code = WRONG_FILE_FORMAT
         return status_code
 
     @staticmethod
@@ -302,8 +304,7 @@ class VulUploadUnaffected(BaseResponse):
         Returns:
             int: status code
         """
-        __here__ = os.path.dirname(os.path.abspath(__file__))
-        save_path = os.path.join(__here__, "upload_files/")
+        save_path = os.path.join(FILE_SAVED_PATH)
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -319,12 +320,14 @@ class VulUploadUnaffected(BaseResponse):
         suffix = file_name.split('.')[-1]
         if suffix == "xml":
             status_code = self._save_unaffected_cve(proxy, file_path)
-        else:
+        elif suffix == "zip":
             folder_path = unzip(file_path)
             if not folder_path:
                 LOGGER.error("Unzip file '%s' failed." % file_name)
                 return WRONG_FILE_FORMAT
             status_code = self._save_compressed_unaffected_cve(proxy, folder_path)
+        else:
+            status_code = WRONG_FILE_FORMAT
         return status_code
 
     @staticmethod

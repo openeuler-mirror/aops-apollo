@@ -119,3 +119,4 @@ TASK_INDEX = "task"
 ES_TEST_FLAG = False
 
 REPO_FILE = "/etc/yum.repos.d/aops-update.repo"
+FILE_SAVED_PATH = "/opt/aops"

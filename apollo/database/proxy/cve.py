@@ -951,7 +951,6 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.debug("Finished saving unaffected cves' cvrf file '%s'" % file_name)
             return SUCCEED
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
-            self.session.rollback()
             LOGGER.error(error)
             LOGGER.error(
                 "Saving unaffected cves' cvrf file '%s' failed due to internal error." % file_name)
@@ -1071,7 +1070,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         Args:
             cve_pkg_rows (list): list of row dict. e.g.
-                [{"cve_id": "cve-2021-1001", "package": "redis"}]
+                [{
+                    "cve_id": "cve-2021-1001",
+                     "package": "redis"
+                }]
         """
         # get the tuples of cve_id and package name
         cve_pkg_keys = [(row["cve_id"], row["package"])
@@ -1090,10 +1092,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         if the cve already exist, update the description
         Args:
             cve_pkg_docs (list):
-                [{
-					'cve_id': 'CVE-2021-43809',
-                    'description': 'a long description'
-				}]
+                [{'cve_id': 'CVE-2021-43809',
+                  'description': 'a long description'}]
         Raises:
             EsOperationError
         """

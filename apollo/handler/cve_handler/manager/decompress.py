@@ -32,7 +32,6 @@ def unzip(file_path, max_size=20*1024*1024, max_num=500):
         srcfile = zipfile.ZipFile(file_path, 'r')
     except (FileNotFoundError, IsADirectoryError, zipfile.BadZipFile) as error:
         LOGGER.error(error)
-        srcfile.close()
         return ""
 
     file_num = len(srcfile.infolist())
