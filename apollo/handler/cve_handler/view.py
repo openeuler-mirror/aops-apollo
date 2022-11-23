@@ -192,7 +192,7 @@ class VulUploadAdvisory(BaseResponse):
             int: status code
         """
         if not os.path.exists(FILE_UPLOAD_PATH):
-            os.mkdir(FILE_UPLOAD_PATH)
+            os.makedirs(FILE_UPLOAD_PATH)
         save_path = FILE_UPLOAD_PATH
         status, username, file_name = self.verify_upload_request(save_path)
 

@@ -18,7 +18,7 @@ from vulcanus.log.log import LOGGER
 __all__ = ["unzip", "compress_cve"]
 
 
-def unzip(file_path, max_size=20*1024*1024, max_num=500):
+def unzip(file_path, max_size=20 * 1024 * 1024, max_num=100):
     """
     unzip file
     Args:

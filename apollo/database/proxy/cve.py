@@ -1270,7 +1270,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         username = data["username"]
         host_id_list = data["host_list"]
         if not os.path.exists(CSV_SAVED_PATH):
-            os.mkdir(CSV_SAVED_PATH)
+            os.makedirs(CSV_SAVED_PATH)
         save_path = os.path.join(CSV_SAVED_PATH, username)
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
