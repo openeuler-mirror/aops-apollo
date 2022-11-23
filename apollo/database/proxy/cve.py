@@ -1113,10 +1113,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         # elasticsearch need 1 second to update doc
         self._insert_cve_docs(insert_docs)
         try:
-            self._update_cve_docs(exist_docs, update_docs)
-            sleep(1)
+            self._update_cve_pkg_docs(exist_docs, update_docs)
         except EsOperationError:
-            sleep(1)
             insert_cve_list = [doc["cve_id"] for doc in insert_docs]
             self._delete_cve_docs(insert_cve_list)
             raise
