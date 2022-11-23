@@ -39,7 +39,8 @@ SPECIFIC_URLS = {
         (cve_view.VulGetCveTaskHost, VUL_CVE_TASK_HOST_GET),
         (cve_view.VulSetCveStatus, VUL_CVE_STATUS_SET),
         (cve_view.VulGetCveAction, VUL_CVE_ACTION_QUERY),
-        (cve_view.VulUploadAdvisory, VUL_CVE_UPLOAD_ADVISORY)
+        (cve_view.VulUploadAdvisory, VUL_CVE_UPLOAD_ADVISORY),
+        (cve_view.VulUploadUnaffected, VUL_CVE_UPLOAD_UNAFFECTED),
     ],
     "CVE_HOST_URLS": [
         (cve_host_view.VulGetHostStatus, VUL_HOST_STATUS_GET),
@@ -58,7 +59,6 @@ SPECIFIC_URLS = {
         (cve_task_view.VulGetCveTaskProgress, VUL_TASK_CVE_PROGRESS_GET),
         (cve_task_view.VulGetCveTaskResult, VUL_TASK_CVE_RESULT_GET),
         (cve_task_view.VulExecuteTask, VUL_TASk_EXECUTE),
-        (cve_task_view.VulRollbackCveTask, VUL_TASK_CVE_ROLLBACK),
         (cve_task_view.VulGenerateRepoTask, VUL_TASK_REPO_GENERATE),
         (cve_task_view.VulGetRepoTaskInfo, VUL_TASK_REPO_INFO_GET),
         (cve_task_view.VulGetRepoTaskResult, VUL_TASK_REPO_RESULT_GET),
