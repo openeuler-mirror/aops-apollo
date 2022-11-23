@@ -43,6 +43,7 @@ class VulGetCveOverview(BaseResponse):
     """
     Restful interface for getting CVE's overview info
     """
+
     def get(self):
         """
         Get overview of cve severity
@@ -60,6 +61,7 @@ class VulGetCveList(BaseResponse):
     """
     Restful interface for getting cve list of all hosts
     """
+
     def post(self):
         """
         Get cve list of all hosts
@@ -83,6 +85,7 @@ class VulGetCveInfo(BaseResponse):
     """
     Restful interface for getting detailed info of a cve
     """
+
     def get(self):
         """
         Get detailed info of a cve
@@ -102,6 +105,7 @@ class VulGetCveHosts(BaseResponse):
     """
     Restful interface for getting hosts info of a cve
     """
+
     def post(self):
         """
         Get hosts info of a cve
@@ -126,6 +130,7 @@ class VulGetCveTaskHost(BaseResponse):
     """
     Restful interface for getting each CVE's hosts' basic info (id, ip, name)
     """
+
     def post(self):
         """
         Get basic info of hosts which have specific cve
@@ -145,6 +150,7 @@ class VulSetCveStatus(BaseResponse):
     """
     Restful interface for setting status of cve
     """
+
     def post(self):
         """
         Set status of cve
@@ -165,6 +171,7 @@ class VulGetCveAction(BaseResponse):
     """
     Restful interface for getting action after cve fixed
     """
+
     def post(self):
         """
         Get action after fixing cve
@@ -223,15 +230,18 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
+            cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(
+                file_path)
             os.remove(file_path)
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
-            LOGGER.error("Some error occurred when parsing advisory '%s'." % file_name)
+            LOGGER.error(
+                "Some error occurred when parsing advisory '%s'." % file_name)
             LOGGER.error(error)
             return SERVER_ERROR
 
-        status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
+        status_code = proxy.save_security_advisory(
+            file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
 
         return status_code
 
@@ -255,15 +265,18 @@ class VulUploadAdvisory(BaseResponse):
         for file_path in file_path_list:
             file_name = os.path.basename(file_path)
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
+                cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(
+                    file_path)
             except (KeyError, ParseAdvisoryError) as error:
                 fail_list.append(file_name)
-                LOGGER.error("Some error occurred when parsing advisory '%s'." % file_name)
+                LOGGER.error(
+                    "Some error occurred when parsing advisory '%s'." % file_name)
                 LOGGER.error(error)
                 continue
             except IsADirectoryError as error:
                 fail_list.append(file_name)
-                LOGGER.error("Folder %s cannot be parsed as an advisory." % file_name)
+                LOGGER.error(
+                    "Folder %s cannot be parsed as an advisory." % file_name)
                 LOGGER.error(error)
                 continue
             # elasticsearch need 1 second to update doc

@@ -16,7 +16,7 @@ Author:
 Description: Host table operation
 """
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.status import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
@@ -98,13 +98,15 @@ class HostMysqlProxy(MysqlProxy):
         }
 
         filters = self._get_host_list_filters(data.get("filter"))
-        host_query = self._query_host_list(data["username"], filters)
+        host_query, cve_host_subquery = self._query_host_list(
+            data["username"], filters)
 
         total_count = host_query.count()
         if not total_count:
             return result
 
-        sort_column = self._get_host_list_sort_column(data.get('sort'))
+        sort_column = self._get_host_list_sort_column(
+            data.get('sort'), cve_host_subquery)
         direction, page, per_page = data.get(
             'direction'), data.get('page'), data.get('per_page')
 
@@ -119,7 +121,7 @@ class HostMysqlProxy(MysqlProxy):
         return result
 
     @staticmethod
-    def _get_host_list_sort_column(column_name):
+    def _get_host_list_sort_column(column_name, query=None):
         """
         get column or aggregation column of table by name
         Args:
@@ -130,8 +132,8 @@ class HostMysqlProxy(MysqlProxy):
         """
         if not column_name:
             return None
-        if column_name == "cve_num":
-            return func.count(CveHostAssociation.cve_id)
+        if column_name == "cve_num" and query is not None:
+            return query.c.cve_num
         return getattr(Host, column_name)
 
     def _query_host_list(self, username, filters):
@@ -151,12 +153,12 @@ class HostMysqlProxy(MysqlProxy):
 
         host_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
                                         Host.host_group_name, Host.repo_name, Host.last_scan,
-                                        cve_host_subquery.c.cve_num) \
+                                        case([(cve_host_subquery.c.cve_num.is_(None), 0)],
+                                             else_=cve_host_subquery.c.cve_num).label("cve_num")) \
             .outerjoin(cve_host_subquery, Host.host_id == cve_host_subquery.c.host_id) \
             .filter(Host.user == username) \
             .filter(*filters)
-
-        return host_query
+        return host_query, cve_host_subquery
 
     @staticmethod
     def _host_list_row2dict(rows):
