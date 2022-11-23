@@ -1049,9 +1049,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         self._insert_cve_pkg_docs(insert_docs)
         try:
             self._update_cve_pkg_docs(exist_docs, update_docs)
-            sleep(1)
         except EsOperationError:
-            sleep(1)
             insert_cve_list = [doc["cve_id"] for doc in insert_docs]
             self._delete_cve_pkg_docs(insert_cve_list)
             raise
