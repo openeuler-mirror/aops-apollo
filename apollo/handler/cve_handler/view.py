@@ -23,7 +23,7 @@ from time import sleep
 from flask import jsonify
 
 from apollo.conf import configuration
-from apollo.conf.constant import FILE_SAVED_PATH
+from apollo.conf.constant import FILE_UPLOAD_PATH
 from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
@@ -191,7 +191,9 @@ class VulUploadAdvisory(BaseResponse):
         Returns:
             int: status code
         """
-        save_path = os.path.join(FILE_SAVED_PATH)
+        if not os.path.exists(FILE_UPLOAD_PATH):
+            os.mkdir(FILE_UPLOAD_PATH)
+        save_path = FILE_UPLOAD_PATH
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -267,7 +269,6 @@ class VulUploadAdvisory(BaseResponse):
             # elasticsearch need 1 second to update doc
             status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows,
                                                        cve_pkg_docs)
-            sleep(1)
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
@@ -304,7 +305,7 @@ class VulUploadUnaffected(BaseResponse):
         Returns:
             int: status code
         """
-        save_path = os.path.join(FILE_SAVED_PATH)
+        save_path = os.path.join(FILE_UPLOAD_PATH)
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -424,4 +425,4 @@ class VulExportExcel(BaseResponse):
             dict: response body
         """
         return self.handle_send_file(None, CveProxy(configuration),
-                                     "save_to_excel", SESSION)
+                                     "save_to_csv", SESSION)

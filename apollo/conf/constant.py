@@ -82,6 +82,7 @@ VUL_CVE_STATUS_SET = "/vulnerability/cve/status/set"
 VUL_CVE_ACTION_QUERY = "/vulnerability/cve/action/query"
 VUL_CVE_UPLOAD_ADVISORY = "/vulnerability/cve/advisory/upload"
 VUL_CVE_UPLOAD_UNAFFECTED = "/vulnerability/cve/unaffected/upload"
+VUL_EXPORT_EXCEL = "/vulnerability/cve/info/export"
 
 # route of host related interface
 VUL_HOST_SCAN = "/vulnerability/host/scan"
@@ -119,4 +120,6 @@ TASK_INDEX = "task"
 ES_TEST_FLAG = False
 
 REPO_FILE = "/etc/yum.repos.d/aops-update.repo"
-FILE_SAVED_PATH = "/opt/aops"
+FILE_NUMBER = 1
+FILE_UPLOAD_PATH = "/opt/aops-upload"
+CSV_SAVED_PATH = "/opt/aops-saved"

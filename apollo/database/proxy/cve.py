@@ -24,12 +24,12 @@ from elasticsearch import ElasticsearchException
 from sqlalchemy import func, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import FILE_NUMBER
+from apollo.conf.constant import FILE_NUMBER, CSV_SAVED_PATH
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
 from apollo.handler.cve_handler.manager.decompress import compress_cve
-from apollo.handler.cve_handler.manager.save_to_excel import export_excel
+from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
@@ -1114,9 +1114,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         self._insert_cve_docs(insert_docs)
         try:
             self._update_cve_docs(exist_docs, update_docs)
-            sleep(1)
         except EsOperationError:
-            sleep(1)
             insert_cve_list = [doc["cve_id"] for doc in insert_docs]
             self._delete_cve_docs(insert_cve_list)
             raise
@@ -1255,3 +1253,73 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         insert_cve_list = [row["cve_id"] for row in insert_cve_rows]
         self.session.query(Cve).filter(Cve.cve_id.in_(insert_cve_list)) \
             .delete(synchronize_session=False)
+
+    def save_to_csv(self, data: dict) -> str:
+        """
+        cve query save to excel
+        Args:
+            requets args, e.g:
+            {
+                "username":"admin",
+                "host_list":["string"],
+                "cve_list":["string"]
+            }
+        Returns:
+            excel path(str)
+        """
+        username = data["username"]
+        host_id_list = data["host_list"]
+        if not os.path.exists(CSV_SAVED_PATH):
+            os.mkdir(CSV_SAVED_PATH)
+        save_path = os.path.join(CSV_SAVED_PATH, username)
+        if os.path.exists(save_path):
+            shutil.rmtree(save_path)
+        os.mkdir(save_path)
+
+        for host_id in host_id_list:
+            cve_info_list = self._query_cev_by_host_id(host_id)
+
+            host_id, host_name, os_version = self._query_host_info(host_id)
+
+            filename = f"{host_name}_{host_id}_{os_version if not os_version else ''}.csv"
+            csv_head = ["cve_id", "status"]
+            export_csv(cve_info_list, os.path.join(
+                save_path, filename), csv_head)
+        if len(os.listdir(save_path)) > FILE_NUMBER:
+            return compress_cve(save_path, "host.zip")
+        else:
+            return filename, save_path
+
+    def _query_cev_by_host_id(self, host_id):
+        """
+        query all cve  by host_id
+        Args:
+            host_id: host_id
+        Returns:
+            sqlalchemy.orm.query.Query
+        """
+
+        cve_query = self.session.query(CveHostAssociation).filter(
+            CveHostAssociation.host_id == host_id).all()
+        cve_list = []
+        for cve in cve_query:
+            cve_list.append([
+                cve.cve_id,
+                "affected" if cve.affected else "unaffected"
+            ])
+
+        return cve_list
+
+    def _query_host_info(self, host_id):
+        """
+        get host_id, host_name, os_version
+        Args:
+            host_id (str): host id
+
+        Returns:
+            host_id, host_name, os_version
+        """
+        host_info_query = self.session.query(
+            Host).filter(Host.host_id == host_id).all()
+        host_info = host_info_query[0]
+        return host_info.host_id, host_info.host_name, host_info.os_version
