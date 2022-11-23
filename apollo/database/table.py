@@ -112,6 +112,8 @@ class Cve(Base, MyBase):
     severity = Column(String(20))
     cvss_score = Column(String(20))
     reboot = Column(Boolean)
+    affected_os = Column(String(512), nullable=True)
+    unaffected_os = Column(String(512), nullable=True)
 
 
 class Repo(Base, MyBase):

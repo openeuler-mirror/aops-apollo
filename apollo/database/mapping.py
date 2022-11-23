@@ -15,7 +15,7 @@ Time:
 Author:
 Description: Elasticsearch index related mappings
 """
-from apollo.conf.constant import CVE_PKG_INDEX, TASK_INDEX
+from apollo.conf.constant import CVE_INDEX, TASK_INDEX
 
 MAPPINGS = {
     TASK_INDEX: {
@@ -35,7 +35,7 @@ MAPPINGS = {
             }
         }
     },
-    CVE_PKG_INDEX: {
+    CVE_INDEX: {
         "mappings": {
             "properties": {
                 "cve_id": {
