@@ -25,8 +25,10 @@ class ScanHostFilterSchema(Schema):
     filter schema of host scanning interface
     """
     host_name = fields.String(required=False, validate=lambda s: len(s) != 0)
-    host_group = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
-    repo = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
+    host_group = fields.List(fields.String(
+        validate=lambda s: len(s) != 0), required=False)
+    repo = fields.List(fields.String(
+        validate=lambda s: len(s) != 0), required=False)
     status = fields.List(fields.String(validate=validate.OneOf(["scanning", "done"])),
                          required=False)
 
@@ -51,8 +53,9 @@ class GetHostListFilterSchema(Schema):
     filter schema of host list getting interface
     """
     host_name = fields.String(required=False, validate=lambda s: len(s) != 0)
-    host_group = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
-    repo = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
+    host_group = fields.List(fields.String(
+        validate=lambda s: len(s) != 0), required=False)
+    repo = fields.List(fields.String(), required=False)
     status = fields.List(fields.String(validate=validate.OneOf(["scanning", "done"])),
                          required=False)
 
@@ -65,7 +68,7 @@ class GetHostListSchema(Schema):
         ["last_scan", "cve_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(GetHostListFilterSchema, required=False)
 
@@ -88,7 +91,7 @@ class HostCvesFilterSchema(Schema):
         validate=validate.OneOf(["not reviewed", "in review", "on-hold", "resolved",
                                  "no action"])), required=False)
     affected = fields.Boolean(required=False, default=True)
-    
+
 
 class GetHostCvesSchema(Schema):
     """
@@ -99,6 +102,6 @@ class GetHostCvesSchema(Schema):
         ["publish_time", "cvss_score"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate= lambda s: s > 0)
+    page = fields.Integer(required=False, validate=lambda s: s > 0)
     per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(HostCvesFilterSchema, required=False)
