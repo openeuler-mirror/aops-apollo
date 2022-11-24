@@ -82,8 +82,7 @@ def compress_cve(cve_dir_path: str, zip_filename: str):
                     zip.write(os.path.join(path, filename), os.path.join(fpath, filename))
         zip.close()
         return zip_filename, cve_dir_path
-        # return os.path.abspath(os.path.join(cve_dir_path, zip_filename))
     except zipfile.BadZipFile as error:
         LOGGER.error(error)
         zip.close()
-        return ""
+        return "", ""

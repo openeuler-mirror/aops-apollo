@@ -23,15 +23,17 @@ from time import sleep
 from flask import jsonify
 
 from apollo.conf import configuration
-from apollo.conf.constant import FILE_UPLOAD_PATH
+from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
 from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \
     GetCveTaskHostSchema, SetCveStatusSchema, GetCveActionSchema
-from apollo.handler.cve_handler.manager.decompress import unzip
+from apollo.function.utils import make_download_response
+from apollo.handler.cve_handler.manager.decompress import unzip, compress_cve
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
+from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
@@ -198,8 +200,6 @@ class VulUploadAdvisory(BaseResponse):
         Returns:
             int: status code
         """
-        if not os.path.exists(FILE_UPLOAD_PATH):
-            os.makedirs(FILE_UPLOAD_PATH)
         save_path = FILE_UPLOAD_PATH
         status, username, file_name = self.verify_upload_request(save_path)
 
@@ -318,7 +318,7 @@ class VulUploadUnaffected(BaseResponse):
         Returns:
             int: status code
         """
-        save_path = os.path.join(FILE_UPLOAD_PATH)
+        save_path = FILE_UPLOAD_PATH
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -429,6 +429,50 @@ class VulExportExcel(BaseResponse):
     Restful interface for export cve to excel
     """
 
+    def _handle(self, args):
+		"""
+			Handle export csv
+			Returns:
+				int: status code
+		"""
+        username = args.get("username")
+        host_id_list = args.get("host_list")
+
+        if not os.path.exists(CSV_SAVED_PATH):
+            os.makedirs(CSV_SAVED_PATH)
+        save_path = os.path.join(CSV_SAVED_PATH, username)
+        if os.path.exists(save_path):
+            shutil.rmtree(save_path)
+        os.mkdir(save_path)
+
+        # connect to database
+        proxy = CveProxy(configuration)
+        if not proxy.connect(SESSION):
+            LOGGER.error("Connect to database fail.")
+            return DATABASE_CONNECT_ERROR
+
+        for host_id in host_id_list:
+            cve_info_list = proxy._query_cev_by_host_id(host_id)
+            host_id, host_name, os_version = proxy._query_host_info(host_id)
+
+            filename = f"{host_name}_{host_id}_{os_version if not os_version else ''}.csv"
+            csv_head = ["cve_id", "status"]
+            export_csv(cve_info_list, os.path.join(
+                save_path, filename), csv_head)
+        if len(os.listdir(save_path)) > FILE_NUMBER:
+            zip_filename, zip_save_path = compress_cve(save_path, "host.zip")
+            if zip_filename and zip_save_path:
+                self.filename = zip_filename
+                self.filepath = zip_save_path
+                return SUCCEED
+            else:
+                return WRONG_FILE_FORMAT
+        else:
+            self.filename = filename
+            self.filepath = save_path
+            return SUCCEED
+            # return make_download_response(save_path, filename)
+
     def post(self):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data
@@ -437,5 +481,8 @@ class VulExportExcel(BaseResponse):
         Returns:
             dict: response body
         """
-        return self.handle_send_file(None, CveProxy(configuration),
-                                     "save_to_csv", SESSION)
+        response = self.handle_request(None, self)
+        if response["code"] == SUCCEED:
+            return make_download_response(os.path.join(self.filepath, self.filename),
+                                          self.filename)
+        return jsonify(response)

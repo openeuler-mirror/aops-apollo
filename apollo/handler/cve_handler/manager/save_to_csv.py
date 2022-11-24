@@ -37,8 +37,6 @@ def export_csv(export_list: list, cve_name: str, cve_head: list):
     try:
         with open(cve_name, 'a', encoding='utf8', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            cve_head = cve_head
-
             writer.writerow(cve_head)
 
             for item in export_list:

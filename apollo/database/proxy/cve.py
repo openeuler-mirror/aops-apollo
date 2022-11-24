@@ -35,7 +35,7 @@ from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.status import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
-    SUCCEED, DATABASE_UPDATE_ERROR
+    SUCCEED, DATABASE_UPDATE_ERROR, WRONG_FILE_FORMAT
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -1225,8 +1225,6 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             cve_list (list): the cve list to be delete
 
-        Returns:
-
         """
         if not cve_list:
             return
@@ -1247,48 +1245,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             insert_cve_rows (list): cve row dict list
 
-        Returns:
-
         """
         insert_cve_list = [row["cve_id"] for row in insert_cve_rows]
         self.session.query(Cve).filter(Cve.cve_id.in_(insert_cve_list)) \
             .delete(synchronize_session=False)
-
-    def save_to_csv(self, data: dict) -> str:
-        """
-        cve query save to excel
-        Args:
-            requets args, e.g:
-            {
-                "username":"admin",
-                "host_list":["string"],
-                "cve_list":["string"]
-            }
-        Returns:
-            excel path(str)
-        """
-        username = data["username"]
-        host_id_list = data["host_list"]
-        if not os.path.exists(CSV_SAVED_PATH):
-            os.makedirs(CSV_SAVED_PATH)
-        save_path = os.path.join(CSV_SAVED_PATH, username)
-        if os.path.exists(save_path):
-            shutil.rmtree(save_path)
-        os.mkdir(save_path)
-
-        for host_id in host_id_list:
-            cve_info_list = self._query_cev_by_host_id(host_id)
-
-            host_id, host_name, os_version = self._query_host_info(host_id)
-
-            filename = f"{host_name}_{host_id}_{os_version if not os_version else ''}.csv"
-            csv_head = ["cve_id", "status"]
-            export_csv(cve_info_list, os.path.join(
-                save_path, filename), csv_head)
-        if len(os.listdir(save_path)) > FILE_NUMBER:
-            return compress_cve(save_path, "host.zip")
-        else:
-            return filename, save_path
 
     def _query_cev_by_host_id(self, host_id):
         """
