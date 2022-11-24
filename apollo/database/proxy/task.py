@@ -627,7 +627,7 @@ class TaskMysqlProxy(MysqlProxy):
             return "running"
         if "unknown" in status_set:
             return "unknown"
-        if "unfixed" in status_set:
+        if "fail" in status_set:
             return "fail"
         return "succeed"
 
@@ -648,9 +648,9 @@ class TaskMysqlProxy(MysqlProxy):
 
         task_query = self._query_repo_task_host(task_list)
         for row in task_query:
-            if row.status == "set":
+            if row.status == "succeed":
                 result[row.task_id]["succeed"] += 1
-            elif row.status == "unset":
+            elif row.status == "fail":
                 result[row.task_id]["fail"] += 1
             elif row.status == "running":
                 result[row.task_id]["running"] += 1
@@ -2042,7 +2042,7 @@ class TaskMysqlProxy(MysqlProxy):
         try:
             self._update_repo_host_status(
                 data["task_id"], hosts_id_list, data["status"])
-            if data["status"] == REPO_STATUS.SUCCEED:
+            if data["status"] == "succeed":
                 self._update_host_repo(data["repo_name"], hosts_id_list)
             self.session.commit()
             LOGGER.debug(
@@ -2530,7 +2530,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
             "public_ip": host_info["host_ip"],
-            "status": "unfixed"
+            "status": "fail"
         }
 
     def _init_task_in_es(self, task_id, username):
@@ -2634,7 +2634,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
             "public_ip": host_info["host_ip"],
-            "status": "unset"
+            "status": "fail"
         }
 
     def _insert_repo_task_tables(self, task_data, task_repo_host_rows):
