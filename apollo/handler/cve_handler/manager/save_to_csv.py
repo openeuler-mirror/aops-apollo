@@ -21,17 +21,21 @@ from vulcanus.log.log import LOGGER
 
 __all__ = ["export_csv"]
 
+from vulcanus.restful.status import SUCCEED
+
 
 def export_csv(export_list: list, cve_name: str, cve_head: list):
     """
     The original data export to excel
-    :param export_list: The original data;e.g:
-        [[
-            "CVE-2018-16301",
-            "fix"
-        ]]
-    :param table_name: excel name
-    :param columns_map: excel headers; e.g:
+    Args:
+        export_list: The original data;e.g:
+            [[
+                "CVE-2018-16301",
+                "fix"
+            ]]
+    Returns:
+        :param table_name: excel name
+        :param columns_map: excel headers; e.g:
             ["cve_id", "status"]
     """
     try:
@@ -41,5 +45,5 @@ def export_csv(export_list: list, cve_name: str, cve_head: list):
 
             for item in export_list:
                 writer.writerow(item)
-    except Exception as error:
+    except IOError as error:
         LOGGER.error(f"Export cve info failed: %s", error)

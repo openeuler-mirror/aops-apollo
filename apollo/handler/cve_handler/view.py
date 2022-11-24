@@ -30,7 +30,7 @@ from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \
     GetCveTaskHostSchema, SetCveStatusSchema, GetCveActionSchema
 from apollo.function.utils import make_download_response
-from apollo.handler.cve_handler.manager.decompress import unzip, compress_cve
+from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
 from apollo.handler.cve_handler.manager.save_to_csv import export_csv
@@ -38,7 +38,7 @@ from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
-    SERVER_ERROR, WRONG_FILE_FORMAT
+    WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
 
 
 class VulGetCveOverview(BaseResponse):
@@ -362,7 +362,7 @@ class VulUploadUnaffected(BaseResponse):
             os.remove(file_path)
             LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
             LOGGER.error(error)
-            return SERVER_ERROR
+            return WRONG_FILE_FORMAT
 
         status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_rows, doc_list)
         return status_code
@@ -452,9 +452,8 @@ class VulExportExcel(BaseResponse):
             return DATABASE_CONNECT_ERROR
 
         for host_id in host_id_list:
-            cve_info_list = proxy._query_cev_by_host_id(host_id)
-            host_id, host_name, os_version = proxy._query_host_info(host_id)
-            if not (host_id and host_name and os_version):
+            host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
+            if not (cve_info_list and host_name):
                 return NO_DATA
 
             filename = f"{host_name}.csv"
@@ -468,7 +467,7 @@ class VulExportExcel(BaseResponse):
                 self.filepath = zip_save_path
                 return SUCCEED
             else:
-                return WRONG_FILE_FORMAT
+                return SERVER_ERROR
         else:
             self.filename = filename
             self.filepath = save_path

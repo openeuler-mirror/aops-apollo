@@ -71,15 +71,15 @@ def compress_cve(cve_dir_path: str, zip_filename: str):
         cve_dir_path: cve excel folder path
         zip_filename: cve zip filename
     Returns:
-        decompressed folder's path
+        str,str: zip filename, zip file's folder path
     """
     zip = zipfile.ZipFile(os.path.join(cve_dir_path, zip_filename), "w", zipfile.ZIP_DEFLATED)
     try:
         for path, dirnames, filenames in os.walk(cve_dir_path):
-            fpath = path.replace(cve_dir_path, "")
             for filename in filenames:
-                if filename[-3:] != "zip":
-                    zip.write(os.path.join(path, filename), os.path.join(fpath, filename))
+                suffix = filename.split('.')[-1]
+                if suffix != "zip":
+                    zip.write(os.path.join(path, filename), os.path.join(filename))
         zip.close()
         return zip_filename, cve_dir_path
     except zipfile.BadZipFile as error:

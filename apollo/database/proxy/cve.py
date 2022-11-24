@@ -28,7 +28,7 @@ from apollo.conf.constant import FILE_NUMBER, CSV_SAVED_PATH
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
-from apollo.handler.cve_handler.manager.decompress import compress_cve
+from apollo.handler.cve_handler.manager.compress_manager import compress_cve
 from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
@@ -1250,17 +1250,23 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         self.session.query(Cve).filter(Cve.cve_id.in_(insert_cve_list)) \
             .delete(synchronize_session=False)
 
-    def _query_cev_by_host_id(self, host_id):
+    def query_host_name_and_related_cves(self, host_id, username):
         """
-        query all cve  by host_id
+        query all cve by host_id
         Args:
-            host_id: host_id
+            host_id: host's id
+            username: username
         Returns:
-            sqlalchemy.orm.query.Query
+            str:host name
+            list: cve list, each element is cve id and status, e.g.
+                [
+                    ["CVE-2022-12343","affected"]
+                ]
+
         """
 
-        cve_query = self.session.query(CveHostAssociation).filter(
-            CveHostAssociation.host_id == host_id).all()
+        cve_query = self.session.query(CveHostAssociation) \
+            .filter(Host.user == username, CveHostAssociation.host_id == host_id).all()
         cve_list = []
         for cve in cve_query:
             cve_list.append([
@@ -1268,20 +1274,9 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 "affected" if cve.affected else "unaffected"
             ])
 
-        return cve_list
-
-    def _query_host_info(self, host_id):
-        """
-        get host_id, host_name, os_version
-        Args:
-            host_id (str): host id
-
-        Returns:
-            host_id, host_name, os_version
-        """
         host_info_query = self.session.query(
-            Host).filter(Host.host_id == host_id).all()
+            Host).filter(Host.host_id == host_id, Host.user == username).all()
         if host_info_query:
             host_info = host_info_query[0]
-            return host_info.host_id, host_info.host_name, host_info.os_version
-        return "","",""
+            return host_info.host_name, cve_list
+        return "", cve_query
