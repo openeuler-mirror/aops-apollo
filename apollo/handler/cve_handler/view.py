@@ -18,25 +18,26 @@ Description: Handle about cve related operation
 import glob
 import os
 import shutil
-from time import sleep
 
 from flask import jsonify
 
 from apollo.conf import configuration
-from apollo.conf.constant import FILE_SAVED_PATH
+from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
 from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \
     GetCveTaskHostSchema, SetCveStatusSchema, GetCveActionSchema
-from apollo.handler.cve_handler.manager.decompress import unzip
+from apollo.function.utils import make_download_response
+from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
+from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
-    SERVER_ERROR, WRONG_FILE_FORMAT
+    WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
 
 
 class VulGetCveOverview(BaseResponse):
@@ -198,7 +199,7 @@ class VulUploadAdvisory(BaseResponse):
         Returns:
             int: status code
         """
-        save_path = os.path.join(FILE_SAVED_PATH)
+        save_path = FILE_UPLOAD_PATH
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -316,7 +317,7 @@ class VulUploadUnaffected(BaseResponse):
         Returns:
             int: status code
         """
-        save_path = os.path.join(FILE_SAVED_PATH)
+        save_path = FILE_UPLOAD_PATH
         status, username, file_name = self.verify_upload_request(save_path)
 
         if status != SUCCEED:
@@ -360,7 +361,7 @@ class VulUploadUnaffected(BaseResponse):
             os.remove(file_path)
             LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
             LOGGER.error(error)
-            return SERVER_ERROR
+            return WRONG_FILE_FORMAT
 
         status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_rows, doc_list)
         return status_code
@@ -427,6 +428,47 @@ class VulExportExcel(BaseResponse):
     Restful interface for export cve to excel
     """
 
+    def _handle(self, args):
+        """
+            Handle export csv
+            Returns:
+                int: status code
+        """
+        username = args.get("username")
+        host_id_list = args.get("host_list")
+
+        if not os.path.exists(CSV_SAVED_PATH):
+            os.makedirs(CSV_SAVED_PATH)
+        self.filepath = os.path.join(CSV_SAVED_PATH, username)
+        if os.path.exists(self.filepath):
+            shutil.rmtree(self.filepath)
+        os.mkdir(self.filepath)
+
+        # connect to database
+        proxy = CveProxy(configuration)
+        if not proxy.connect(SESSION):
+            LOGGER.error("Connect to database fail.")
+            return DATABASE_CONNECT_ERROR
+
+        for host_id in host_id_list:
+            host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
+            if not (cve_info_list and host_name):
+                return NO_DATA
+
+            self.filename = f"{host_name}.csv"
+            csv_head = ["cve_id", "status"]
+            export_csv(cve_info_list, os.path.join(
+                self.filepath, self.filename), csv_head)
+        if len(os.listdir(self.filepath)) > FILE_NUMBER:
+            zip_filename, zip_save_path = compress_cve(self.filepath, "host.zip")
+            if zip_filename and zip_save_path:
+                self.filename = zip_filename
+                self.filepath = zip_save_path
+                return SUCCEED
+            else:
+                return SERVER_ERROR
+        return SUCCEED
+
     def post(self):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data
@@ -435,5 +477,8 @@ class VulExportExcel(BaseResponse):
         Returns:
             dict: response body
         """
-        return self.handle_send_file(None, CveProxy(configuration),
-                                     "save_to_excel", SESSION)
+        response = self.handle_request(None, self)
+        if response["code"] == SUCCEED:
+            return make_download_response(os.path.join(self.filepath, self.filename),
+                                          self.filename)
+        return jsonify(response)

@@ -18,7 +18,7 @@ from vulcanus.log.log import LOGGER
 __all__ = ["unzip", "compress_cve"]
 
 
-def unzip(file_path, max_size=20*1024*1024, max_num=500):
+def unzip(file_path, max_size=20 * 1024 * 1024, max_num=100):
     """
     unzip file
     Args:
@@ -62,3 +62,27 @@ def unzip(file_path, max_size=20*1024*1024, max_num=500):
     srcfile.close()
     os.remove(file_path)
     return folder_path
+
+
+def compress_cve(cve_dir_path: str, zip_filename: str):
+    """
+    Compress the cve files folder
+    Args:
+        cve_dir_path: cve excel folder path
+        zip_filename: cve zip filename
+    Returns:
+        str,str: zip filename, zip file's folder path
+    """
+    zip = zipfile.ZipFile(os.path.join(cve_dir_path, zip_filename), "w", zipfile.ZIP_DEFLATED)
+    try:
+        for path, dirnames, filenames in os.walk(cve_dir_path):
+            for filename in filenames:
+                suffix = filename.split('.')[-1]
+                if suffix != "zip":
+                    zip.write(os.path.join(path, filename), os.path.join(filename))
+        zip.close()
+        return zip_filename, cve_dir_path
+    except zipfile.BadZipFile as error:
+        LOGGER.error(error)
+        zip.close()
+        return "", ""

@@ -24,6 +24,8 @@ from apollo.handler.cve_handler.manager.parse_advisory import etree_to_dict
 
 __all__ = ["parse_unaffected_cve"]
 
+from vulcanus.log.log import LOGGER
+
 
 def parse_unaffected_cve(xml_path):
     """
@@ -48,7 +50,12 @@ def parse_unaffected_cve(xml_path):
 
     root = tree.getroot()
     xml_dict = etree_to_dict(root)
-    cve_rows, cve_pkg_rows, doc_list = parse_cvrf_dict(xml_dict)
+    try:
+        cve_rows, cve_pkg_rows, doc_list = parse_cvrf_dict(xml_dict)
+    except (TypeError, KeyError, IndexError) as error:
+        LOGGER.error(error)
+        raise ParseAdvisoryError("Some error happened when parsing the unaffected xml.")
+
     return cve_rows, cve_pkg_rows, doc_list
 
 

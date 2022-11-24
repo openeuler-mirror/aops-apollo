@@ -15,21 +15,15 @@ Time:
 Author:
 Description: Host table operation
 """
-import os
-import shutil
 from collections import defaultdict
-from time import sleep
 
 from elasticsearch import ElasticsearchException
 from sqlalchemy import func, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import FILE_NUMBER
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
-from apollo.handler.cve_handler.manager.decompress import compress_cve
-from apollo.handler.cve_handler.manager.save_to_excel import export_excel
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
@@ -1113,7 +1107,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         # elasticsearch need 1 second to update doc
         self._insert_cve_docs(insert_docs)
         try:
-            self._update_cve_pkg_docs(exist_docs, update_docs)
+            self._update_cve_docs(exist_docs, update_docs)
         except EsOperationError:
             insert_cve_list = [doc["cve_id"] for doc in insert_docs]
             self._delete_cve_docs(insert_cve_list)
@@ -1225,8 +1219,6 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             cve_list (list): the cve list to be delete
 
-        Returns:
-
         """
         if not cve_list:
             return
@@ -1247,9 +1239,38 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             insert_cve_rows (list): cve row dict list
 
-        Returns:
-
         """
         insert_cve_list = [row["cve_id"] for row in insert_cve_rows]
         self.session.query(Cve).filter(Cve.cve_id.in_(insert_cve_list)) \
             .delete(synchronize_session=False)
+
+    def query_host_name_and_related_cves(self, host_id, username):
+        """
+        query all cve by host_id
+        Args:
+            host_id: host's id
+            username: username
+        Returns:
+            str:host name
+            list: cve list, each element is cve id and status, e.g.
+                [
+                    ["CVE-2022-12343","affected"]
+                ]
+
+        """
+
+        cve_query = self.session.query(CveHostAssociation) \
+            .filter(Host.user == username, CveHostAssociation.host_id == host_id).all()
+        cve_list = []
+        for cve in cve_query:
+            cve_list.append([
+                cve.cve_id,
+                "affected" if cve.affected else "unaffected"
+            ])
+
+        host_info_query = self.session.query(
+            Host).filter(Host.host_id == host_id, Host.user == username).all()
+        if host_info_query:
+            host_info = host_info_query[0]
+            return host_info.host_name, cve_list
+        return "", cve_query

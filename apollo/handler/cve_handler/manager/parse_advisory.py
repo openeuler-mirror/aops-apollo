@@ -168,7 +168,12 @@ def parse_cve_info(cve_info_list, affected_pkgs):
 
     for cve_info in cve_info_list:
         cve_id = cve_info["CVE"]
-        product_id = cve_info["ProductStatuses"]["Status"]["ProductID"]
+        status = cve_info["ProductStatuses"]["Status"]
+        if isinstance(status, list):
+            product_id = status[0]["ProductID"]
+        else:
+            product_id = status["ProductID"]
+
         if isinstance(product_id, list):
             product_id = ','.join(product_id)
 
