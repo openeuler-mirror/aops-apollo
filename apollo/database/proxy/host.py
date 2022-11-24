@@ -361,12 +361,17 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
+        cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
+            CveHostAssociation.host_id).label("cve_num"))\
+            .filter(CveHostAssociation.affected == True)\
+            .group_by(CveHostAssociation.host_id).subquery()
+
         host_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
                                         Host.host_group_name, Host.repo_name, Host.last_scan,
-                                        func.count(CveHostAssociation.cve_id).label("cve_num")) \
-            .outerjoin(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
-            .filter(Host.host_id == host_id, Host.user == username, CveHostAssociation.affected == True) \
-            .group_by(Host.host_id)
+                                        case([(cve_host_subquery.c.cve_num.is_(None), 0)],
+                                             else_=cve_host_subquery.c.cve_num).label("cve_num")) \
+            .outerjoin(cve_host_subquery, Host.host_id == cve_host_subquery.c.host_id) \
+            .filter(Host.host_id == host_id, Host.user == username)
         return host_query
 
     @staticmethod
