@@ -1281,5 +1281,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         """
         host_info_query = self.session.query(
             Host).filter(Host.host_id == host_id).all()
-        host_info = host_info_query[0]
-        return host_info.host_id, host_info.host_name, host_info.os_version
+        if host_info_query:
+            host_info = host_info_query[0]
+            return host_info.host_id, host_info.host_name, host_info.os_version
+        return "","",""
