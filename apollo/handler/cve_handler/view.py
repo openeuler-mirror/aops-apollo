@@ -455,7 +455,7 @@ class VulExportExcel(BaseResponse):
             cve_info_list = proxy._query_cev_by_host_id(host_id)
             host_id, host_name, os_version = proxy._query_host_info(host_id)
 
-            filename = f"{host_name}_{host_id}_{os_version if os_version else ''}.csv"
+            filename = f"{host_name}.csv"
             csv_head = ["cve_id", "status"]
             export_csv(cve_info_list, os.path.join(
                 save_path, filename), csv_head)
