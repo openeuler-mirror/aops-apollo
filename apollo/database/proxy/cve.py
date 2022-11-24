@@ -15,27 +15,21 @@ Time:
 Author:
 Description: Host table operation
 """
-import os
-import shutil
 from collections import defaultdict
-from time import sleep
 
 from elasticsearch import ElasticsearchException
 from sqlalchemy import func, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import FILE_NUMBER, CSV_SAVED_PATH
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
-from apollo.handler.cve_handler.manager.compress_manager import compress_cve
-from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.status import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
-    SUCCEED, DATABASE_UPDATE_ERROR, WRONG_FILE_FORMAT
+    SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class CveMysqlProxy(MysqlProxy):

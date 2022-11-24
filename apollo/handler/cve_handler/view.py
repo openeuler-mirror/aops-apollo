@@ -18,7 +18,6 @@ Description: Handle about cve related operation
 import glob
 import os
 import shutil
-from time import sleep
 
 from flask import jsonify
 

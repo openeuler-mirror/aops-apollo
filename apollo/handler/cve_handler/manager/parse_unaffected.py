@@ -52,7 +52,7 @@ def parse_unaffected_cve(xml_path):
     xml_dict = etree_to_dict(root)
     try:
         cve_rows, cve_pkg_rows, doc_list = parse_cvrf_dict(xml_dict)
-    except Exception as error:
+    except (TypeError, KeyError, IndexError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the unaffected xml.")
 
