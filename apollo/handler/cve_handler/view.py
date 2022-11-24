@@ -439,10 +439,10 @@ class VulExportExcel(BaseResponse):
 
         if not os.path.exists(CSV_SAVED_PATH):
             os.makedirs(CSV_SAVED_PATH)
-        save_path = os.path.join(CSV_SAVED_PATH, username)
-        if os.path.exists(save_path):
-            shutil.rmtree(save_path)
-        os.mkdir(save_path)
+        self.filepath = os.path.join(CSV_SAVED_PATH, username)
+        if os.path.exists(self.filepath):
+            shutil.rmtree(self.filepath)
+        os.mkdir(self.filepath)
 
         # connect to database
         proxy = CveProxy(configuration)
@@ -455,22 +455,19 @@ class VulExportExcel(BaseResponse):
             if not (cve_info_list and host_name):
                 return NO_DATA
 
-            filename = f"{host_name}.csv"
+            self.filename = f"{host_name}.csv"
             csv_head = ["cve_id", "status"]
             export_csv(cve_info_list, os.path.join(
-                save_path, filename), csv_head)
-        if len(os.listdir(save_path)) > FILE_NUMBER:
-            zip_filename, zip_save_path = compress_cve(save_path, "host.zip")
+                self.filepath, self.filename), csv_head)
+        if len(os.listdir(self.filepath)) > FILE_NUMBER:
+            zip_filename, zip_save_path = compress_cve(self.filepath, "host.zip")
             if zip_filename and zip_save_path:
                 self.filename = zip_filename
                 self.filepath = zip_save_path
                 return SUCCEED
             else:
                 return SERVER_ERROR
-        else:
-            self.filename = filename
-            self.filepath = save_path
-            return SUCCEED
+        return SUCCEED
 
     def post(self):
         """
