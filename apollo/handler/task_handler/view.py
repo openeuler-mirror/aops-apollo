@@ -200,7 +200,7 @@ class VulGetTaskProgress(BaseResponse):
                             "succeed": 1,
                             "fail": 0,
                             "running": 11,
-                            "on standby": 0
+                            "unknown": 0
                         }
                     }
                 }

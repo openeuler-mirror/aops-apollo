@@ -94,7 +94,7 @@ class CveTaskInfoFilterSchema(Schema):
     cve_id = fields.String(required=False, validate=lambda s: len(s) > 0)
     reboot = fields.Boolean(required=False)
     status = fields.List(fields.String(
-        validate=validate.OneOf(["succeed", "fail", "running", "on standby"])),
+        validate=validate.OneOf(["succeed", "fail", "running", "unknown"])),
         required=False)
 
 
@@ -161,7 +161,7 @@ class RepoTaskInfoFilterSchema(Schema):
     """
     host_name = fields.String(required=False, validate=lambda s: len(s) > 0)
     status = fields.List(fields.String(
-        validate=validate.OneOf(["succeed", "fail", "running", "on standby"])),
+        validate=validate.OneOf(["succeed", "fail", "running", "unknown"])),
         required=False)
 
 

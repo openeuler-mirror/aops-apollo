@@ -107,7 +107,8 @@ class RepoManager(Manager):
         save to database.
         """
         LOGGER.debug("Set repo task %s result: %s", self.task_id, self.result)
-        self._save_result(self.result)
+        task_result = self.result.get("task_result")
+        self._save_result(task_result)
         self.fault_handle()
 
     def fault_handle(self):
