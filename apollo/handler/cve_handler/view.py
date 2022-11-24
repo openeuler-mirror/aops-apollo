@@ -472,7 +472,6 @@ class VulExportExcel(BaseResponse):
             self.filename = filename
             self.filepath = save_path
             return SUCCEED
-            # return make_download_response(save_path, filename)
 
     def post(self):
         """
