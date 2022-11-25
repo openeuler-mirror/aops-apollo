@@ -364,8 +364,7 @@ class TaskMysqlProxy(MysqlProxy):
         if username:
             filters.add(Host.user == username)
 
-        hosts_status_query = self.session.query(Host.host_id, Host.status, Host.last_scan) \
-            .filter(*filters)
+        hosts_status_query = self.session.query(Host).filter(*filters)
         return hosts_status_query
 
     def update_user_cve_status(self, username, cve_list):
