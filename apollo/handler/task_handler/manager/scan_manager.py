@@ -81,7 +81,7 @@ class ScanManager(Manager):
         Returns:
             bool
         """
-        if self.proxy.init_host_scan(self.username, self.host_list) != SUCCEED:
+        if self.proxy.update_host_scan("init", self.host_list, self.username) != SUCCEED:
             LOGGER.error(
                 "Init the host status in database failed, stop scanning.")
             return False
@@ -126,7 +126,7 @@ class ScanManager(Manager):
         """
             When the task is completed or execute fail, set the host status to 'done'.
         """
-        self.proxy._update_host_scan("finish", self.host_list)
+        self.proxy.update_host_scan("finish", self.host_list)
 
 
 class TimedScanManager:

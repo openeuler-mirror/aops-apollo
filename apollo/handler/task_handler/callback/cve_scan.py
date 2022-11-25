@@ -43,11 +43,11 @@ class CveScanCallback(TaskCallback):
             status_code: cve scan setting status
         """
         status_code = self.proxy.save_cve_scan_result(task_info, username)
-        self.proxy._update_host_scan("finish", [task_info["host_id"]])
+        self.proxy.update_host_scan("finish", [task_info["host_id"]])
 
         if status_code != SUCCEED:
             LOGGER.error(
-                f"cve scan to hosts and upate cve host state failed, status: {task_info['status']},"
+                f"cve scan to hosts and update cve host state failed, status: {task_info['status']},"
                 f" task id: {task_id}.")
             return DATABASE_UPDATE_ERROR
 
