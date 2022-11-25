@@ -27,8 +27,7 @@ class ScanHostFilterSchema(Schema):
     host_name = fields.String(required=False, validate=lambda s: len(s) != 0)
     host_group = fields.List(fields.String(
         validate=lambda s: len(s) != 0), required=False)
-    repo = fields.List(fields.String(
-        validate=lambda s: len(s) != 0), required=False)
+    repo = fields.List(fields.String(), required=False)
     status = fields.List(fields.String(validate=validate.OneOf(["scanning", "done"])),
                          required=False)
 

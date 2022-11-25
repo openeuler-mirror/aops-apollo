@@ -1260,7 +1260,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         """
 
         cve_query = self.session.query(CveHostAssociation) \
-            .filter(Host.user == username, CveHostAssociation.host_id == host_id).all()
+            .join(Host, CveHostAssociation.host_id == Host.host_id) \
+            .filter(CveHostAssociation.host_id == host_id, Host.user == username).all()
         cve_list = []
         for cve in cve_query:
             cve_list.append([

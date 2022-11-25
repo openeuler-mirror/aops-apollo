@@ -41,6 +41,7 @@ SPECIFIC_URLS = {
         (cve_view.VulGetCveAction, VUL_CVE_ACTION_QUERY),
         (cve_view.VulUploadAdvisory, VUL_CVE_UPLOAD_ADVISORY),
         (cve_view.VulUploadUnaffected, VUL_CVE_UPLOAD_UNAFFECTED),
+        (cve_view.VulExportExcel, VUL_EXPORT_EXCEL)
     ],
     "CVE_HOST_URLS": [
         (cve_host_view.VulGetHostStatus, VUL_HOST_STATUS_GET),
@@ -65,8 +66,9 @@ SPECIFIC_URLS = {
         (cve_task_view.VulDeleteTask, VUL_TASK_DELETE)
     ],
     "CVE_TASK_CALLBACK_URLS": [
+        (cve_task_view.VulCveFixTaskCallback, VUL_TASK_CVE_FIX_CALLBACK),
         (cve_task_view.VulRepoSetTaskCallback, VUL_TASK_REPO_SET_CALLBACK),
-        (cve_task_view.VulCveFixTaskCallback, VUL_TASK_CVE_FIX_CALLBACK)
+        (cve_task_view.VulCveScanTaskCallback, VUL_TASK_CVE_SCAN_CALLBACK)
     ]
 }
 

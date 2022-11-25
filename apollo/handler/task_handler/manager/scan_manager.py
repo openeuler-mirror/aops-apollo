@@ -15,18 +15,22 @@ Time:
 Author:
 Description: Task manager for cve scanning.
 """
-import re
-import uuid
 import datetime
+import re
 import threading
+import uuid
 
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED
+from apollo.conf import configuration
 from apollo.conf.constant import CVE_SCAN_STATUS
 from apollo.database import SESSION
 from apollo.database.proxy.task import TaskMysqlProxy
-from apollo.handler.task_handler.manager import Manager
+from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.config import cve_scan_time
+from apollo.handler.task_handler.manager import Manager
+from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.status import SUCCEED
 
 
 class ScanManager(Manager):
@@ -45,7 +49,30 @@ class ScanManager(Manager):
         self.host_list = [host['host_id'] for host in host_info]
         self.username = username
         self.pattern = re.compile(r'CVE-\d+-\d+')
-        super().__init__(proxy, task_id, host_info)
+        super().__init__(proxy, task_id)
+
+    def create_task(self):
+        """
+       Returns:
+           int: status code
+       """
+        host_info_list = []
+        for host_id in self.host_list:
+            host_info_list.append({
+                "host_id": host_id,
+                "check": False
+            })
+
+        self.task = {
+            "task_id": self.task_id,
+            "task_type": "cve scan",
+            "total_hosts": self.host_list,
+            "check_items": [],
+            "tasks": host_info_list,
+            "callback": "/vulnerability/task/callback/cve/scan"
+        }
+
+        return SUCCEED
 
     def pre_handle(self):
         """
@@ -66,23 +93,40 @@ class ScanManager(Manager):
         Execute cve scan task.
         """
         LOGGER.info("Scanning task %s start to execute.", self.task_id)
-        LOGGER.info("Scanning task %s end.", self.task_id)
+        manager_url = URL_FORMAT % (configuration.zeus.get('IP'),
+                                    configuration.zeus.get('PORT'),
+                                    EXECUTE_CVE_SCAN)
+        header = {
+            "access_token": self.token,
+            "Content-Type": "application/json; charset=UTF-8"
+        }
+        response = BaseResponse.get_response(
+            'POST', manager_url, self.task, header)
+        if response.get('code') != SUCCEED:
+            LOGGER.error("Cve scan task %s execute failed.", self.task_id)
+            return
+        self.result = response.get("task_result")
+        LOGGER.info(
+            "Cve scan task %s end, begin to handle result.", self.task_id)
 
     def post_handle(self):
         """
         After executing the task, parse and save result to database.
         """
-        result = {}
-        LOGGER.debug(result)
-        # save the result to database and close database connection.
-        self.proxy.save_scan_result(self.username, result)
+
+        if self.result:
+            for host_info in self.result:
+                LOGGER.debug(
+                    f"{host_info['host_id']} scan status is {host_info.get('status')}")
+        else:
+            LOGGER.info(f"cve scan result is null")
         self.fault_handle()
 
     def fault_handle(self):
         """
-        When the task is completed or execute fail, set the host status to 'unknown'.
+            When the task is completed or execute fail, set the host status to 'done'.
         """
-        self.proxy.update_scan_status(self.host_list)
+        self.proxy._update_host_scan("finish", self.host_list)
 
 
 class TimedScanManager:
