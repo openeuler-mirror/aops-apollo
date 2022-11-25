@@ -15,8 +15,9 @@ Time:
 Author:
 Description: callback function of the cve scanning task.
 """
-from vulcanus.log.log import LOGGER
 from apollo.handler.task_handler.callback import TaskCallback
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.status import SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class CveScanCallback(TaskCallback):
@@ -24,29 +25,30 @@ class CveScanCallback(TaskCallback):
     Callback function for cve scanning.
     """
 
-    def __init__(self, user, proxy, host_info):
+    def callback(self, task_id: str, task_info: dict, username: str) -> int:
         """
+        Set the callback after the cve scan task is completed
         Args:
-            user (str): who the scanned hosts belongs to.
-            proxy (object): database proxy
-            host_info (list): host info, e.g. hostname, ip, etc.
-        """
-        self.user = user
-        task_info = {}
-        for info in host_info:
-            host_name = info.get('host_name')
-            task_info[host_name] = info
+            task_id: task id,
+            task_info: task info, e.g.:
+                {
+                    status:0,
+                    "host_id":"127.0.0.1",
+                    "installed_packages":["string"],
+                    "os_version":"string",
+                    "cves:["string"]
+                }
 
-    def save_to_db(self, task_name, host_name, status):
+        Returns:
+            status_code: cve scan setting status
         """
-        Set the status of the host to database.
+        status_code = self.proxy.save_cve_scan_result(task_info, username)
+        self.proxy._update_host_scan("finish", [task_info["host_id"]])
 
-        Args:
-            task_name (str): task name in playbook.
-            host_name (str)
-            status (str)
-        """
-        host_id = self.task_info[host_name]['host_id']
-        self.proxy.update_scan_status([host_id])
-        LOGGER.debug("task name: %s, host_id: %s, status: %s",
-                     task_name, host_id, status)
+        if status_code != SUCCEED:
+            LOGGER.error(
+                f"cve scan to hosts and upate cve host state failed, status: {task_info['status']},"
+                f" task id: {task_id}.")
+            return DATABASE_UPDATE_ERROR
+
+        return SUCCEED

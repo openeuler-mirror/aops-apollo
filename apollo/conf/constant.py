@@ -101,15 +101,14 @@ VUL_TASK_CVE_STATUS_GET = "/vulnerability/task/cve/status/get"
 VUL_TASK_CVE_PROGRESS_GET = "/vulnerability/task/cve/progress/get"
 VUL_TASK_CVE_RESULT_GET = "/vulnerability/task/cve/result/get"
 VUL_TASk_EXECUTE = "/vulnerability/task/execute"
-VUL_TASK_CVE_ROLLBACK = "/vulnerability/task/cve/rollback"
 VUL_TASK_REPO_GENERATE = "/vulnerability/task/repo/generate"
 VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
 # route of callback
-VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
-
+VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
+VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerability/task/callback/cve/scan"
 # elasticsearch index
 CVE_INDEX = 'cve'
 TASK_INDEX = "task"

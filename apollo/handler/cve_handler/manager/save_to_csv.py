@@ -21,8 +21,6 @@ from vulcanus.log.log import LOGGER
 
 __all__ = ["export_csv"]
 
-from vulcanus.restful.status import SUCCEED
-
 
 def export_csv(export_list: list, cve_name: str, cve_head: list):
     """

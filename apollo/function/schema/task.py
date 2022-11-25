@@ -198,13 +198,10 @@ class DeleteTaskSchema(Schema):
                             validate=lambda s: len(s) != 0)
 
 
-class GetTaskPlaybookSchema(Schema):
-    """
-    validators for parameter of /vulnerability/task/playbook/get
-    """
+class CveFixCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    task_type = fields.String(
-        required=True, validate=validate.OneOf(["cve", "repo"]))
+    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    cves = fields.Dict(keys=fields.Str(), values=fields.Str())
 
 
 class RepoSetCallbackSchema(Schema):
@@ -214,11 +211,13 @@ class RepoSetCallbackSchema(Schema):
     repo_name = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
-class CveFixCallbackSchema(Schema):
+class CveScanCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    cves = fields.Dict(keys=fields.Str(), values=fields.Str(
-        validate=validate.OneOf(["fixed", "unfixed"])))
+    status = fields.String(required=True, validate=lambda s: len(s) != 0)
+    installed_packages = fields.List(fields.String(), required=True)
+    os_version = fields.String(required=True)
+    cves = fields.List(fields.String(), required=True)
 
 
 __all__ = [
@@ -236,7 +235,7 @@ __all__ = [
     'GetRepoTaskResultSchema',
     'ExecuteTaskSchema',
     'DeleteTaskSchema',
-    'GetTaskPlaybookSchema',
+    'CveFixCallbackSchema',
     'RepoSetCallbackSchema',
-    'CveFixCallbackSchema'
+    'CveScanCallbackSchema'
 ]

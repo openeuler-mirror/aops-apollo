@@ -15,28 +15,29 @@ Time:
 Author:
 Description: vulnerability related database operation
 """
-import math
 import json
+import math
 from collections import defaultdict
 from time import time
-from typing import Tuple, Dict
+from typing import Dict, Tuple
+
+import sqlalchemy
 from sqlalchemy import case
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.database import SESSION
-from vulcanus.log.log import LOGGER
-from vulcanus.database.helper import sort_and_page, judge_return_code
-from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
-from vulcanus.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
-    DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, SUCCEED, PARAM_ERROR, SERVER_ERROR, PARTIAL_SUCCEED
-from vulcanus.database.table import Host, User
+from apollo.conf.constant import REPO_FILE, REPO_STATUS, TASK_INDEX
 from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
     CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
-from apollo.conf.constant import REPO_FILE, REPO_STATUS, TASK_INDEX
 from apollo.function.customize_exception import EsOperationError
+from vulcanus.database.helper import sort_and_page, judge_return_code
+from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.database.table import Host, User
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
+    DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, SUCCEED, SERVER_ERROR, PARTIAL_SUCCEED, WRONG_DATA
 
 task_types = ["cve fix", "repo set"]
 
@@ -151,27 +152,164 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Init host scan status failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
-    def update_scan_status(self, host_list):
+    def save_cve_scan_result(self, task_info: dict, username: str):
         """
-        Every time a host or host list have been scanned, update the status to "done"
-
+        Save cve scan result to database.
         Args:
-            host_list (list): host id list
-
+            task_info (dict): task info, e.g.
+                {
+                    "status":"success" / "fail" / "unknown",
+                    "host_id":"127.0.0.1",
+                    "installed_packages":["string"],
+                    "os_version":"string",
+                    "cves":["string"]
+                }
         Returns:
             int: status code
         """
         try:
-            status_code = self._update_host_scan("finish", host_list)
+            status = task_info["status"]
+            if status != "succeed":
+                LOGGER.info(f"scan result failed with status {status}.")
+                return WRONG_DATA
+
+            status_code = self._save_cve_scan_result(task_info, username)
             self.session.commit()
-            LOGGER.debug("Finished updating host status after scanned.")
+            LOGGER.debug("Finish saving scan result.")
             return status_code
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error(
-                "Updating host status after scanned failed due to internal error.")
-            return DATABASE_UPDATE_ERROR
+            LOGGER.error("Save cve scan result failed.")
+            return DATABASE_INSERT_ERROR
+
+    def _save_cve_scan_result(self, task_info: dict, username: str):
+
+        host_id = task_info["host_id"]
+        installed_packages = task_info["installed_packages"]
+        os_version = task_info["os_version"]
+        affected_cves = task_info["cves"]
+
+        cve_list = []
+
+        if affected_cves:
+            exist_affected_cves = self._get_exist_cves(affected_cves)
+            for cve in exist_affected_cves:
+                cve_list.append({
+                    "cve_id": cve,
+                    "host_id": host_id,
+                    "affected": True
+                })
+
+        if installed_packages:
+            unaffected_cve_list = self._get_unaffected_cve(
+                installed_packages, affected_cves, os_version)
+            for unaffected_cve in unaffected_cve_list:
+                cve_list.append({
+                    "cve_id": unaffected_cve,
+                    "host_id": host_id,
+                    "affected": False
+                })
+        else:
+            LOGGER.info("Installed packages is null")
+
+        self.session.query(CveHostAssociation) \
+            .filter(CveHostAssociation.host_id == host_id) \
+            .delete(synchronize_session=False)
+
+        self.session.bulk_insert_mappings(
+            CveHostAssociation, cve_list)
+        user_cves = exist_affected_cves + unaffected_cve_list
+        self.update_user_cve_status(username, user_cves)
+        return SUCCEED
+
+    def _get_exist_cves(self, cves):
+        """
+        Get exist cves
+        Args:
+            cves (list): cve list
+        Returns:
+            code status(int)
+        """
+        cve_query = self.session.query(Cve.cve_id).all()
+        cve_id_list = [cve.cve_id for cve in cve_query]
+        exists_cve = list(set(cves) & set(cve_id_list))
+        no_exists_cve = set(cves) - set(cve_id_list)
+        if no_exists_cve:
+            LOGGER.error(f"Cve scan no exist cve is {no_exists_cve}")
+        return exists_cve
+
+    def _get_unaffected_cve(self, installed_packages: list, cves: list, os_version: str) -> list:
+        """
+        Get the unaffected CVEs.
+        Args:
+            installed_packages (list): affected cve list,e.g.
+                ["OpenEXR", "python-bleach", "lua"]
+            cves (list): CVE list, e.g.
+                ["CVE-1999-20304", "CVE-1999-20303", "CVE-1999-20301"]
+            os_version(str): os version, e.g. "openEuler-22.03-LTS"
+        Returns:
+            list: unaffected CVEs
+        """
+        cve_and_packages = self._query_cve_and_packages()
+        cve_id_and_os_version = self.get_cve_unaffected_os_dict(os_version)
+        package_cve_dict = defaultdict(list)
+        result_cve_list = []
+        for cve, package in cve_and_packages:
+            package_cve_dict[package].append(cve)
+        for package in installed_packages:
+            if package in package_cve_dict:
+                result_cve_list.extend(package_cve_dict[package])
+        verify_os_version_cve_list = []
+        for cve in result_cve_list:
+            if os_version in cve_id_and_os_version.get(cve, ""):
+                verify_os_version_cve_list.append(cve)
+
+        return list(set(verify_os_version_cve_list) - set(cves))
+
+    def _query_cve_and_packages(self):
+        """
+        Query the cve and packages.
+        Returns:
+            cve_and_packages(list):e.g.
+                    [('CVE-2022-44964', 'lua'), ('CVE-2022-14964', 'ansible')]
+        """
+        cve_and_packages = self.session.query(
+            CveAffectedPkgs.cve_id, CveAffectedPkgs.package).all()
+        return cve_and_packages
+
+    def _save_cve_host_match(self, database_list):
+        """
+        Save cve host match to database.
+        Args:
+            database_list (list): database list,e.g.
+            [{"cve_id":"CVE-2012-1222","host_id":"127.0.0.1","affected":1},
+            {"cve_id":"CVE-2012-1224","host_id":"127.0.6.1","affected":1}]
+        Returns:
+            code status(int)
+        """
+        self.session.bulk_insert_mappings(
+            CveHostAssociation, database_list)
+        LOGGER.debug("Finished saving cve_host_match.")
+
+    def get_cve_unaffected_os_dict(self, os_version: str) -> dict:
+        """
+        Query the cve os version.
+        Args:
+            os_version(str):e.g. "openEuler-22.03-LTS"
+        Returns:
+            dict:e.g. {
+                        'CVE-2018-16301': 'openEuler-22.03-LTS',
+                        'CVE-2019-10301': 'openEuler-22.03-LTS'
+                      }
+        """
+        cve_os_version_query = self.session.query(Cve.cve_id, Cve.unaffected_os).filter(
+            Cve.unaffected_os.like(f"%{os_version}%"), Cve.severity is not None).all()
+        cve_id_and_os_version = {}
+        for cve_id, os_version in cve_os_version_query:
+            cve_id_and_os_version[cve_id] = os_version
+
+        return cve_id_and_os_version
 
     def _update_host_scan(self, update_type, host_list, username=None):
         """
@@ -205,9 +343,11 @@ class TaskMysqlProxy(MysqlProxy):
             if update_type == "init":
                 return NO_DATA
 
-        # update() is not applicable to 'in_' method without
-        # synchronize_session=False
-        host_scan_query.update(update_dict, synchronize_session=False)
+        # update() is not applicable to 'in_' method without synchronize_session=False
+        for host_id in host_list:
+            self.session.query(Host).filter_by(Host.host_id == host_id).update(
+                update_dict, synchronize_session=False)
+        self.session.commit()
         return SUCCEED
 
     def _query_scan_status_and_time(self, host_list, username):
@@ -225,81 +365,17 @@ class TaskMysqlProxy(MysqlProxy):
         if username:
             filters.add(Host.user == username)
 
-        hosts_status_query = self.session.query(Host).filter(*filters)
+        hosts_status_query = self.session.query(Host.host_id, Host.status, Host.last_scan) \
+            .filter(*filters)
         return hosts_status_query
 
-    def save_scan_result(self, username, host_dict):
-        """
-        Save the scanned result to database.
-        If one host id doesn't in Host table, then error will be raised and all insertion will
-        be rolled back. So make sure Delete Host is forbidden during the scan.
-
-        Args:
-            username (str): username
-            host_dict (dict): e.g.
-                {
-                    "id1": ["cve1", "cve2"],
-                    "id2": [],
-                }
-        Returns:
-            int
-        """
-        try:
-            status_code = self._save_scan_result(username, host_dict)
-            self.session.commit()
-            LOGGER.debug("Finished saving scan result.")
-            return status_code
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("Saving scan result failed due to internal error.")
-            return DATABASE_INSERT_ERROR
-
-    def _save_scan_result(self, username, host_dict):
-        """
-        Save host and cve's relationship into CveHostAssociation table.
-        Delete the scanned hosts' previous cve record first, then add new cve record if
-        cve list is not empty.
-
-        Args:
-            username (str): username
-            host_dict (dict): record scanned hosts' cve list
-
-        Returns:
-            int
-        """
-        host_list = list(host_dict.keys())
-
-        self.session.query(CveHostAssociation) \
-            .filter(CveHostAssociation.host_id.in_(host_list)) \
-            .delete(synchronize_session=False)
-
-        exist_cve_query = self.session.query(Cve.cve_id)
-        exist_cve_set = {row.cve_id for row in exist_cve_query}
-
-        cve_host_rows = []
-        valid_cve_set = set()
-        for host_id, cve_list in host_dict.items():
-            for cve_id in cve_list:
-                if cve_id in exist_cve_set:
-                    row = {"host_id": host_id, "cve_id": cve_id}
-                    cve_host_rows.append(row)
-                    valid_cve_set.add(cve_id)
-                else:
-                    LOGGER.debug("Cve '%s' in Scan result cannot be recorded because its data has "
-                                 "not been imported yet." % cve_id)
-
-        self.session.bulk_insert_mappings(CveHostAssociation, cve_host_rows)
-        self._update_user_cve_status(username, valid_cve_set)
-        return SUCCEED
-
-    def _update_user_cve_status(self, username, cve_set):
+    def update_user_cve_status(self, username, cve_list):
         """
         update CveUserAssociation table, add new cve's record. If a cve doesn't exist in all
         hosts, still preserve it in the table
         Args:
             username (str): user name
-            cve_set (set): the cve set to be added into CveUserAssociation table
+            cve_list (list): the cve set to be added into CveUserAssociation table
 
         Returns:
             None
@@ -308,14 +384,12 @@ class TaskMysqlProxy(MysqlProxy):
             .filter(CveUserAssociation.username == username)
         exist_cve = [row.cve_id for row in exist_cve_query]
 
-        new_cve_list = list(cve_set - set(exist_cve))
+        new_cve_list = list(set(cve_list) - set(exist_cve))
         user_cve_rows = []
         for cve_id in new_cve_list:
             user_cve_rows.append({"cve_id": cve_id, "username": username,
                                   "status": "not reviewed"})
-        if user_cve_rows:
-            self.session.bulk_insert_mappings(
-                CveUserAssociation, user_cve_rows)
+        self.session.bulk_insert_mappings(CveUserAssociation, user_cve_rows)
 
     def get_task_list(self, data):
         """
@@ -730,13 +804,13 @@ class TaskMysqlProxy(MysqlProxy):
         username = data["username"]
 
         task_info_query = self._query_task_info_from_mysql(username, task_id)
-
-        # raise exception when multiple record found
-        task_info_data = task_info_query.one_or_none()
-        if not task_info_data:
+        if not task_info_query.all():
             LOGGER.debug(
                 "No data found when getting the info of task: %s." % task_id)
             return NO_DATA, {"result": {}}
+
+        # raise exception when multiple record found
+        task_info_data = task_info_query.one()
 
         info_dict = self._task_info_row2dict(task_info_data)
         return SUCCEED, {"result": info_dict}
