@@ -32,8 +32,8 @@ TEMPLATE_REPO_STR = "[update]\n" \
 
 
 class CVE_HOST_STATUS:
-    FIXED = "fixed"
-    UNFIXED = "unfixed"
+    FIXED = "succeed"
+    UNFIXED = "fail"
     RUNNING = "running"
     UNKNOWN = "unknown"
 
