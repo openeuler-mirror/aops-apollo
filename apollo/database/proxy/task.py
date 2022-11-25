@@ -345,7 +345,7 @@ class TaskMysqlProxy(MysqlProxy):
 
         # update() is not applicable to 'in_' method without synchronize_session=False
         for host_id in host_list:
-            self.session.query(Host).filter_by(Host.host_id == host_id).update(
+            self.session.query(Host).filter(Host.host_id == host_id).update(
                 update_dict, synchronize_session=False)
         self.session.commit()
         return SUCCEED
