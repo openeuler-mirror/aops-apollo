@@ -129,21 +129,21 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("query host basic info fail")
             return DATABASE_QUERY_ERROR, result
 
-    def init_host_scan(self, username, host_list):
+    def update_host_scan(self, status, host_list, username=None):
         """
         When the host need to be scanned, init the status to 'scanning',
         and update the last scan time to current time.
         Notice, if one host id doesn't exist, all hosts will not be scanned
         Args:
-            username (str): user name
+            status(str): init or finish
             host_list (list): host id list, if empty, scan all hosts
+            username (str): user name
         Returns:
             int: status code
         """
         try:
-            status_code = self._update_host_scan("init", host_list, username)
-            if status_code == SUCCEED:
-                self.session.commit()
+            status_code = self._update_host_scan(status, host_list, username)
+            self.session.commit()
             LOGGER.debug("Finished init host scan status.")
             return status_code
         except SQLAlchemyError as error:
@@ -191,6 +191,8 @@ class TaskMysqlProxy(MysqlProxy):
         affected_cves = task_info["cves"]
 
         cve_list = []
+        exist_affected_cves = []
+        unaffected_cve_list = []
 
         if affected_cves:
             exist_affected_cves = self._get_exist_cves(affected_cves)
@@ -344,10 +346,7 @@ class TaskMysqlProxy(MysqlProxy):
                 return NO_DATA
 
         # update() is not applicable to 'in_' method without synchronize_session=False
-        for host_id in host_list:
-            self.session.query(Host).filter(Host.host_id == host_id).update(
-                update_dict, synchronize_session=False)
-        self.session.commit()
+        host_scan_query.update(update_dict, synchronize_session=False)
         return SUCCEED
 
     def _query_scan_status_and_time(self, host_list, username):
