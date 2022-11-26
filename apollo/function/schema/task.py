@@ -80,9 +80,9 @@ class GenerateCveTaskSchema(Schema):
     validators for parameter of /vulnerability/task/cve/generate
     """
     task_name = fields.String(required=True, validate=lambda s: len(s) != 0)
-    description = fields.String(required=True)
+    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     auto_reboot = fields.Boolean(required=False, default=True)
-    check_items = fields.String(required=False)
+    check_items = fields.String(required=False, validate=lambda s: 0 < len(s) <= 32)
     info = fields.List(fields.Nested(CveInfoDictSchema), required=True,
                        validate=lambda s: len(s) > 0)
 

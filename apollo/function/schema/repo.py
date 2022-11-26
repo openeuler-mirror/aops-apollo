@@ -24,9 +24,9 @@ class ImportYumRepoSchema(Schema):
     validators for parameter of /vulnerability/repo/import
     """
     repo_name = fields.String(
-        required=True, validate=lambda s: 0 < len(s) < 20)
+        required=True, validate=lambda s: 0 < len(s) <= 20)
     repo_data = fields.String(
-        required=True, validate=lambda s: 0 < len(s) < 512)
+        required=True, validate=lambda s: 0 < len(s) <= 512)
 
 
 class GetYumRepoSchema(Schema):
@@ -41,9 +41,9 @@ class UpdateYumRepoSchema(Schema):
     validators for parameter of /vulnerability/repo/update
     """
     repo_name = fields.String(
-        required=True, validate=lambda s: 0 < len(s) < 20)
+        required=True, validate=lambda s: 0 < len(s) <= 20)
     repo_data = fields.String(
-        required=True, validate=lambda s: 0 < len(s) < 512)
+        required=True, validate=lambda s: 0 < len(s) <= 512)
 
 
 class DeleteYumRepoSchema(Schema):
