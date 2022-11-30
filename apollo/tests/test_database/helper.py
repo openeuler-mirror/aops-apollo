@@ -28,7 +28,7 @@ from apollo.database.table import CveHostAssociation, TaskHostRepoAssociation, \
 from apollo.database.table import create_vul_tables
 from apollo.database.mapping import MAPPINGS
 from apollo.conf import configuration
-from apollo.conf.constant import CVE_PKG_INDEX, TASK_INDEX
+from apollo.conf.constant import CVE_INDEX, TASK_INDEX
 
 
 __all__ = ["setup_mysql_db", "tear_down_mysql_db", "setup_es_db", "tear_down_es_db",
@@ -528,7 +528,7 @@ class TestEsDb(ElasticsearchProxy):
                                                            'tensorflow.oe1.src.rpm']}],
                                 'os_version': 'openEuler:20.03-LTS-SP1',
                                 'update_time': '2021-12-31'}]}
-        self.insert(CVE_PKG_INDEX, cve_doc, document_id=cve_doc["cve_id"])
+        self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
         cve_doc = {'cve_id': 'qwfqwff4',
                    'description': 'sef',
@@ -540,12 +540,12 @@ class TestEsDb(ElasticsearchProxy):
                                                            'redis.oe1.src.rpm']}],
                                 'os_version': 'openEuler:20.03-LTS-SP1',
                                 'update_time': '2021-12-31'}]}
-        self.insert(CVE_PKG_INDEX, cve_doc, document_id=cve_doc["cve_id"])
+        self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
         cve_doc = {'cve_id': 'qwfqwff5',
                    'description': 'abc',
                    'os_list': []}
-        self.insert(CVE_PKG_INDEX, cve_doc, document_id=cve_doc["cve_id"])
+        self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
         cve_doc = {'cve_id': 'qwfqwff6',
                    'description': 'abcd',
@@ -555,7 +555,7 @@ class TestEsDb(ElasticsearchProxy):
                                                'package': ['redis.oe1.src.rpm']}],
                                 'os_version': 'openEuler:20.03-LTS-SP1',
                                 'update_time': '2021-12-31'}]}
-        self.insert(CVE_PKG_INDEX, cve_doc, document_id=cve_doc["cve_id"])
+        self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
 
 test_es_db = TestEsDb(configuration)

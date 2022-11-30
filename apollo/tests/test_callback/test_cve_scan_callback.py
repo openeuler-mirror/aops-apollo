@@ -18,45 +18,54 @@ Description:
 import unittest
 from unittest import mock
 
+from apollo.conf import configuration
+from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
-from apollo.database.proxy.task import TaskMysqlProxy
-from apollo.tests.test_callback import Host, Test
+from vulcanus.restful.status import DATABASE_UPDATE_ERROR, DATABASE_INSERT_ERROR, SUCCEED
 
 
 class TestCveScanCallback(unittest.TestCase):
     def setUp(self):
-        task_info = [
-            {
-                "host_name": "name1",
-                "host_id": "id1",
-                "host_ip": "ip1"
-            },
-            {
-                "host_name": "name2",
-                "host_id": "id2",
-                "host_ip": "ip2"
-            },
-            {
-                "host_name": "name3",
-                "host_id": "id3",
-                "host_ip": "ip3"
-            }
-        ]
-        proxy = TaskMysqlProxy()
-        self.call = CveScanCallback('1', proxy, task_info)
+        self.task_info = {
+            "status": "init",
+            "host_id": "127.0.0.1",
+            "installed_packages": ["string"],
+            "os_version": "openEuler 22.03 LTS",
+            "cves": ["CVE-2021-11111", "CVE-2022-13111"]
+        }
 
-    def tearDown(self):
-        pass
+        self.call = CveScanCallback(TaskProxy(configuration))
 
-    @mock.patch.object(TaskMysqlProxy, 'update_scan_status')
-    def test_result(self, mock_update_scan_status):
-        result1 = Test(Host('name1'), {'msg': "11"}, "scan")
-        self.call.v2_runner_on_unreachable(result1)
+    @mock.patch.object(TaskMysqlProxy, 'save_cve_scan_result')
+    @mock.patch.object(TaskMysqlProxy, 'update_host_scan')
+    def test_cve_scan_callback_should_success_when_save_cve_scan_result_succeed_and_update_host_scan_succeed(self,
+                                                                                                             mock_update_host_scan,
+                                                                                                             mock_save_cve_scan_result):
+        self.call.callback("task_id", self.task_info, "admin")
+        mock_update_host_scan.assert_called_with("finish", [self.task_info["host_id"]])
+        mock_save_cve_scan_result.assert_called_with(self.task_info, "admin")
 
-        result2 = Test(Host('name2'), {'stdout': "12"}, "scan")
-        self.call.v2_runner_on_ok(result2)
+    @mock.patch.object(TaskMysqlProxy, 'save_cve_scan_result')
+    @mock.patch.object(TaskMysqlProxy, 'update_host_scan')
+    def test_cve_scan_callback_should_failed_when_save_cve_scan_result_failed(self,
+                                                                              mock_update_host_scan,
+                                                                              mock_save_cve_scan_result):
+        mock_update_host_scan.return_value = SUCCEED
+        mock_save_cve_scan_result.return_value = DATABASE_INSERT_ERROR
+        status_code = self.call.callback("task_id", self.task_info, "admin")
+        self.assertEqual(DATABASE_UPDATE_ERROR, status_code)
 
-        result3 = Test(Host('name3'), {'stderr': "13"}, "scan")
-        self.call.v2_runner_on_failed(result3)
+    @mock.patch.object(TaskMysqlProxy, 'update_host_scan')
+    def test_cve_scan_callback_should_failed_when_status_no_succeed(self,
+                                                                    mock_update_host_scan):
+        mock_update_host_scan.return_value = SUCCEED
+        self.task_info["status"] = "fail"
+        status_code = self.call.callback("task_id", self.task_info, "admin")
+        self.assertEqual(DATABASE_UPDATE_ERROR, status_code)
 
-        self.assertEqual(mock_update_scan_status.call_count, 3)
+    @mock.patch.object(TaskMysqlProxy, 'update_host_scan')
+    def test_cve_scan_callback_should_failed_when_update_host_scan_result_failed(self,
+                                                                                 mock_update_host_scan_result):
+        mock_update_host_scan_result.return_value = DATABASE_UPDATE_ERROR
+        status_code = self.call.callback("task_id", self.task_info, "admin")
+        self.assertEqual(DATABASE_UPDATE_ERROR, status_code)

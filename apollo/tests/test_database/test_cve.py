@@ -17,7 +17,7 @@ Description:
 """
 import unittest
 
-from vulcanus.restful.status import PARTIAL_SUCCEED, SUCCEED, NO_DATA
+from vulcanus.restful.status import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATABASE_INSERT_ERROR
 from apollo.database.proxy.cve import CveProxy
 from apollo.database.table import CveUserAssociation
 from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, setup_es_db, \
@@ -271,3 +271,122 @@ class TestCveProxy(unittest.TestCase):
 
         data = {"cve_id": "not_exist_id", "username": "admin"}
         self.assertEqual(self.cve_database.get_cve_info(data), (NO_DATA, {"result": {}}))
+
+    def test_save_security_advisory(self):
+        filename = "advisory.xml"
+        cve_rows = [
+            {
+                "cve_id": "cve-2021-1001",
+                "publish_time": "2021-1-1",
+                "severity": "high",
+                "cvss_score": "5.9",
+                "reboot": False
+            },
+            {
+                "cve_id": "cve-2021-1002",
+                "publish_time": "2021-1-2",
+                "severity": "low",
+                "cvss_score": "1.1",
+                "reboot": False
+            }
+        ]
+        cve_pkg_rows = [
+            {
+                "cve_id": "cve-2021-1001", "package": "redis"
+            },
+            {
+                "cve_id": "cve-2021-1002", "package": "mysql"
+            }
+        ]
+        cve_pkg_docs = [
+            {
+                'cve_id': 'CVE-2021-43809',
+                'description': 'a long description',
+            },
+            {
+                'cve_id': 'CVE-2021-43808',
+                'description': 'a long description',
+            }
+        ]
+
+        self.assertEqual(self.cve_database.save_security_advisory(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
+                         SUCCEED)
+
+        cve_rows = [
+            {
+                "host_id": "127.0.0.0",
+                "os_version": "openEuler 22.03"
+            }
+        ]
+        self.assertEqual(self.cve_database.save_security_advisory(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
+                         DATABASE_INSERT_ERROR)
+
+    def test_save_unaffected_cve(self):
+        filename = "unaffected.xml"
+        cve_rows = [
+            {
+                "cve_id": "CVE-2022-1001",
+                "publish_time": "2022-1-1",
+                "severity": "high",
+                "cvss_score": "5.8",
+                "reboot": False
+            },
+            {
+                "cve_id": "CVE-2022-1002",
+                "publish_time": "2022-1-2",
+                "severity": "low",
+                "cvss_score": "1.2",
+                "reboot": False
+            }
+        ]
+        cve_pkg_rows = [
+            {
+                "cve_id": "CVE-2022-1001", "package": "redis,mongo"
+            },
+            {
+                "cve_id": "CVE-2022-1002", "package": "mysql,mongo"
+            }
+        ]
+        cve_pkg_docs = [
+            {
+                'cve_id': 'CVE-2022-1001',
+                'description': 'a long description',
+            },
+            {
+                'cve_id': 'CVE-2022-1002',
+                'description': 'a long description',
+            }
+        ]
+
+        self.assertEqual(self.cve_database.save_unaffected_cve(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
+                         SUCCEED)
+
+        cve_rows = [
+            {
+                "host_id": "127.0.0.0",
+                "os_version": "openEuler 22.03"
+            }
+        ]
+        self.assertEqual(self.cve_database.save_unaffected_cve(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
+                         DATABASE_INSERT_ERROR)
+
+    def test_query_host_name_and_related_cves(self):
+        host_id = "127.0.0.0"
+        username = "admin"
+        expected_host_name = "hostname1"
+        expected_query_result = [
+            ["CVE-2022-1001", "affected"],
+            ["CVE-2022-1002", "affected"],
+            ["CVE-2022-1003", "unaffected"]
+        ]
+        self.assertEqual(self.cve_database.query_host_name_and_related_cves(host_id, username),
+                         (SUCCEED, expected_host_name, expected_query_result))
+
+        expected_host_name = ""
+        expected_query_result = [
+            ["CVE-2022-1001", "affected"],
+            ["CVE-2022-1002", "affected"],
+            ["CVE-2022-1003", "unaffected"]
+        ]
+        self.assertEqual(self.cve_database.query_host_name_and_related_cves(host_id, username),
+                         (SUCCEED, expected_host_name, expected_query_result))
