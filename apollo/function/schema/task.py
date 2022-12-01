@@ -151,9 +151,12 @@ class GenerateRepoTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/repo/generate
     """
-    task_name = fields.String(required=True, validate=lambda s: 0 < s <= 20)
-    description = fields.String(required=True, validate=lambda s: 0 < s <= 50)
-    repo_name = fields.String(required=True, validate=lambda s: 0 < s <= 20)
+    task_name = fields.String(
+        required=True, validate=lambda s: 0 < len(s) <= 20)
+    description = fields.String(
+        required=True, validate=lambda s: 0 < len(s) <= 50)
+    repo_name = fields.String(
+        required=True, validate=lambda s: 0 < len(s) <= 20)
     info = fields.List(fields.Nested(CveHostInfoDictSchema), required=True,
                        validate=lambda s: len(s) > 0)
 

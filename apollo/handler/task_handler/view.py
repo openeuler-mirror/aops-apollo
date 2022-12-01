@@ -102,10 +102,6 @@ class VulScanHost(BaseResponse):
         """
         access_token = request.headers.get('access_token')
         # connect to database
-        task_proxy = TaskProxy(configuration)
-        if not task_proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
-
         proxy = TaskMysqlProxy()
         if not proxy.connect(SESSION):
             LOGGER.error("Connect to database fail, return.")
@@ -116,7 +112,6 @@ class VulScanHost(BaseResponse):
         host_list = args['host_list']
         host_info = proxy.get_scan_host_info(username, host_list)
         if not self._verify_param(host_list, host_info):
-            proxy.close()
             LOGGER.error(
                 "There are some host in %s that can not be scanned.", host_list)
             return PARAM_ERROR
