@@ -23,16 +23,16 @@ class ImportYumRepoSchema(Schema):
     """
     validators for parameter of /vulnerability/repo/import
     """
-    repo_name = fields.String(
-        required=True, validate=lambda s: 0 < len(s) <= 20)
-    repo_data = fields.String(
-        required=True, validate=lambda s: 0 < len(s) <= 512)
+
+    repo_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    repo_data = fields.String(required=True, validate=lambda s: 0 < len(s) <= 512)
 
 
 class GetYumRepoSchema(Schema):
     """
     validators for parameter of /vulnerability/repo/get. when empty, get all repos
     """
+
     repo_name_list = fields.List(fields.String(), required=True)
 
 
@@ -40,14 +40,16 @@ class UpdateYumRepoSchema(Schema):
     """
     validators for parameter of /vulnerability/repo/update
     """
-    repo_name = fields.String(
-        required=True, validate=lambda s: 0 < len(s) <= 20)
-    repo_data = fields.String(
-        required=True, validate=lambda s: 0 < len(s) <= 512)
+
+    repo_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    repo_data = fields.String(required=True, validate=lambda s: 0 < len(s) <= 512)
 
 
 class DeleteYumRepoSchema(Schema):
     """
     validators for parameter of /vulnerability/repo/delete
     """
-    repo_name_list = fields.List(fields.String(), required=True)
+
+    repo_name_list = fields.List(
+        fields.String(), required=True, validate=lambda s: len(s) > 0
+    )
