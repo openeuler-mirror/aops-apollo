@@ -28,7 +28,7 @@ import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import REPO_FILE, REPO_STATUS, TASK_INDEX
+from apollo.conf.constant import REPO_FILE, TASK_INDEX
 from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
     CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
 from apollo.function.customize_exception import EsOperationError
@@ -2747,17 +2747,21 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         Returns:
             int: status code
+            task id: running task id list
         """
         try:
-            self._delete_task(data)
+            running_task = self._delete_task(data)
             self.session.commit()
+            if running_task:
+                return PARTIAL_SUCCEED, running_task
+
             LOGGER.debug("Finished deleting task.")
-            return SUCCEED
+            return SUCCEED, running_task
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("Deleting task failed due to internal error.")
-            return DATABASE_DELETE_ERROR
+            return DATABASE_DELETE_ERROR, None
 
     def _delete_task(self, data):
         """
@@ -2765,13 +2769,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Args:
             data (dict): task list info
 
+        Returns:
+            running_task: running task id list
         Raises:
             ElasticsearchException
         """
         username = data["username"]
         task_list = data["task_list"]
-        deleted_task = self._delete_task_from_mysql(username, task_list)
+        deleted_task, running_task = self._delete_task_from_mysql(
+            username, task_list)
         self._delete_task_from_es(username, deleted_task)
+        return running_task
 
     def _delete_task_from_mysql(self, username, task_list):
         """
@@ -2781,22 +2789,37 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             task_list (list): task id list
 
         Returns:
-            list: deleted task id list
+            wait_delete_task_list: deleted task id list
+            running_task_id_list: running task id list
         """
         task_query = self.session.query(Task) \
             .filter(Task.username == username, Task.task_id.in_(task_list))
 
         succeed_list = [row.task_id for row in task_query]
         fail_list = list(set(task_list) - set(succeed_list))
+        # query running tasks
+        running_tasks = self.session.query(TaskCveHostAssociation.task_id)\
+            .filter(TaskCveHostAssociation.status == "running",
+                    TaskCveHostAssociation.task_id.in_(task_list))\
+            .union(self.session.query(TaskHostRepoAssociation.task_id)
+                   .filter(TaskHostRepoAssociation.task_id.in_(task_list),
+                           TaskHostRepoAssociation.status == "running")).all()
+        running_task_id_list = [task.task_id for task in running_tasks]
 
         if fail_list:
             LOGGER.debug(
                 "No data found when deleting the task '%s' from mysql." %
                 fail_list)
+        if running_task_id_list:
+            LOGGER.warning("A running task exists, tasks id: %s." %
+                           " ".join(running_task_id_list))
 
-        task_query.delete(synchronize_session=False)
+        wait_delete_task_list = list(
+            set(succeed_list) - set(running_task_id_list))
+        self.session.query(Task).filter(Task.task_id.in_(
+            wait_delete_task_list)).delete(synchronize_session=False)
         LOGGER.debug("Delete task from mysql succeed.")
-        return succeed_list
+        return wait_delete_task_list, running_task_id_list
 
     def _delete_task_from_es(self, username, task_list):
         """

@@ -106,9 +106,11 @@ class RepoManager(Manager):
         After executing the task, parse the checking and executing result, then
         save to database.
         """
-        LOGGER.debug("Set repo task %s result: %s", self.task_id, self.result)
-        task_result = self.result.get("task_result")
-        self._save_result(task_result)
+        if self.result:
+            LOGGER.debug("Set repo task %s result: %s",
+                         self.task_id, self.result)
+            task_result = self.result.get("task_result")
+            self._save_result(task_result)
         self.fault_handle()
 
     def fault_handle(self):

@@ -34,7 +34,7 @@ from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.status import \
     DATABASE_CONNECT_ERROR, NO_DATA, REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR, \
-    DATABASE_UPDATE_ERROR
+    DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED
 from apollo.function.schema.task import *
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.utils import make_download_response
@@ -676,6 +676,17 @@ class VulDeleteTask(BaseResponse):
     """
     Restful interface for deleting tasks.
     """
+    @staticmethod
+    def _handle(args):
+        task_proxy = TaskProxy(configuration)
+        if not task_proxy.connect(SESSION):
+            return DATABASE_CONNECT_ERROR
+        status_code, running_tasks = task_proxy.delete_task(args)
+        if status_code == PARTIAL_SUCCEED:
+            LOGGER.warning(
+                "A running task has not been deleted, task id: %s." % " ".join(running_tasks))
+
+        return status_code, dict(running_task=running_tasks)
 
     def delete(self):
         """
@@ -685,7 +696,7 @@ class VulDeleteTask(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request_db(DeleteTaskSchema, TaskProxy(configuration), "delete_task", SESSION))
+        return jsonify(self.handle_request(DeleteTaskSchema, self))
 
 
 class VulCveFixTaskCallback(BaseResponse):
