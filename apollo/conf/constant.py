@@ -22,12 +22,12 @@ from vulcanus.conf.constant import BASE_CONFIG_PATH
 CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'apollo.ini')
 
 # template repo for downloading
-TEMPLATE_REPO_STR = "[update]\n" \
+TEMPLATE_REPO_STR = "[aops-update]\n" \
                     "name=update\n" \
-                    "baseurl=http://repo.openeuler.org/openEuler-21.03/update/$basearch/\n" \
-                    "enabled=0\n" \
+                    "baseurl=https://repo.openeuler.org/openEuler-22.03-LTS/update/$basearch/\n" \
+                    "enabled=1\n" \
                     "gpgcheck=1\n" \
-                    "gpgkey=http://repo.openeuler.org/openEuler-21.03/OS/$basearch/RPM-" \
+                    "gpgkey=https://repo.openeuler.org/openEuler-22.03-LTS/OS/$basearch/RPM-" \
                     "GPG-KEY-openEuler"
 
 

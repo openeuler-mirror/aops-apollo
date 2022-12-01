@@ -85,7 +85,7 @@ class HostCvesFilterSchema(Schema):
     """
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
     severity = fields.List(fields.String(
-        validate=validate.OneOf(["high", "medium", "low", "unknown"])), required=False)
+        validate=validate.OneOf(["Critical", "High", "Medium", "Low", "Unknown"])), required=False)
     status = fields.List(fields.String(
         validate=validate.OneOf(["not reviewed", "in review", "on-hold", "resolved",
                                  "no action"])), required=False)
