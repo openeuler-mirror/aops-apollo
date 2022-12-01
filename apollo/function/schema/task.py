@@ -61,7 +61,8 @@ class CveHostInfoDictSchema(Schema):
     single host's info of a cve from /vulnerability/task/cve/generate
     """
     host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_name = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_name = fields.String(
+        required=True, validate=lambda s:  0 < len(s) <= 20)
     host_ip = fields.IP(required=True)
 
 
@@ -80,9 +81,11 @@ class GenerateCveTaskSchema(Schema):
     validators for parameter of /vulnerability/task/cve/generate
     """
     task_name = fields.String(required=True, validate=lambda s: len(s) != 0)
-    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
+    description = fields.String(
+        required=True, validate=lambda s: 0 < len(s) <= 50)
     auto_reboot = fields.Boolean(required=False, default=True)
-    check_items = fields.String(required=False, validate=lambda s: 0 < len(s) <= 32)
+    check_items = fields.String(
+        required=False, validate=lambda s: 0 < len(s) <= 32)
     info = fields.List(fields.Nested(CveInfoDictSchema), required=True,
                        validate=lambda s: len(s) > 0)
 
@@ -148,9 +151,9 @@ class GenerateRepoTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/repo/generate
     """
-    task_name = fields.String(required=True, validate=lambda s: len(s) != 0)
-    description = fields.String(required=True)
-    repo_name = fields.String(required=True, validate=lambda s: len(s) > 0)
+    task_name = fields.String(required=True, validate=lambda s: 0 < s <= 20)
+    description = fields.String(required=True, validate=lambda s: 0 < s <= 50)
+    repo_name = fields.String(required=True, validate=lambda s: 0 < s <= 20)
     info = fields.List(fields.Nested(CveHostInfoDictSchema), required=True,
                        validate=lambda s: len(s) > 0)
 

@@ -88,7 +88,8 @@ class CveFixManager(Manager):
         }
         pyload = self.task
 
-        response = BaseResponse.get_response('POST', manager_url, pyload, header)
+        response = BaseResponse.get_response(
+            'POST', manager_url, pyload, header)
         if response.get('code') != SUCCEED or not response.get("result"):
             LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
         else:
@@ -101,7 +102,8 @@ class CveFixManager(Manager):
         After executing the task, parse the checking and executing result, then
         save to database.
         """
-        LOGGER.debug("Cve fixing task %s result: %s", self.task_id, self.result)
+        LOGGER.debug("Cve fixing task %s result: %s",
+                     self.task_id, self.result)
 
         for host in self.result:
             host['status'] = 'succeed'
@@ -111,7 +113,8 @@ class CveFixManager(Manager):
                     break
             if host['status'] == 'fail':
                 continue
-
+            if not host['cves']:
+                host['status'] = 'unknown'
             for cve in host['cves']:
                 if cve.get('result') is None or cve.get('result') != CVE_HOST_STATUS.FIXED:
                     host['status'] = 'fail'

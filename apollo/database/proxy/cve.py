@@ -222,7 +222,7 @@ class CveMysqlProxy(MysqlProxy):
             return filters
 
         if filter_dict.get("host_name"):
-            filters.add(Host.host_id.like(
+            filters.add(Host.host_name.like(
                 "%" + filter_dict["host_name"] + "%"))
         if filter_dict.get("host_group"):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
@@ -943,7 +943,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         try:
             self._save_unaffected_cve(cve_rows, cve_pkg_rows, doc_list)
             self.session.commit()
-            LOGGER.debug("Finished saving unaffected cves' cvrf file '%s'" % file_name)
+            LOGGER.debug(
+                "Finished saving unaffected cves' cvrf file '%s'" % file_name)
             return SUCCEED
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
             LOGGER.error(error)
