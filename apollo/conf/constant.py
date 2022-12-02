@@ -120,5 +120,6 @@ ES_TEST_FLAG = False
 
 REPO_FILE = "/etc/yum.repos.d/aops-update.repo"
 FILE_NUMBER = 1
+NO_FILE = 0
 FILE_UPLOAD_PATH = "/opt/aops/cve/upload"
 CSV_SAVED_PATH = "/opt/aops/cve/saved"

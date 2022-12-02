@@ -32,11 +32,11 @@ class CveScanCallback(TaskCallback):
             task_id: task id,
             task_info: task info, e.g.:
                 {
-                    status:0,
+                    "status":0,
                     "host_id":"127.0.0.1",
                     "installed_packages":["string"],
                     "os_version":"string",
-                    "cves:["string"]
+                    "cves":["string"]
                 }
 
         Returns:
