@@ -458,7 +458,7 @@ class VulExportExcel(BaseResponse):
                 export_csv(cve_info_list, os.path.join(
                     self.filepath, self.filename), csv_head)
 
-        if len(os.listdir(self.filepath)) == NO_FILE:
+        if len(os.listdir(self.filepath)) == 0:
             return NO_DATA
         if len(os.listdir(self.filepath)) > FILE_NUMBER:
             zip_filename, zip_save_path = compress_cve(self.filepath, "host.zip")
