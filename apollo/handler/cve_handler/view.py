@@ -22,7 +22,7 @@ import shutil
 from flask import jsonify
 
 from apollo.conf import configuration
-from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER, NO_FILE
+from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
 from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
