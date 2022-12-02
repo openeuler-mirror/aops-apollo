@@ -22,7 +22,7 @@ import shutil
 from flask import jsonify
 
 from apollo.conf import configuration
-from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
+from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER, NO_FILE
 from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
@@ -452,11 +452,14 @@ class VulExportExcel(BaseResponse):
 
         for host_id in host_id_list:
             host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
+            if host_name:
+                self.filename = f"{host_name}.csv"
+                csv_head = ["cve_id", "status"]
+                export_csv(cve_info_list, os.path.join(
+                    self.filepath, self.filename), csv_head)
 
-            self.filename = f"{host_name}.csv"
-            csv_head = ["cve_id", "status"]
-            export_csv(cve_info_list, os.path.join(
-                self.filepath, self.filename), csv_head)
+        if len(os.listdir(self.filepath)) == 0:
+            return NO_DATA
         if len(os.listdir(self.filepath)) > FILE_NUMBER:
             zip_filename, zip_save_path = compress_cve(self.filepath, "host.zip")
             if zip_filename and zip_save_path:

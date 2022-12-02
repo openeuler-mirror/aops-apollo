@@ -1275,4 +1275,5 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         if host_info_query:
             host_info = host_info_query[0]
             return host_info.host_name, cve_list
+        LOGGER.error(f"{host_id} not found in database")
         return "", cve_query
