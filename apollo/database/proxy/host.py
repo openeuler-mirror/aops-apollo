@@ -16,7 +16,7 @@ Author:
 Description: Host table operation
 """
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.status import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
@@ -202,7 +202,12 @@ class HostMysqlProxy(MysqlProxy):
         if filter_dict.get("host_group"):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
         if filter_dict.get("repo"):
-            filters.add(Host.repo_name.in_(filter_dict["repo"]))
+            repos = [repo if repo else None for repo in filter_dict["repo"]]
+            if None in repos:
+                filters.add(or_(Host.repo_name.is_(None),
+                                Host.repo_name.in_(repos)))
+            else:
+                filters.add(Host.repo_name.in_(repos))
 
         return filters
 
