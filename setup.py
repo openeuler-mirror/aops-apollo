@@ -33,6 +33,9 @@ setup(
         ('/etc/aops', ['conf/apollo.ini']),
         ('/usr/lib/systemd/system', ['aops-apollo.service'])
     ],
-    scripts=['aops-apollo'],
+    # scripts=['aops-apollo'],
+    entry_points={
+        "console_scripts": ['aops-apollo=apollo.manage:main']
+    },
     zip_safe=False
 )

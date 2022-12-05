@@ -16,12 +16,12 @@ Author:
 Description: Manager that start aops-manager
 """
 from flask import Flask
-from flask_apscheduler import APScheduler
+# from flask_apscheduler import APScheduler
 import sqlalchemy
 
 from apollo.conf import configuration
 from apollo import BLUE_POINT
-from apollo.handler.task_handler.manager.scan_manager import TimedScanManager
+# from apollo.handler.task_handler.manager.scan_manager import TimedScanManager
 from apollo.database import ENGINE
 from apollo.database.table import create_vul_tables
 from apollo.database.mapping import MAPPINGS
@@ -75,22 +75,25 @@ def init_app():
     app = Flask('apollo')
     # limit max upload document size
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-    apscheduler = APScheduler()
-    apscheduler.init_app(app)
-    apscheduler.start()
+    # apscheduler = APScheduler()
+    # apscheduler.init_app(app)
+    # apscheduler.start()
 
     for blue, api in BLUE_POINT:
         api.init_app(app)
         app.register_blueprint(blue)
 
-    TimedScanManager.add_timed_task(app)
+    # TimedScanManager.add_timed_task(app)
     return app
 
 
-init_database()
-app = init_app()
-
-if __name__ == "__main__":
+def main():
+    init_database()
+    app = init_app()
     ip = configuration.apollo.get('IP')
     port = configuration.apollo.get('PORT')
     app.run(host=ip, port=port)
+
+
+if __name__ == "__main__":
+    main()
