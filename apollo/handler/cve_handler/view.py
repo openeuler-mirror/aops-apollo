@@ -237,7 +237,7 @@ class VulUploadAdvisory(BaseResponse):
             LOGGER.error(
                 "Some error occurred when parsing advisory '%s'." % file_name)
             LOGGER.error(error)
-            return SERVER_ERROR
+            return WRONG_FILE_FORMAT
 
         status_code = proxy.save_security_advisory(
             file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
