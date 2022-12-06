@@ -312,7 +312,8 @@ class HostMysqlProxy(MysqlProxy):
                         "host_ip": "1.1.1.1",
                         "host_group": "group1",
                         "repo": "20.03-update",
-                        "cve_num": 12,
+                        "affected_cve_num": 12,
+                        "unaffected_cve_num": 1,
                         "last_scan": 1111111111
                     }
                 }
@@ -366,16 +367,23 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
-            CveHostAssociation.host_id).label("cve_num"))\
+        affected_cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
+            CveHostAssociation.host_id).label("affected_cve_num"))\
             .filter(CveHostAssociation.affected == True)\
+            .group_by(CveHostAssociation.host_id).subquery()
+        unaffected_cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
+            CveHostAssociation.host_id).label("unaffected_cve_num"))\
+            .filter(CveHostAssociation.affected == False)\
             .group_by(CveHostAssociation.host_id).subquery()
 
         host_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
                                         Host.host_group_name, Host.repo_name, Host.last_scan,
-                                        case([(cve_host_subquery.c.cve_num.is_(None), 0)],
-                                             else_=cve_host_subquery.c.cve_num).label("cve_num")) \
-            .outerjoin(cve_host_subquery, Host.host_id == cve_host_subquery.c.host_id) \
+                                        case([(affected_cve_host_subquery.c.affected_cve_num.is_(None), 0)],
+                                             else_=affected_cve_host_subquery.c.affected_cve_num).label("affected_cve_num"),
+                                        case([(unaffected_cve_host_subquery.c.unaffected_cve_num.is_(None), 0)],
+                                             else_=unaffected_cve_host_subquery.c.unaffected_cve_num).label("unaffected_cve_num")) \
+            .outerjoin(affected_cve_host_subquery, Host.host_id == affected_cve_host_subquery.c.host_id) \
+            .outerjoin(unaffected_cve_host_subquery, Host.host_id == unaffected_cve_host_subquery.c.host_id) \
             .filter(Host.host_id == host_id, Host.user == username)
         return host_query
 
@@ -386,7 +394,8 @@ class HostMysqlProxy(MysqlProxy):
             "host_ip": row.public_ip,
             "host_group": row.host_group_name,
             "repo": row.repo_name,
-            "cve_num": row.cve_num,
+            "affected_cve_num": row.affected_cve_num,
+            "unaffected_cve_num": row.unaffected_cve_num,
             "last_scan": row.last_scan
         }
         return host_info
