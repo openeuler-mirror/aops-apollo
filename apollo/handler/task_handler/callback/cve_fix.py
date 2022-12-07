@@ -24,6 +24,7 @@ class CveFixCallback(TaskCallback):
     """
     Callback function for cve fixing.
     """
+
     def callback(self, task_id: str, host_id: str, cves: Dict[str, str]) -> int:
         """
         Update cve status for the host and add the progress for the cves.
@@ -39,11 +40,6 @@ class CveFixCallback(TaskCallback):
         Returns:
             int: status code
         """
-        cve_list = []
-        for cve_id, status in cves.items():
-            cve_list.append(cve_id)
-            self.proxy.update_cve_status(task_id, cve_id, host_id, status)
-
-        status_code = self.proxy.set_cve_progress(task_id, cve_list)
-
+        status_code = self.proxy.update_cve_status_and_set_cve_progress(
+            task_id, host_id, cves)
         return status_code
