@@ -510,7 +510,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         processed_query, total_page = sort_and_page(host_cve_query, sort_column,
                                                     direction, per_page, page)
         description_dict = self._get_cve_description(
-            [row.cve_id for row in processed_query])
+            [row.cve_id for row in processed_query], per_page)
 
         result['result'] = self._host_cve_row2dict(
             processed_query, description_dict)

@@ -528,7 +528,7 @@ class CveEsProxy(ElasticsearchProxy):  # pylint:disable=too-few-public-methods
     Cve elasticsearch database related operation
     """
 
-    def _get_cve_description(self, cve_list):
+    def _get_cve_description(self, cve_list, size=10):
         """
         description of the cve in list
         Args:
@@ -543,6 +543,7 @@ class CveEsProxy(ElasticsearchProxy):  # pylint:disable=too-few-public-methods
         query_body = self._general_body()
         query_body['query']['bool']['must'].append(
             {"terms": {"cve_id": cve_list}})
+        query_body['size'] = size
         operation_code, res = self.query(CVE_INDEX, query_body,
                                          source=["cve_id", "description"])
 
@@ -667,7 +668,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         processed_query, total_page = sort_and_page(cve_query, sort_column,
                                                     direction, per_page, page)
         description_dict = self._get_cve_description(
-            [row.cve_id for row in processed_query])
+            [row.cve_id for row in processed_query], per_page)
 
         result['result'] = self._cve_list_row2dict(
             processed_query, description_dict)
