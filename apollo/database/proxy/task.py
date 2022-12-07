@@ -2127,6 +2127,37 @@ class TaskMysqlProxy(MysqlProxy):
                          "internal error.")
             return DATABASE_UPDATE_ERROR
 
+    def update_cve_status_and_set_cve_progress(self, task_id, host_id, cves: Dict[str, str]):
+        """
+        Setting cve fixing progress and update cve host status
+
+        Args:
+            task_id: task id
+            host_id: host id
+            cves: List of cves to be updated
+
+        Returns:
+            status_code: update state
+        """
+        cve_id_list = []
+        try:
+            for cve_id, status in cves.items():
+                self._update_cve_host_status(task_id, cve_id, host_id, status)
+                cve_id_list.append(cve_id)
+            status_code = self._set_cve_progress(task_id, cve_id_list, "add")
+            if status_code != SUCCEED:
+                return status_code
+            self.session.commit()
+            LOGGER.debug(
+                "Finished setting cve fixing progress and update cve host status.")
+            return SUCCEED
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error(
+                "Setting cve fixing progress failed due to internal error.")
+            return DATABASE_UPDATE_ERROR
+
 
 class TaskEsProxy(ElasticsearchProxy):
     def get_package_info(self, data):
