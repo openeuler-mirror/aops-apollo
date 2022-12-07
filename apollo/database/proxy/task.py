@@ -2144,6 +2144,10 @@ class TaskMysqlProxy(MysqlProxy):
             for cve_id, status in cves.items():
                 self._update_cve_host_status(task_id, cve_id, host_id, status)
                 cve_id_list.append(cve_id)
+            if not cve_id_list:
+                LOGGER.warning(
+                    "The cve list is empty when the cve progress is set.")
+                return DATABASE_UPDATE_ERROR
             status_code = self._set_cve_progress(task_id, cve_id_list, "add")
             if status_code != SUCCEED:
                 return status_code
