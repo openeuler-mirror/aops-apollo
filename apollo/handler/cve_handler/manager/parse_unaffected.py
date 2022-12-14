@@ -76,7 +76,13 @@ def parse_cvrf_dict(cvrf_dict):
     Raises:
         ParseXmlError
     """
+    cvrf_note = cvrf_dict["cvrfdoc"].get("DocumentNotes", "")
+    if cvrf_note:
+        return [], [], []
+
     cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
+    if isinstance(cve_info_list, dict):
+        cve_info_list = [cve_info_list]
     cve_table_rows = []
     cve_pkg_rows = []
     doc_list = []
@@ -87,6 +93,8 @@ def parse_cvrf_dict(cvrf_dict):
         remediation = cve_info["Remediations"]["Remediation"]
         if isinstance(remediation, list):
             remediation = remediation[0]
+        if remediation["Type"] != "Unaffected":
+            continue
         cvss_score = cve_info["CVSSScoreSets"]["ScoreSet"]["BaseScore"]
         severity = parse_cve_severity(cvss_score)
         cve_row = {

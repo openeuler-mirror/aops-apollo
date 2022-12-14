@@ -229,8 +229,10 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(
-                file_path)
+            cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
+            if cve_rows == [] and cve_pkg_rows == [] and cve_pkg_docs == []:
+                os.remove(file_path)
+                return WRONG_FILE_FORMAT
             os.remove(file_path)
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
@@ -264,8 +266,10 @@ class VulUploadAdvisory(BaseResponse):
         for file_path in file_path_list:
             file_name = os.path.basename(file_path)
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(
-                    file_path)
+                cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
+                if cve_rows == [] and cve_pkg_rows == [] and cve_pkg_docs == []:
+                    shutil.rmtree(folder_path)
+                    return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
                 fail_list.append(file_name)
                 LOGGER.error(
@@ -356,6 +360,9 @@ class VulUploadUnaffected(BaseResponse):
         file_name = os.path.basename(file_path)
         try:
             cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
+            if cve_rows == [] and cve_pkg_rows == [] and doc_list == []:
+                os.remove(file_path)
+                return WRONG_FILE_FORMAT
             os.remove(file_path)
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
@@ -387,6 +394,9 @@ class VulUploadUnaffected(BaseResponse):
             file_name = os.path.basename(file_path)
             try:
                 cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
+                if cve_rows == [] and cve_pkg_rows == [] and doc_list == []:
+                    shutil.rmtree(folder_path)
+                    return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
                 fail_list.append(file_name)
                 LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)

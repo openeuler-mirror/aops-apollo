@@ -15,12 +15,12 @@ Time:
 Author:
 Description: parse security advisory xml file, insert into database
 """
+from collections import defaultdict
 from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
-from collections import defaultdict
 
-from vulcanus.log.log import LOGGER
 from apollo.function.customize_exception import ParseAdvisoryError
+from vulcanus.log.log import LOGGER
 
 __all__ = ["parse_security_advisory"]
 
@@ -99,7 +99,10 @@ def parse_cvrf_dict(cvrf_dict):
         ParseXmlError
     """
     # affected package of this security advisory. joined with ',' if have multiple packages
-    cvrf_note = cvrf_dict["cvrfdoc"]["DocumentNotes"]["Note"]
+    cve_document_notes = cvrf_dict["cvrfdoc"].get("DocumentNotes", "")
+    if not cve_document_notes:
+        return [], [], []
+    cvrf_note = cve_document_notes["Note"]
     affected_pkgs = ""
     for info in cvrf_note:
         if info["Title"] == "Affected Component":
