@@ -93,8 +93,6 @@ def parse_cvrf_dict(cvrf_dict):
         remediation = cve_info["Remediations"]["Remediation"]
         if isinstance(remediation, list):
             remediation = remediation[0]
-        if remediation["Type"] != "Unaffected":
-            continue
         cvss_score = cve_info["CVSSScoreSets"]["ScoreSet"]["BaseScore"]
         severity = parse_cve_severity(cvss_score)
         cve_row = {

@@ -230,10 +230,9 @@ class VulUploadAdvisory(BaseResponse):
         file_name = os.path.basename(file_path)
         try:
             cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
-            if cve_rows == [] and cve_pkg_rows == [] and cve_pkg_docs == []:
-                os.remove(file_path)
-                return WRONG_FILE_FORMAT
             os.remove(file_path)
+            if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
+                return WRONG_FILE_FORMAT
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
             LOGGER.error(
@@ -267,10 +266,11 @@ class VulUploadAdvisory(BaseResponse):
             file_name = os.path.basename(file_path)
             suffix = file_name.split('.')[-1]
             if suffix != "xml":
+                shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
                 cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
-                if cve_rows == [] and cve_pkg_rows == [] and cve_pkg_docs == []:
+                if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
@@ -363,7 +363,7 @@ class VulUploadUnaffected(BaseResponse):
         file_name = os.path.basename(file_path)
         try:
             cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
-            if cve_rows == [] and cve_pkg_rows == [] and doc_list == []:
+            if not all([cve_rows, cve_pkg_rows, doc_list]):
                 os.remove(file_path)
                 return WRONG_FILE_FORMAT
             os.remove(file_path)
@@ -397,10 +397,11 @@ class VulUploadUnaffected(BaseResponse):
             file_name = os.path.basename(file_path)
             suffix = file_name.split('.')[-1]
             if suffix != "xml":
+                shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
                 cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
-                if cve_rows == [] and cve_pkg_rows == [] and doc_list == []:
+                if not all([cve_rows, cve_pkg_rows, doc_list]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
