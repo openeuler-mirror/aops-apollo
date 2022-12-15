@@ -265,6 +265,9 @@ class VulUploadAdvisory(BaseResponse):
         fail_list = []
         for file_path in file_path_list:
             file_name = os.path.basename(file_path)
+            suffix = file_name.split('.')[-1]
+            if suffix != "xml":
+                return WRONG_FILE_FORMAT
             try:
                 cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
                 if cve_rows == [] and cve_pkg_rows == [] and cve_pkg_docs == []:
@@ -392,6 +395,9 @@ class VulUploadUnaffected(BaseResponse):
         fail_list = []
         for file_path in file_path_list:
             file_name = os.path.basename(file_path)
+            suffix = file_name.split('.')[-1]
+            if suffix != "xml":
+                return WRONG_FILE_FORMAT
             try:
                 cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
                 if cve_rows == [] and cve_pkg_rows == [] and doc_list == []:
