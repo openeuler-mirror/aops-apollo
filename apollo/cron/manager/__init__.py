@@ -54,7 +54,7 @@ class TimedTaskManager():
         task_id = timed_task_parameters['id']
         auto_start = timed_task_parameters['auto_start']
         timed_task_parameters.pop("auto_start")
-        if auto_start == "False":
+        if not auto_start:
             LOGGER.info(f"{task_id}, This task is configured to not start.")
             return
         if TimedTaskManager.get_timed_task(task_id):
