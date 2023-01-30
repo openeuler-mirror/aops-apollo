@@ -42,7 +42,7 @@ class TimedTaskManager():
         TimedTaskManager._APscheduler.start()
 
     @staticmethod
-    def add_timed_task(**kwargs):
+    def add_task(**kwargs):
         """
         Create a timed task.
 
@@ -52,37 +52,39 @@ class TimedTaskManager():
         timed_task_parameters = dict(kwargs)
 
         task_id = timed_task_parameters['id']
-        auto_start = timed_task_parameters['auto_start']
-        timed_task_parameters.pop("auto_start")
-        if not auto_start:
-            LOGGER.info(f"{task_id}, This task is configured to not start.")
+        if "auto_start" in timed_task_parameters:
+            auto_start = timed_task_parameters['auto_start']
+            timed_task_parameters.pop("auto_start")
+            if not auto_start:
+                LOGGER.info(f"{task_id}, This task is configured to not start.")
+                return
+
+        if TimedTaskManager.get_task(task_id):
             return
-        if TimedTaskManager.get_timed_task(task_id):
-            TimedTaskManager.delete_timed_task(task_id)
         TimedTaskManager._APscheduler.add_job(**timed_task_parameters)
 
     @staticmethod
-    def pause_timed_task(task_id):
+    def pause_task(task_id: str):
         """
         Pause a timed task for an id
 
         Args:
-            task_id (int): Create timed task id;
+            task_id (str): Create timed task id;
         """
         TimedTaskManager._APscheduler.pause_job(task_id)
 
     @staticmethod
-    def resume_timed_task(task_id):
+    def resume_task(task_id: str):
         """
         Resume a timed task for an id
 
         Args:
-            task_id (int): Create timed task id;
+            task_id (str): Create timed task id;
         """
         TimedTaskManager._APscheduler.resume_job(task_id)
 
     @staticmethod
-    def get_all_timed_tasks():
+    def get_all_tasks():
         """
         Get all timed task
 
@@ -93,7 +95,7 @@ class TimedTaskManager():
         return timed_task_list
 
     @staticmethod
-    def get_timed_task(task_id):
+    def get_task(task_id: str):
         """
         Get the scheduled task of the corresponding id
 
@@ -107,7 +109,7 @@ class TimedTaskManager():
         return timed_task
 
     @staticmethod
-    def delete_timed_task(task_id):
+    def delete_task(task_id: str):
         """
         Delete the scheduled task of the corresponding id
 

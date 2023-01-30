@@ -123,8 +123,6 @@ FILE_NUMBER = 1
 FILE_UPLOAD_PATH = "/opt/aops/cve/upload"
 CSV_SAVED_PATH = "/opt/aops/cve/saved"
 ADVISORY_SAVED_PATH = "/opt/aops/cve/advisory_download"
-SECURITY_BASE_URL = "https://repo.openeuler.org/security/data/cvrf"
-ADVISORY_YEARS = ["2021", "2022"]
 SERVICE_TIMEOUT_THRESHOLD = 5
-TIMED_TASK_CONFIG_PATH = "/etc/aops/crontab.ini"
-
+TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.ini"
+TIMED_TASK_DOWNLOAD_SA_PATH = "/etc/aops/apollo_download_sa.ini"

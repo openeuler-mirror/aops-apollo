@@ -33,7 +33,7 @@ Cve management service, monitor machine vulnerabilities and provide fix function
 %files
 %doc README.*
 %attr(0644,root,root) %{_sysconfdir}/aops/apollo.ini
-%attr(0644,root,root) %{_sysconfdir}/aops/crontab.ini
+%attr(0644,root,root) %{_sysconfdir}/aops/apollo_crontab.ini
 %attr(0755,root,root) %{_bindir}/aops-apollo
 %attr(0755,root,root) %{_unitdir}/aops-apollo.service
 %{python3_sitelib}/aops_apollo*.egg-info

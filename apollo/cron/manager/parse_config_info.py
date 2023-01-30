@@ -18,24 +18,31 @@ Description:
 
 import configparser
 
-from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
+from vulcanus.log.log import LOGGER
 
 
-def get_timed_task_config_info():
+def get_timed_task_config_info(file_path: str):
     """
     Parsing the configuration file information of a timed task
 
+    Args:
+        file_path(str): Path to the configuration file
+
     Returns:
-        list: list of dict, each dict is a timed task info, e.g.:
+        list: list of dict, each dict is a parsing results, e.g.:
             [
-                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '2', 'auto_start': 'True'},
-                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '3', 'auto_start': 'True'},
-                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '4', 'auto_start': 'True'}
+                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '2'},
+                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '3'},
+                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '4'}
             ]
     """
     config = configparser.ConfigParser()
-    config.read(TIMED_TASK_CONFIG_PATH)
-
+    try:
+        config.read(file_path)
+    except FileNotFoundError as error:
+        LOGGER.error(error)
+        LOGGER.error("configuration file path error")
+        return []
     config_info = []
     section_list = config.sections()
     for section in section_list:

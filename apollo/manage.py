@@ -18,11 +18,9 @@ Description: Manager that start aops-manager
 from flask import Flask
 # from flask_apscheduler import APScheduler
 import sqlalchemy
-
-from apollo.conf import configuration
 from apollo import BLUE_POINT
+from apollo.conf import configuration
 from apollo.cron.manager import TimedTaskManager
-# from apollo.handler.task_handler.manager.scan_manager import TimedScanManager
 from apollo.database import ENGINE
 from apollo.database.table import create_vul_tables
 from apollo.database.mapping import MAPPINGS
