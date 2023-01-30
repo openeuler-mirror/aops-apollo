@@ -35,6 +35,8 @@ class RepoManager(Manager):
         """
         Create a task template for setting repo
 
+        Args:
+            username: system user
         Returns:
             int: status code
         """

@@ -29,6 +29,9 @@ class RepoSetCallback(TaskCallback):
         """
         Set the callback after the repo task is completed
 
+        Args:
+            task_id: id of the task set by repo
+            task_info: repo task information
         Returns:
             status_code: repo setting status
         """
