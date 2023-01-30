@@ -21,6 +21,7 @@ import sqlalchemy
 
 from apollo.conf import configuration
 from apollo import BLUE_POINT
+from apollo.cron.manager import TimedTaskManager
 # from apollo.handler.task_handler.manager.scan_manager import TimedScanManager
 from apollo.database import ENGINE
 from apollo.database.table import create_vul_tables
@@ -75,15 +76,13 @@ def init_app():
     app = Flask('apollo')
     # limit max upload document size
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-    # apscheduler = APScheduler()
-    # apscheduler.init_app(app)
-    # apscheduler.start()
+    TimedTaskManager().init_app(app)
 
+    TimedTaskManager().start_task()
     for blue, api in BLUE_POINT:
         api.init_app(app)
         app.register_blueprint(blue)
 
-    # TimedScanManager.add_timed_task(app)
     return app
 
 
@@ -92,7 +91,7 @@ def main():
     app = init_app()
     ip = configuration.apollo.get('IP')
     port = configuration.apollo.get('PORT')
-    app.run(host=ip, port=port)
+    app.run(host=ip, port=port, use_reloader=False)
 
 
 if __name__ == "__main__":

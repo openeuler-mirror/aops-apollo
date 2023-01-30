@@ -31,6 +31,7 @@ setup(
     packages=find_packages(),
     data_files=[
         ('/etc/aops', ['conf/apollo.ini']),
+        ('/etc/aops', ['conf/crontab.ini']),
         ('/usr/lib/systemd/system', ['aops-apollo.service'])
     ],
     # scripts=['aops-apollo'],

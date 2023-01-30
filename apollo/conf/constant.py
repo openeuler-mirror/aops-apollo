@@ -122,3 +122,9 @@ REPO_FILE = "/etc/yum.repos.d/aops-update.repo"
 FILE_NUMBER = 1
 FILE_UPLOAD_PATH = "/opt/aops/cve/upload"
 CSV_SAVED_PATH = "/opt/aops/cve/saved"
+ADVISORY_SAVED_PATH = "/opt/aops/cve/advisory_download"
+SECURITY_BASE_URL = "https://repo.openeuler.org/security/data/cvrf"
+ADVISORY_YEARS = ["2021", "2022"]
+SERVICE_TIMEOUT_THRESHOLD = 5
+TIMED_TASK_CONFIG_PATH = "/etc/aops/conf/crontab.ini"
+
