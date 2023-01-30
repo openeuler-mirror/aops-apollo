@@ -1,0 +1,11 @@
+[22.03-LTS-SP1-OS]
+name=22.03-LTS-SP1-OS
+baseurl=https://repo.openeuler.org/openEuler-22.03-LTS-SP1/OS/$basearch/
+enabled=1
+gpgcheck=0
+
+[22.03-LTS-SP1-EPOL]
+name=22.03-LTS-SP1-EPOL
+baseurl=https://repo.openeuler.org/openEuler-22.03-LTS-SP1/EPOL/$basearch/
+enabled=1
+gpgcheck=0
