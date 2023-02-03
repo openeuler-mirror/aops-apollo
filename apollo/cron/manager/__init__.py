@@ -27,7 +27,7 @@ class TimedTaskManager():
     _instance = None
     _APscheduler = None
 
-    def __new__(cls, *args, **kw):
+    def __new__(cls):
         if cls._instance is None:
             cls._APscheduler = APScheduler()
             cls._instance = object.__new__(cls)
@@ -45,9 +45,30 @@ class TimedTaskManager():
     def add_task(**kwargs):
         """
         Create a timed task.
+        If the trigger method is "date", the parameter format is:
+            {
+                "id": "task id",
+                "trigger": "date",
+                "date","2022-2-3 00:00:01"
+            }
+
+        If the trigger method is "interval", the parameter format is:
+            {
+                "id": "task id",
+                "trigger": "interval",
+                "weeks" or "days" or "hours" or "minutes" or "seconds": time interval
+            }
+
+        If the trigger method is "cron", the parameter format is:
+            {
+                "id": "task id",
+                "trigger": "interval",
+                "weeks" or "days" or "hours" or "minutes" or "seconds": time
+            }
 
         Args:
             kwargs: Parameters needed to create a timed task
+
         """
         timed_task_parameters = dict(kwargs)
 
