@@ -158,7 +158,7 @@ class TaskMysqlProxy(MysqlProxy):
         Args:
             task_info (dict): task info, e.g.
                 {
-                    "status":"success" / "fail" / "unknown",
+                    "status":"succeed" / "fail" / "unknown",
                     "host_id":"127.0.0.1",
                     "installed_packages":["string"],
                     "os_version":"string",
