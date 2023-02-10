@@ -168,11 +168,35 @@ enabled=1
 
 ## 3.2、cve信息管理
 
-### 3.2.1、cve信息导入/解析
+### 3.2.1、cve信息导出
+
+支持用户导出cve信息列表，按照主机维度，每个主机信息一个csv文件，
+
+文件命名格式如：【hostname】
+
+文件内容如下：
+
+| cve名称 | 状态     |
+| ------- | -------- |
+| cve-1-1 | 已修复   |
+| cve-1-2 | 未修复   |
+| cve-1-3 | 不受影响 |
+
+### 3.2.2、cve评审状态设置
+
+支持用户修改cve状态，目前支持状态为：
+
+- not reviewed（未关注）
+- in review（关注中）
+- on-hold（挂起）
+- resolved（已解决）
+- no action（已忽略）
+
+## 3.3、安全公告管理
 
 cve修复信息来自于安全公告与不受影响cve信息，需要在界面上导入，做一定解析后存入数据库中。
 
-#### 3.2.1.1、安全公告
+### 3.3.1、安全公告解析
 
 - 安全公告提供了已修复的cve信息，当前支持文件格式：
   - zip，为xml的合集
@@ -202,45 +226,6 @@ openEuler Security has rated this update as having a security impact of high. A 
 		<Branch Type="Product Name" Name="openEuler">
 			<FullProductName ProductID="openEuler-20.03-LTS-SP1" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">openEuler-20.03-LTS-SP1</FullProductName>
 			<FullProductName ProductID="openEuler-20.03-LTS-SP2" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">openEuler-20.03-LTS-SP2</FullProductName>
-			<FullProductName ProductID="openEuler-20.03-LTS-SP3" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">openEuler-20.03-LTS-SP3</FullProductName>
-		</Branch>
-		<Branch Type="Package Arch" Name="aarch64">
-			<FullProductName ProductID="python-lxml-debuginfo-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python-lxml-debuginfo-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python3-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python3-lxml-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debugsource-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python-lxml-debugsource-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python2-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python2-lxml-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python2-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python2-lxml-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debugsource-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python-lxml-debugsource-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debuginfo-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python-lxml-debuginfo-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python3-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python3-lxml-4.5.2-4.oe1.aarch64.rpm</FullProductName>			
-			<FullProductName ProductID="python2-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python2-lxml-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debugsource-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python-lxml-debugsource-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debuginfo-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python-lxml-debuginfo-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-			<FullProductName ProductID="python3-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python3-lxml-4.5.2-4.oe1.aarch64.rpm</FullProductName>
-		</Branch>
-		<Branch Type="Package Arch" Name="noarch">
-			<FullProductName ProductID="python-lxml-help-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python-lxml-help-4.5.2-4.oe1.noarch.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-help-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python-lxml-help-4.5.2-4.oe1.noarch.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-help-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python-lxml-help-4.5.2-4.oe1.noarch.rpm</FullProductName>
-		</Branch>
-		<Branch Type="Package Arch" Name="src">
-			<FullProductName ProductID="python-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python-lxml-4.5.2-4.oe1.src.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python-lxml-4.5.2-4.oe1.src.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python-lxml-4.5.2-4.oe1.src.rpm</FullProductName>
-		</Branch>
-		<Branch Type="Package Arch" Name="x86_64">
-			<FullProductName ProductID="python-lxml-debuginfo-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python-lxml-debuginfo-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python2-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python2-lxml-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python3-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python3-lxml-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debugsource-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP1">python-lxml-debugsource-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debuginfo-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python-lxml-debuginfo-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python3-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python3-lxml-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debugsource-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python-lxml-debugsource-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python2-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP2">python2-lxml-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debuginfo-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python-lxml-debuginfo-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python3-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python3-lxml-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python-lxml-debugsource-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python-lxml-debugsource-4.5.2-4.oe1.x86_64.rpm</FullProductName>
-			<FullProductName ProductID="python2-lxml-4.5.2-4" CPE="cpe:/a:openEuler:openEuler:20.03-LTS-SP3">python2-lxml-4.5.2-4.oe1.x86_64.rpm</FullProductName>
 		</Branch>
 	</ProductTree>
 	<Vulnerability Ordinal="1" xmlns="http://www.icasi.org/CVRF/schema/vuln/1.1">
@@ -278,7 +263,27 @@ openEuler Security has rated this update as having a security impact of high. A 
 </cvrfdoc>
 ```
 
-#### 3.3.1.2、不受影响cve信息
+存入数据库
+
+**cve**
+
+| cve_id | severity | cvss_score | publish_time |
+| ------ | -------- | ---------- | ------------ |
+|        |          |            |              |
+|        |          |            |              |
+|        |          |            |              |
+
+数据库**cve_affected_pkgs**
+
+| cve_id | package | package_version | os_version | affected |
+| ------ | ------- | --------------- | ---------- | -------- |
+|        |         |                 |            |          |
+|        |         |                 |            |          |
+|        |         |                 |            |          |
+
+
+
+### 3.3.2、不受影响cve信息解析
 
 - 不受影响cve信息的文件格式（xml）如下：
 
@@ -333,150 +338,6 @@ openEuler Security has rated this update as having a security impact of high. A 
 			</Remediation>
 		</Remediations>
 	</Vulnerability>
-	<Vulnerability Ordinal="3" xmlns="http://www.icasi.org/CVRF/schema/vuln/1.1">
-		<Notes>
-			<Note Title="Vulnerability Description" Type="General" Ordinal="3" xml:lang="en">No description is available for this CVE.</Note>
-		</Notes>
-		<CVE>CVE-2021-23980</CVE>
-		<ProductStatuses>
-			<Status Type="Unaffected">
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Status>
-		</ProductStatuses>
-		<CVSSScoreSets>
-			<ScoreSet>
-				<BaseScore>6.1</BaseScore>
-				<Vector>AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N</Vector>
-			</ScoreSet>
-		</CVSSScoreSets>
-		<Remediations>
-			<Remediation Type="Unaffected">
-				<Description>python-bleach</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-			</Remediation>
-			<Remediation Type="Unaffected">
-				<Description>python-bleach</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Remediation>
-		</Remediations>
-	</Vulnerability>
-	<Vulnerability Ordinal="4" xmlns="http://www.icasi.org/CVRF/schema/vuln/1.1">
-		<Notes>
-			<Note Title="Vulnerability Description" Type="General" Ordinal="4" xml:lang="en">Use after free in garbage collector and finalizer of lgc.c in Lua interpreter 5.4.0~5.4.3 allows attackers to perform Sandbox Escape via a crafted script file.</Note>
-		</Notes>
-		<CVE>CVE-2021-44964</CVE>
-		<ProductStatuses>
-			<Status Type="Unaffected">
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Status>
-		</ProductStatuses>
-		<CVSSScoreSets>
-			<ScoreSet>
-				<BaseScore>6.3</BaseScore>
-				<Vector>AV:L/AC:L/PR:N/UI:R/S:C/C:N/I:N/A:H</Vector>
-			</ScoreSet>
-		</CVSSScoreSets>
-		<Remediations>
-			<Remediation Type="Unaffected">
-				<Description>lua</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-			</Remediation>
-			<Remediation Type="Unaffected">
-				<Description>lua</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Remediation>
-		</Remediations>
-	</Vulnerability>
-	<Vulnerability Ordinal="5" xmlns="http://www.icasi.org/CVRF/schema/vuln/1.1">
-		<Notes>
-			<Note Title="Vulnerability Description" Type="General" Ordinal="5" xml:lang="en">A double-free condition exists in contrib/shpsort.c of shapelib 1.5.0 and older releases. This issue may allow an attacker to cause a denial of service or have other unspecified impact via control over malloc.</Note>
-		</Notes>
-		<CVE>CVE-2022-0699</CVE>
-		<ProductStatuses>
-			<Status Type="Unaffected">
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Status>
-		</ProductStatuses>
-		<CVSSScoreSets>
-			<ScoreSet>
-				<BaseScore>5</BaseScore>
-				<Vector>AV:N/AC:L/Au:N/C:P/I:N/A:N</Vector>
-			</ScoreSet>
-		</CVSSScoreSets>
-		<Remediations>
-			<Remediation Type="Unaffected">
-				<Description>shapelib</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-			</Remediation>
-			<Remediation Type="Unaffected">
-				<Description>shapelib</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Remediation>
-		</Remediations>
-	</Vulnerability>
-	<Vulnerability Ordinal="6" xmlns="http://www.icasi.org/CVRF/schema/vuln/1.1">
-		<Notes>
-			<Note Title="Vulnerability Description" Type="General" Ordinal="6" xml:lang="en">Improper Input Validation vulnerability in HTTP/2 header parsing of Apache Traffic Server allows an attacker to smuggle requests. This issue affects Apache Traffic Server 8.0.0 to 9.1.2.</Note>
-		</Notes>
-		<CVE>CVE-2022-31779</CVE>
-		<ProductStatuses>
-			<Status Type="Unaffected">
-				<ProductID>openEuler-22.03-LTS</ProductID>
-			</Status>
-		</ProductStatuses>
-		<CVSSScoreSets>
-			<ScoreSet>
-				<BaseScore>7.5</BaseScore>
-				<Vector>AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N</Vector>
-			</ScoreSet>
-		</CVSSScoreSets>
-		<Remediations>
-			<Remediation Type="Unaffected">
-				<Description>trafficserver</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-22.03-LTS</ProductID>
-			</Remediation>
-		</Remediations>
-	</Vulnerability>
-	<Vulnerability Ordinal="7" xmlns="http://www.icasi.org/CVRF/schema/vuln/1.1">
-		<Notes>
-			<Note Title="Vulnerability Description" Type="General" Ordinal="7" xml:lang="en">In Varnish Cache 7.0.0, 7.0.1, 7.0.2, and 7.1.0, it is possible to cause the Varnish Server to assert and automatically restart through forged HTTP/1 backend responses. An attack uses a crafted reason phrase of the backend response status line. This is fixed in 7.0.3 and 7.1.1.</Note>
-		</Notes>
-		<CVE>CVE-2022-38150</CVE>
-		<ProductStatuses>
-			<Status Type="Unaffected">
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Status>
-		</ProductStatuses>
-		<CVSSScoreSets>
-			<ScoreSet>
-				<BaseScore>7.5</BaseScore>
-				<Vector>AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H</Vector>
-			</ScoreSet>
-		</CVSSScoreSets>
-		<Remediations>
-			<Remediation Type="Unaffected">
-				<Description>varnish</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP1</ProductID>
-			</Remediation>
-			<Remediation Type="Unaffected">
-				<Description>varnish</Description>
-				<DATE>2022-08-29</DATE>
-				<ProductID>openEuler-20.03-LTS-SP3</ProductID>
-			</Remediation>
-		</Remediations>
-	</Vulnerability>
 </cvrfdoc>
 ```
 
@@ -491,21 +352,9 @@ index:cve_pkg
 }
 ```
 
-### 3.2.2、cve信息导出
+## 3.4、任务管理
 
-
-
-### 3.2.3、cve评审状态设置
-
-支持用户修改cve状态，目前支持状态为：
-
-- not reviewed（未关注）
-- in review（关注中）
-- on-hold（挂起）
-- resolved（已解决）
-- no action（已忽略）
-
-## 3.3、任务管理
+### 3.4.1、常规任务
 
 任务管理模块提供功能：repo源设置、cve扫描、cve修复等任务的创建、任务进度查询/回调功能
 
@@ -516,7 +365,6 @@ index:cve_pkg
   - 回调（callback），为实时反馈任务进度，restful请求中带了回调函数地址，每当一个子任务完成，会通过回调函数实时更新任务状态。
   - 任务后置处理（post_handle），主要将任务结果经过处理后刷新到数据库中。
   - 错误处理（fault_handle），为防止网络原因等问题导致任务进度刷新失败、任务执行失败等，需要再将数据库中的状态刷新。
-
 - 流程图
 
 ![定时任务管理](pic/任务管理流程图.png)
@@ -525,7 +373,20 @@ index:cve_pkg
 
 ![任务管理)](pic/任务管理-时序图.png)
 
-#### 3.3.1、repo源设置
+- UML图
+
+  待补充
+
+- 任务状态总计5种，分别为：
+  - succeed（表示repo设置成功、cve修复成功）
+  - fail（表示repo设置失败、cve修复失败）
+  - running（表示任务运行中）
+  - done（表示cve扫描完成）
+  - unknown（由于网络等原因导致回调失败不能正确更新数据库任务状态时设置为该状态）
+
+#### 3.4.1.1、任务列表
+
+##### 3.4.1.1.1、repo源设置
 
 - create_task
   
@@ -576,8 +437,8 @@ index:cve_pkg
 
 - callback
 
-  - callback_on_ok：更新repo任务相应主机的status为`set`，更新该主机的repo_name为当前设置repo
-  - callback_on_failed：更新repo任务相应主机的status为`unset`
+  - callback_on_ok：更新repo任务相应主机的status为`succeed`，更新该主机的repo_name为当前设置repo
+  - callback_on_failed：更新repo任务相应主机的status为fail
 
 - post_handle
 
@@ -614,7 +475,7 @@ index:cve_pkg
 
   - 设置状态还在运行中的主机为`unknown`
 
-#### 3.3.2、cve扫描
+##### 3.4.1.1.2、cve扫描
 
 - create_task
 
@@ -630,15 +491,6 @@ index:cve_pkg
         "total_hosts": ["id1", "id2"],
         // 一些预置检查需要，如检查repo源是否已配置
         "check_items": [],
-        // 不受影响的cve
-        "unaffected_cves": {
-            "cve1": {
-                // 表示在哪个版本
-                "os_version": [],
-                // 相应的软件包
-                "package": []
-            }
-        },
         "tasks": [
             {
                 "host_id": "id1",
@@ -665,44 +517,39 @@ index:cve_pkg
 
 - callback
 
+  返回的信息为
+
+  ```
+  {
+  	”task_id“: ""
+  	"status": "",
+  	"host_id": "",
+  	"os_version": "",
+  	"installed_packages": [],
+  	"cves": []
+  }
+  ```
+
+  - 解析主机cve信息，存入数据库
+    
+    ![cve扫描逻辑](pic/cve扫描逻辑.png)
+    
+    - 根据cve_affected_pkgs{"os_version==os_version"}查询得到cve信息{cve_id, package, package_version, os_version, affected}
+    - 与installed_packages进行比较，得到cve列表{cve_id, affected, fixed}
+    - 从得到的cve列表与cves进行相比较，矫正受影响未修复的cve列表
+    - 存入数据库
+
   - 修改主机状态为`done`
 
 - post_handle
 
-  - 合并所有主机的结果，存储到数据库中
-
-    ```json
-    {
-        "task_id": "",
-        "task_name": "",
-        "task_type": "cve scan",
-        "latest_execute_time": 111,
-        "task_result": [
-            {
-                "host_id": "",
-                "host_name": "",
-                "host_ip": "",
-                // 该任务是否执行成功，可为succeed，fail，unknown
-                "status": "succeed",
-                "check_items": [
-                    {
-                        "item": "network",
-                        "result": true
-                    }
-                ],
-                "affected_cves": ["cve1", "cve2"],
-                "unaffected_cves": ["cve3"],
-                "log": ""
-            }
-        ]
-    }
-    ```
+  - 不做任何操作
 
 - fault_handle
 
   - 设置状态还在扫描中的主机为`done`
 
-#### 3.3.3、cve修复
+##### 3.4.1.1.3、cve修复
 
 - create_task
 
@@ -723,12 +570,18 @@ index:cve_pkg
                 "host_id": "id1",
                 // 是否执行预置检查
                 "check": true,
-                "cves": ["cve1", "cve2"]
+                "cves": {
+                    // hot-patch, cold-patch
+                    "cve1": "hot-patch",
+                    "cve2": "cold-patch"
+                }
             },
             {
                 "host_id": "id2",
                 "check": true,
-                "cves": ["cve1"]
+                "cves": {
+                    "cve1": "hot-patch"
+                }
             }
         ],
         "callback": "/vulnerability/task/callback/cve/fix"
@@ -747,8 +600,8 @@ index:cve_pkg
 
 - callback
 
-  - callback_on_ok：更新cve修复任务相应主机相应cve的status为`fixed`，更新这些修复cve的进度
-  - callback_on_failed：更新cve修复任务相应主机相应cve的status为`unfixed`
+  - callback_on_ok：更新cve修复任务相应主机相应cve的status为`succeed`，更新这些修复cve的进度
+  - callback_on_failed：更新cve修复任务相应主机相应cve的status为`fail`
 
 - post_handle
 
@@ -794,6 +647,21 @@ index:cve_pkg
 
   - 设置状态还在运行中的主机的状态为`unknown`
   - 补齐修复cve任务的进度
+
+#### 3.4.1.2、任务回调
+
+#### 3.4.1.3、任务回滚
+
+### 3.4.2、定时任务
+
+#### 3.4.2.1、安全公告下载
+
+#### 3.4.2.2、主机扫描
+
+#### 3.4.2.3、数据矫正
+
+## 3.5、热补丁工具
+
 
 # 4、质量属性设计
 
@@ -858,10 +726,13 @@ index:cve_pkg
 
 # 7、修改日志
 
-| 版本 | 发布说明             |
-| :--- | :------------------- |
-| 1.0  | 初稿，完部分模块设计 |
-| 2.0  | 任务管理模块重构     |
+| 版本  | 发布说明                                                     |
+| :---- | :----------------------------------------------------------- |
+| 1.0.0 | 初稿，完部分模块设计                                         |
+| 2.0.0 | 任务管理模块重构                                             |
+| 2.0.1 | 任务管理：cve扫描做修改，目前cve扫描不会作为一个任务存入数据库，并且逻辑为收集目标主机rpm信息、cve信息，通过callback返回，在服务端解析rpm信息得出不受影响cve，直接存入数据库。 |
+| 2.0.2 | 1.cve扫描逻辑做调整，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式 |
+|       |           
 
 
 # 8、参考目录
