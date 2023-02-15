@@ -30,11 +30,22 @@ def get_timed_task_config_info(file_path: str):
 
     Returns:
         list: list of dict, each dict is a parsing results, e.g.:
-            [
-                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '2'},
-                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '3'},
-                {'id': 'task id1', 'trigger': 'cron', 'day_of_week': '0-6', 'hour': '4'}
-            ]
+            {
+                "cve_scan":
+                            {
+                                 'id': 'task id1',
+                                 'trigger': 'cron',
+                                 'day_of_week': '0-6',
+                                 'hour': '2'
+                             },
+                "download_sa":
+                            {
+                                'id': 'task id1',
+                                 'trigger': 'cron',
+                                  'day_of_week': '0-6',
+                                   'hour': '3'
+                            }
+            }
     """
     config = configparser.ConfigParser()
     try:
@@ -43,9 +54,9 @@ def get_timed_task_config_info(file_path: str):
         LOGGER.error(error)
         LOGGER.error("configuration file path error")
         return []
-    config_info = []
+    config_info = dict()
     section_list = config.sections()
     for section in section_list:
-        config_info.append(dict(config.items(section)))
+        config_info[section] = dict(config.items(section))
 
     return config_info

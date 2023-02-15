@@ -36,7 +36,7 @@ class TaskCache(LRUCache):
                         "host_info": [
                             {
                                 "host_name": "name1",
-                                "host_id": "id1",
+                                "host_id": 1,
                                 "host_ip": "ip1"
                             }
                         ]
@@ -52,7 +52,7 @@ class TaskCache(LRUCache):
                     "host": {
                         "name1": {
                             "host_name": "name1",
-                            "host_id": "id1",
+                            "host_id": 1,
                             "host_ip": "ip1",
                             "cve": {
                                 "id1": 1
@@ -86,7 +86,7 @@ class TaskCache(LRUCache):
                     {
                         "host_name": "name1",
                         "host_ip": "ip1",
-                        "host_id": "id1",
+                        "host_id": 1,
                         "repo_name": "name1"
                     }
                 ]
@@ -96,7 +96,7 @@ class TaskCache(LRUCache):
                 {
                     "name1": {
                         "host_name": "name1",
-                        "host_id": "id1",
+                        "host_id": 1,
                         "host_ip": "ip1",
                         "repo_name": "name1"
                     }

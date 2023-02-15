@@ -15,15 +15,17 @@ Time:
 Author:
 Description: Manager that start aops-manager
 """
-from flask import Flask
-# from flask_apscheduler import APScheduler
 import sqlalchemy
+from flask import Flask
+
 from apollo import BLUE_POINT
 from apollo.conf import configuration
-from apollo.cron.manager import TimedTaskManager
+from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
+from apollo.cron.manager import TimedTaskManager, get_timed_task_config_info
+from apollo.cron.timed_scan_task import TimedScanTask
 from apollo.database import ENGINE
-from apollo.database.table import create_vul_tables
 from apollo.database.mapping import MAPPINGS
+from apollo.database.table import create_vul_tables
 from vulcanus.database.proxy import ElasticsearchProxy
 from vulcanus.log.log import LOGGER
 
@@ -74,9 +76,7 @@ def init_app():
     app = Flask('apollo')
     # limit max upload document size
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-    TimedTaskManager().init_app(app)
 
-    TimedTaskManager().start_task()
     for blue, api in BLUE_POINT:
         api.init_app(app)
         app.register_blueprint(blue)
@@ -84,9 +84,24 @@ def init_app():
     return app
 
 
+def init_timed_task(app):
+    """
+    Initialize and create a scheduled task
+
+    Args:
+        app:flask.Application
+    """
+    config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
+
+    TimedTaskManager.init_app(app)
+    TimedTaskManager.add_task(TimedScanTask.task_enter, **config_info.get("cve_scan"))
+    TimedTaskManager.start_task()
+
+
 def main():
     init_database()
     app = init_app()
+    init_timed_task(app)
     ip = configuration.apollo.get('IP')
     port = configuration.apollo.get('PORT')
     app.run(host=ip, port=port, use_reloader=False)
