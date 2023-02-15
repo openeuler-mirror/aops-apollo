@@ -21,11 +21,9 @@ from collections import defaultdict
 from time import time
 from typing import Dict, Tuple
 
-import sqlalchemy
-from sqlalchemy import case
-
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
+from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 
 from apollo.conf.constant import REPO_FILE, TASK_INDEX
@@ -59,7 +57,7 @@ class TaskMysqlProxy(MysqlProxy):
             list: host info, e.g.
                 [
                     {
-                        "host_id": "",
+                        "host_id": 1,
                         "host_ip": "",
                         "host_name": "",
                         "status": ""
@@ -159,7 +157,7 @@ class TaskMysqlProxy(MysqlProxy):
             task_info (dict): task info, e.g.
                 {
                     "status":"succeed" / "fail" / "unknown",
-                    "host_id":"127.0.0.1",
+                    "host_id":1,
                     "installed_packages":["string"],
                     "os_version":"string",
                     "cves":["string"]
@@ -204,8 +202,7 @@ class TaskMysqlProxy(MysqlProxy):
                 })
 
         if installed_packages:
-            unaffected_cve_list = self._get_unaffected_cve(
-                installed_packages, affected_cves, os_version)
+            unaffected_cve_list = self._get_unaffected_cve(affected_cves, os_version)
             for unaffected_cve in unaffected_cve_list:
                 cve_list.append({
                     "cve_id": unaffected_cve,
@@ -241,62 +238,28 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error(f"Cve scan no exist cve is {no_exists_cve}")
         return exists_cve
 
-    def _get_unaffected_cve(self, installed_packages: list, cves: list, os_version: str) -> list:
+    def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
         """
         Get the unaffected CVEs.
         Args:
-            installed_packages (list): affected cve list,e.g.
-                ["OpenEXR", "python-bleach", "lua"]
             cves (list): CVE list, e.g.
                 ["CVE-1999-20304", "CVE-1999-20303", "CVE-1999-20301"]
             os_version(str): os version, e.g. "openEuler-22.03-LTS"
         Returns:
             list: unaffected CVEs
         """
-        cve_and_packages = self._query_cve_and_packages()
-        cve_id_and_os_version = self.get_cve_unaffected_os_dict(os_version)
-        package_cve_dict = defaultdict(list)
-        result_cve_list = []
-        for cve, package in cve_and_packages:
-            package_cve_dict[package].append(cve)
-        for package in installed_packages:
-            if package in package_cve_dict:
-                result_cve_list.extend(package_cve_dict[package])
-        verify_os_version_cve_list = []
-        for cve in result_cve_list:
-            if os_version in cve_id_and_os_version.get(cve, ""):
-                verify_os_version_cve_list.append(cve)
+        unaffected_cve_dict = self.get_cve_unaffected_os_dict(os_version)
 
-        return list(set(verify_os_version_cve_list) - set(cves))
+        unaffected_cve_list = []
+        for cve in cves:
+            if cve in unaffected_cve_dict:
+                unaffected_cve_list.append(cve)
 
-    def _query_cve_and_packages(self):
-        """
-        Query the cve and packages.
-        Returns:
-            cve_and_packages(list):e.g.
-                    [('CVE-2022-44964', 'lua'), ('CVE-2022-14964', 'ansible')]
-        """
-        cve_and_packages = self.session.query(
-            CveAffectedPkgs.cve_id, CveAffectedPkgs.package).all()
-        return cve_and_packages
-
-    def _save_cve_host_match(self, database_list):
-        """
-        Save cve host match to database.
-        Args:
-            database_list (list): database list,e.g.
-            [{"cve_id":"CVE-2012-1222","host_id":"127.0.0.1","affected":1},
-            {"cve_id":"CVE-2012-1224","host_id":"127.0.6.1","affected":1}]
-        Returns:
-            code status(int)
-        """
-        self.session.bulk_insert_mappings(
-            CveHostAssociation, database_list)
-        LOGGER.debug("Finished saving cve_host_match.")
+        return unaffected_cve_list
 
     def get_cve_unaffected_os_dict(self, os_version: str) -> dict:
         """
-        Query the cve os version.
+        Query the unaffected cves under the os.
         Args:
             os_version(str):e.g. "openEuler-22.03-LTS"
         Returns:

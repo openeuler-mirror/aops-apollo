@@ -142,7 +142,7 @@ class CveMysqlProxy(MysqlProxy):
                     "total_page": 1,
                     "result": [
                         {
-                            "host_id": "id1",
+                            "host_id": 1,
                             "host_name": "name1",
                             "host_ip": "1.1.1.1",
                             "host_group": "group1",
@@ -281,19 +281,19 @@ class CveMysqlProxy(MysqlProxy):
                     "result": {
                         "cve-2021-11111": [
                             {
-                                "host_id": "id1",
+                                "host_id": 1,
                                 "host_name": "name1",
                                 "host_ip": "1.1.1.1"
                             },
                             {
-                                "host_id": "id2",
+                                "host_id": 2,
                                 "host_name": "name2",
                                 "host_ip": "1.1.1.2"
                             }
                         ],
                         "cve-2021-11112": [
                             {
-                                "host_id": "id1",
+                                "host_id": 3,
                                 "host_name": "name1",
                                 "host_ip": "1.1.1.1"
                             }

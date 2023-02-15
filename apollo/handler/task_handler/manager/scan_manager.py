@@ -15,17 +15,9 @@ Time:
 Author:
 Description: Task manager for cve scanning.
 """
-import datetime
 import re
-import threading
-import uuid
 
 from apollo.conf import configuration
-from apollo.conf.constant import CVE_SCAN_STATUS
-from apollo.database import SESSION
-from apollo.database.proxy.task import TaskMysqlProxy
-from apollo.handler.task_handler.cache import TASK_CACHE
-from apollo.handler.task_handler.config import cve_scan_time
 from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
 from vulcanus.log.log import LOGGER
@@ -127,104 +119,3 @@ class ScanManager(Manager):
             When the task is completed or execute fail, set the host status to 'done'.
         """
         self.proxy.update_host_scan("finish", self.host_list)
-
-
-class TimedScanManager:
-    """
-    Manager for timed task of cve scanning.
-    """
-    @staticmethod
-    def _cve_scan_job(username, host_info):
-        """
-        A cve scanning job for a user.
-
-        Args:
-            username (str): [description]
-            host_info (list): [description]
-
-        Returns:
-            bool: whether start the job succeed
-            str: return username for recording the job info
-        """
-        proxy = TaskMysqlProxy()
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail, return.")
-            return False, username
-
-        task_id = str(uuid.uuid1()).replace('-', '')
-        manager = ScanManager(task_id, proxy, host_info, username)
-        manager.execute_task()
-        return True, username
-
-    @staticmethod
-    def _check_host_info(username, host_info):
-        """
-        Before start the scanning job for the user, check whether there are some
-        hosts under scanning.
-
-        Args:
-            username (str)
-            host_info (list)
-
-        Returns:
-            bool: check result
-        """
-        if len(host_info) == 0:
-            LOGGER.info(
-                "There is no host info about user %s, ignore.", username)
-            return False
-
-        for host in host_info:
-            if host["status"] == CVE_SCAN_STATUS.SCANNING:
-                LOGGER.info(
-                    "There are some hosts under scanning about user %s, ignore.", username)
-                return False
-
-        return True
-
-    @staticmethod
-    def create_timed_scan_task():
-        """
-        Start the scan after the specified time of day.
-        """
-        LOGGER.info("Begin to scan the whole host in %s.",
-                    str(datetime.datetime.now()))
-
-        # get the total host info first.
-        proxy = TaskMysqlProxy()
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail, return.")
-            return
-
-        res = proxy.get_total_host_info()
-        if res[0] != SUCCEED:
-            LOGGER.error("Query for host info failed, stop scanning.")
-            return
-
-        # create works
-        works = []
-        for username, host_info in res[1]['host_infos'].items():
-            if TimedScanManager._check_host_info(username, host_info):
-                work = threading.Thread(target=TimedScanManager._cve_scan_job,
-                                        args=(username, host_info))
-                work.start()
-                works.append(work)
-
-        for work in works:
-            work.join()
-
-    @staticmethod
-    def add_timed_task(app):
-        """
-        Create timed task for cve scanning.
-
-        Args:
-            app (class): flask application
-        """
-        app.apscheduler.add_job(func=TimedScanManager.create_timed_scan_task,
-                                id='cve scan timed task',
-                                trigger='cron',
-                                day_of_week="0-6",
-                                hour=cve_scan_time)
-        # trigger='interval',
-        # seconds=5)

@@ -60,7 +60,7 @@ class HostMysqlProxy(MysqlProxy):
                     "total_page": 1,
                     "result": [
                         {
-                            "host_id": "id1",
+                            "host_id": 1,
                             "host_name": "name1",
                             "host_ip": "1.1.1.1",
                             "host_group": "group1",
@@ -218,7 +218,7 @@ class HostMysqlProxy(MysqlProxy):
         Args:
             data(dict): parameter, e.g.
                 {
-                    "host_list": ["host1"],  // if empty, query all hosts
+                    "host_list": [1],  // if empty, query all hosts
                     "username": "admin"
                 }
 
@@ -300,7 +300,7 @@ class HostMysqlProxy(MysqlProxy):
             data(dict): parameter, e.g.
                 {
                     "username": "admin",
-                    "host_id": "host1"
+                    "host_id": 1
                 }
 
         Returns:
@@ -333,7 +333,7 @@ class HostMysqlProxy(MysqlProxy):
         """
         query and process host info
         Args:
-            data (dict): {"host_id": "id1", "username": "admin"}
+            data (dict): {"host_id": 1, "username": "admin"}
 
         Returns:
             int: status code
@@ -362,7 +362,7 @@ class HostMysqlProxy(MysqlProxy):
         query needed host info
         Args:
             username (str): user name of the request
-            host_id (str): host id
+            host_id (int): host id
 
         Returns:
             sqlalchemy.orm.query.Query
@@ -436,7 +436,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         Args:
             data(dict): parameter, e.g.
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "sort": "publish_time",
                     "direction": "asc",
                     "page": 1,
@@ -555,7 +555,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         query needed host CVEs info
         Args:
             username (str): user name of the request
-            host_id (str): host id
+            host_id (int): host id
             filters (set): filter given by user
 
         Returns:

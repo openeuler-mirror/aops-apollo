@@ -123,9 +123,8 @@ class VulScanHost(BaseResponse):
         if not cve_scan_manager.pre_handle():
             return DATABASE_UPDATE_ERROR
 
-        # run the task in a thread
-        task_thread = threading.Thread(target=cve_scan_manager.execute_task)
-        task_thread.start()
+        # run the task
+        cve_scan_manager.execute_task()
 
         return SUCCEED
 
@@ -359,7 +358,7 @@ class VulGetCveTaskStatus(BaseResponse):
                     "result": {
                         "cve1": [
                             {
-                                "host_id": "id1",
+                                "host_id": 1,
                                 "host_name": "name1",
                                 "host_ip": "ip1",
                                 "status": "running"
@@ -430,7 +429,7 @@ class VulGetCveTaskResult(BaseResponse):
                         "latest_execute_time": 11,
                         "task_result": [
                             {
-                                "host_id": "1",
+                                "host_id": 1,
                                 "host_name": "name",
                                 "host_ip": "1.1.1.1",
                                 "status": "fail",
@@ -720,7 +719,7 @@ class VulCveFixTaskCallback(BaseResponse):
         """
         Args:
             task_id (str)
-            host_id (str)
+            host_id (int)
             cves (dict)
 
         Returns:

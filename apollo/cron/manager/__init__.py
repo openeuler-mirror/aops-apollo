@@ -17,12 +17,13 @@ Description:
 """
 from flask_apscheduler import APScheduler
 
+from apollo.cron.manager.parse_config_info import get_timed_task_config_info
 from vulcanus.log.log import LOGGER
 
 
 class TimedTaskManager():
     """
-    Classes for Timed Task Management
+    Classes for Timed Task Management, it can add, delete, pause and view scheduled tasks.
     """
     _instance = None
     _APscheduler = None
@@ -35,20 +36,30 @@ class TimedTaskManager():
 
     @staticmethod
     def init_app(app):
+        """
+        Initialize APScheduler
+
+        Args:
+            app:flask.Application
+        """
         TimedTaskManager._APscheduler.init_app(app)
 
     @staticmethod
     def start_task():
+        """
+        Start running scheduled tasks
+        """
         TimedTaskManager._APscheduler.start()
 
     @staticmethod
-    def add_task(task_id, trigger="cron", **kwargs):
+    def add_task(func, task_id=None, trigger="cron", **kwargs):
         """
         Create a timed task.
 
         Args:
+            func(str): Functions for scheduled task execution
             task_id(str): The name of the task
-            trigger(str): Timed task start method, value date cron interval
+            trigger(str): Timed task start method, value "date" or "cron" or "interval"
             kwargs: Parameters needed to create a timed task
                 If the trigger method is "date", the parameter format is:
                 {
@@ -66,13 +77,17 @@ class TimedTaskManager():
                     }
 
         """
-        if trigger not in ["data", "cron", "interval"]:
+        if trigger not in ["date", "cron", "interval"]:
             LOGGER.error("Wrong trigger parameter for timed tasks.")
             return
         timed_task_parameters = dict(kwargs)
+        if task_id is None and "id" not in timed_task_parameters:
+            LOGGER.error("Create scheduled task is missing id fields.")
+            return
 
         timed_task_parameters['id'] = task_id
         timed_task_parameters['trigger'] = trigger
+        timed_task_parameters['func'] = func
         if "auto_start" in timed_task_parameters:
             auto_start = timed_task_parameters['auto_start']
             timed_task_parameters.pop("auto_start")

@@ -25,7 +25,7 @@ class CveFixCallback(TaskCallback):
     Callback function for cve fixing.
     """
 
-    def callback(self, task_id: str, host_id: str, cves: Dict[str, str]) -> int:
+    def callback(self, task_id: str, host_id: int, cves: Dict[str, str]) -> int:
         """
         Update cve status for the host and add the progress for the cves.
 

@@ -30,7 +30,7 @@ class CveHostAssociation(Base, MyBase):
     __tablename__ = "cve_host_match"
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    host_id = Column(String(40), ForeignKey('host.host_id', ondelete="CASCADE"), primary_key=True)
+    host_id = Column(Integer, ForeignKey('host.host_id', ondelete="CASCADE"), primary_key=True)
     affected = Column(Boolean)
     
 
@@ -78,7 +78,7 @@ class TaskCveHostAssociation(Base, MyBase):
 
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    host_id = Column(String(32), primary_key=True)
+    host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
     public_ip = Column(String(16), nullable=False)
     # status can be "unfixed", "fixed" and "running"
@@ -93,7 +93,7 @@ class TaskHostRepoAssociation(Base, MyBase):
     __tablename__ = "task_host_repo"
 
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
-    host_id = Column(String(32), primary_key=True)
+    host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
     public_ip = Column(String(16), nullable=False)
     repo_name = Column(String(20), nullable=False)
