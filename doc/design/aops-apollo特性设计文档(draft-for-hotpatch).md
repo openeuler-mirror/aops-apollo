@@ -1,6 +1,6 @@
 # 1、特性描述
 
-​操作系统作作为所有软件的基座，代码量巨大，社区会及时修复每一个发现的安全漏洞和缺陷，如果不及时修复这些问题，可能会带来系统安全隐患和宕机的风险。当前社区存在如下问题：  
+操作系统作作为所有软件的基座，代码量巨大，社区会及时修复每一个发现的安全漏洞和缺陷，如果不及时修复这些问题，可能会带来系统安全隐患和宕机的风险。当前社区存在如下问题：  
 1. 目前仅有修复发布，无工具支持检查运行系统CVE和缺陷状态，依赖人为检查，存在实时性和遗漏风险  
 2. 无热修复发布，仅支持热修复（内核/用户态热补丁）工具，但是需要用户自己制作，使用复杂  
 3. 无集群巡检和管理能力，管理员维护繁复  
@@ -113,8 +113,49 @@ Mulan V2
 </updates>
 ```
 
+**接口清单**
+
+补丁制作工具SystemHotpatch，提供热补丁制作和补丁信息生成功能，支持用户态和内核态热补丁生成
+
+```
+shp COMMAND [OPTIONS...]
+
+List of main command：
+build-hp                make hotpatch
+build-info              make updateinfo.xml for hotpatch
+
+General build-hp options：
+  -n, --name <NAME>                      Patch name
+      --version <VERSION>                Patch version [default: 1]
+      --description <DESCRIPTION>        Patch description [default: None]
+      --target-name <TARGET_NAME>        Patch target name
+  -t, --target-elfname <TARGET_ELFNAME>  Patch target executable name
+      --target-version <TARGET_VERSION>  Patch target version
+      --target-release <TARGET_RELEASE>  Patch target release
+      --target-license <TARGET_LICENSE>  Patch target license
+  -s, --source <SOURCE>                  source package
+  -d, --debuginfo <DEBUGINFO>            Debuginfo package
+      --workdir <WORKDIR>                Working directory [default: .]
+  -o, --output <OUTPUT>                  Generated patch output directory [default: .]
+      --kjobs <N>                        Kernel make jobs [default: 32]
+      --skip-compiler-check              Skip compiler version check (not recommended)
+ 
+General build-info options:
+  --type  <security/bugfix/feature>      Issue type
+  --title <TITLE_INFo>                   Issue title
+  --id    <ID_NUMBER>                    Issue id
+  --description <DESCRIPTION>            Issue description
+  --severity <Important/xxxx>            Issue severity
+  --output                               Generatd updateinfo.xml output directory
+
+```
+
+
+
 ### 2.1.2、系统缺陷支持热补丁修复
+
 **包含IR清单**
+
 |IR描述|
 |:-----|
 |[IR-apollo-rpm-hot_fix]apollo-支持使用rpm管理热补丁|
@@ -134,7 +175,38 @@ Mulan V2
 
 
 
+**接口清单**
+
+- DNF支持热补丁
+
+  相关命令需要对热补丁依赖，是否已经激活热补丁做判断，以便热补丁正常生效
+
+  ```
+  dnf updateinfo
+  Updates Information Summary: available
+      184 Security notice(s)
+           23 Critical Security notice(s)
+              //新增部分
+              xx hotpatch
+           96 Important Security notice(s)
+           62 Moderate Security notice(s)
+            3 Low Security notice(s)
+  
+  
+  dnf updateinfo info --hotpatch
+  回显与原格式保持一致，仅显示支持热补丁的部分
+  
+  dnf updateinfo list --hotpatch
+  回显与原格式保持一致，仅显示支持热补丁的部分
+  
+  dnf upgrade --hotpatch
+  新增--hotpatch参数，需要同时考虑--advisory/--cve/--bz/--security等组合参数
+  ```
+
+  
+
 **待分析内容**
+
 |NO|分析项|责任人|预计完成时间|分析结论|
 |:--|:----|:-----|:----------|:------|
 |1|spec如何新增标签\<rpm:sub-type>hotpatch</rpm:sub-type>,如何新增到primary.xml中|text|text|text|
@@ -987,11 +1059,12 @@ index:cve_pkg
 
 # 7、修改日志
 
-| 版本 | 发布说明             |
-| :--- | :------------------- |
-| 1.0  | 初稿，完部分模块设计 |
-| 2.0  | 任务管理模块重构     |
-| 3.0  | 新增热补丁支持，初稿     |
+| 版本 | 发布说明             | 修改人|
+| :--- | :-------------------|:-----|
+| 1.0  | 初稿，完部分模块设计 |朱运成|
+| 2.0  | 任务管理模块重构     |xxx|
+| 3.0  | 新增热补丁支持，初稿 |solarhu|
+| 3.1  | 更新热补丁支持接口描述|solarhu|
 
 
 # 8、参考目录
