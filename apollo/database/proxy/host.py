@@ -151,7 +151,7 @@ class HostMysqlProxy(MysqlProxy):
             .filter(CveHostAssociation.affected == True)\
             .group_by(CveHostAssociation.host_id).subquery()
 
-        host_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
+        host_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
                                         Host.host_group_name, Host.repo_name, Host.last_scan,
                                         case([(cve_host_subquery.c.cve_num.is_(None), 0)],
                                              else_=cve_host_subquery.c.cve_num).label("cve_num")) \
@@ -167,7 +167,7 @@ class HostMysqlProxy(MysqlProxy):
             host_info = {
                 "host_id": row.host_id,
                 "host_name": row.host_name,
-                "host_ip": row.public_ip,
+                "host_ip": row.host_ip,
                 "host_group": row.host_group_name,
                 "repo": row.repo_name,
                 "cve_num": row.cve_num,
@@ -376,7 +376,7 @@ class HostMysqlProxy(MysqlProxy):
             .filter(CveHostAssociation.affected == False)\
             .group_by(CveHostAssociation.host_id).subquery()
 
-        host_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
+        host_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
                                         Host.host_group_name, Host.repo_name, Host.last_scan,
                                         case([(affected_cve_host_subquery.c.affected_cve_num.is_(None), 0)],
                                              else_=affected_cve_host_subquery.c.affected_cve_num).label("affected_cve_num"),
@@ -391,7 +391,7 @@ class HostMysqlProxy(MysqlProxy):
     def _host_info_row2dict(row):
         host_info = {
             "host_name": row.host_name,
-            "host_ip": row.public_ip,
+            "host_ip": row.host_ip,
             "host_group": row.host_group_name,
             "repo": row.repo_name,
             "affected_cve_num": row.affected_cve_num,

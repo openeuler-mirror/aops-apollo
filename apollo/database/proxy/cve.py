@@ -241,7 +241,7 @@ class CveMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        cve_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip,
+        cve_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
                                        Host.host_group_name, Host.repo_name, Host.last_scan) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.cve_id == cve_id) \
@@ -256,7 +256,7 @@ class CveMysqlProxy(MysqlProxy):
             host_info = {
                 "host_id": row.host_id,
                 "host_name": row.host_name,
-                "host_ip": row.public_ip,
+                "host_ip": row.host_ip,
                 "host_group": row.host_group_name,
                 "repo": row.repo_name,
                 "last_scan": row.last_scan,
@@ -353,7 +353,7 @@ class CveMysqlProxy(MysqlProxy):
             sqlalchemy.orm.query.Query
         """
         cve_query = self.session.query(CveHostAssociation.cve_id, Host.host_id,
-                                       Host.host_name, Host.public_ip) \
+                                       Host.host_name, Host.host_ip) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.cve_id.in_(cve_list))
         return cve_query
@@ -363,7 +363,7 @@ class CveMysqlProxy(MysqlProxy):
         host_info = {
             "host_id": row.host_id,
             "host_name": row.host_name,
-            "host_ip": row.public_ip
+            "host_ip": row.host_ip
         }
         return host_info
 
