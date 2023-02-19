@@ -80,7 +80,7 @@ class TaskCveHostAssociation(Base, MyBase):
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
-    public_ip = Column(String(16), nullable=False)
+    host_ip = Column(String(16), nullable=False)
     # status can be "unfixed", "fixed" and "running"
     status = Column(String(20), nullable=False)
 
@@ -95,7 +95,7 @@ class TaskHostRepoAssociation(Base, MyBase):
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
-    public_ip = Column(String(16), nullable=False)
+    host_ip = Column(String(16), nullable=False)
     repo_name = Column(String(20), nullable=False)
     # status can be "unset", "set" and "running"
     status = Column(String(20))

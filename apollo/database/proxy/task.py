@@ -82,7 +82,7 @@ class TaskMysqlProxy(MysqlProxy):
         if host_list:
             filters.add(Host.host_id.in_(host_list))
 
-        info_query = self.session.query(Host.host_id, Host.host_name, Host.public_ip, Host.status) \
+        info_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip, Host.status) \
             .filter(*filters)
 
         info_list = []
@@ -90,7 +90,7 @@ class TaskMysqlProxy(MysqlProxy):
             host_info = {
                 "host_id": row.host_id,
                 "host_name": row.host_name,
-                "host_ip": row.public_ip,
+                "host_ip": row.host_ip,
                 "status": row.status
             }
             info_list.append(host_info)
@@ -117,7 +117,7 @@ class TaskMysqlProxy(MysqlProxy):
                     host_info = {
                         "host_id": host.host_id,
                         "host_name": host.host_name,
-                        "host_ip": host.public_ip,
+                        "host_ip": host.host_ip,
                         "status": host.status
                     }
                     temp_res[name].append(host_info)
@@ -1144,7 +1144,7 @@ class TaskMysqlProxy(MysqlProxy):
                                               TaskCveHostAssociation.cve_id,
                                               TaskCveHostAssociation.host_id,
                                               TaskCveHostAssociation.host_name,
-                                              TaskCveHostAssociation.public_ip) \
+                                              TaskCveHostAssociation.host_ip) \
                 .join(Task, Task.task_id == TaskCveHostAssociation.task_id) \
                 .filter(*filters)
         else:
@@ -1159,7 +1159,7 @@ class TaskMysqlProxy(MysqlProxy):
         host_status = {
             "host_id": row.host_id,
             "host_name": row.host_name,
-            "host_ip": row.public_ip,
+            "host_ip": row.host_ip,
             "status": row.status
         }
         return host_status
@@ -1734,7 +1734,7 @@ class TaskMysqlProxy(MysqlProxy):
         """
         task_repo_query = self.session.query(TaskHostRepoAssociation.host_id,
                                              TaskHostRepoAssociation.host_name,
-                                             TaskHostRepoAssociation.public_ip,
+                                             TaskHostRepoAssociation.host_ip,
                                              TaskHostRepoAssociation.repo_name,
                                              TaskHostRepoAssociation.status) \
             .join(Task, Task.task_id == TaskHostRepoAssociation.task_id) \
@@ -1780,7 +1780,7 @@ class TaskMysqlProxy(MysqlProxy):
             host_info = {
                 "host_id": row.host_id,
                 "host_name": row.host_name,
-                "host_ip": row.public_ip,
+                "host_ip": row.host_ip,
                 "repo_name": row.repo_name,
                 "status": row.status
             }
@@ -2599,7 +2599,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             "cve_id": cve_id,
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
-            "public_ip": host_info["host_ip"],
+            "host_ip": host_info["host_ip"],
             "status": "fail"
         }
 
@@ -2703,7 +2703,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             "repo_name": repo_name,
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
-            "public_ip": host_info["host_ip"],
+            "host_ip": host_info["host_ip"],
             "status": "fail"
         }
 
