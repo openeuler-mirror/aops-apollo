@@ -17,6 +17,8 @@ Description: Manager that start aops-manager
 """
 import sqlalchemy
 from flask import Flask
+import redis
+from redis import RedisError
 
 from apollo import BLUE_POINT
 from apollo.conf import configuration
@@ -26,7 +28,7 @@ from apollo.cron.timed_scan_task import TimedScanTask
 from apollo.database import ENGINE
 from apollo.database.mapping import MAPPINGS
 from apollo.database.table import create_vul_tables
-from vulcanus.database.proxy import ElasticsearchProxy
+from vulcanus.database.proxy import ElasticsearchProxy, RedisProxy
 from vulcanus.log.log import LOGGER
 
 
@@ -94,12 +96,25 @@ def init_timed_task(app):
     config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
 
     TimedTaskManager.init_app(app)
-    TimedTaskManager.add_task(TimedScanTask.task_enter, **config_info.get("cve_scan"))
+    TimedTaskManager.add_task(TimedScanTask.task_enter,
+                              **config_info.get("cve_scan"))
     TimedTaskManager.start_task()
+
+
+def init_redis_connect():
+    """
+    Init redis connect
+    """
+    try:
+        redis_connect = RedisProxy(configuration)
+        redis_connect.connect()
+    except (RedisError, redis.ConnectionError):
+        raise RedisError("redis connect error.")
 
 
 def main():
     init_database()
+    init_redis_connect()
     app = init_app()
     init_timed_task(app)
     ip = configuration.apollo.get('IP')
