@@ -60,7 +60,7 @@ class CveHostInfoDictSchema(Schema):
     """
     single host's info of a cve from /vulnerability/task/cve/generate
     """
-    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     host_name = fields.String(
         required=True, validate=lambda s:  0 < len(s) <= 20)
     host_ip = fields.IP(required=True)
@@ -186,7 +186,7 @@ class GetRepoTaskResultSchema(Schema):
     validators for parameter of /vulnerability/task/repo/result/get
     """
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_list = fields.List(fields.String(), required=True)
+    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
 
 
 class ExecuteTaskSchema(Schema):
@@ -206,20 +206,20 @@ class DeleteTaskSchema(Schema):
 
 class CveFixCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     cves = fields.Dict(keys=fields.Str(), values=fields.Str())
 
 
 class RepoSetCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     repo_name = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
 class CveScanCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     installed_packages = fields.List(fields.String(), required=True)
     os_version = fields.String(required=True)

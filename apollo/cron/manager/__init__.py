@@ -81,11 +81,22 @@ class TimedTaskManager():
             LOGGER.error("Wrong trigger parameter for timed tasks.")
             return
         timed_task_parameters = dict(kwargs)
-        if task_id is None and "id" not in timed_task_parameters:
-            LOGGER.error("Create scheduled task is missing id fields.")
-            return
+        if task_id is None:
+            if "id" not in timed_task_parameters:
+                LOGGER.error("Create scheduled task is missing id fields.")
+                return
+        else:
+            if TimedTaskManager.get_task(task_id):
+                LOGGER.info("This task id already exists for a scheduled task.")
+                return
+            timed_task_parameters['id'] = task_id
 
-        timed_task_parameters['id'] = task_id
+        if "base_url" in timed_task_parameters and "sa_years" in timed_task_parameters:
+            timed_task_parameters.pop("base_url")
+            timed_task_parameters.pop("sa_years")
+        if "service_timeout_threshold_min" in timed_task_parameters:
+            timed_task_parameters.pop("service_timeout_threshold_min")
+
         timed_task_parameters['trigger'] = trigger
         timed_task_parameters['func'] = func
         if "auto_start" in timed_task_parameters:
@@ -95,8 +106,6 @@ class TimedTaskManager():
                 LOGGER.info(f"{task_id}, This task is configured to not start.")
                 return
 
-        if TimedTaskManager.get_task(task_id):
-            return
         TimedTaskManager._APscheduler.add_job(**timed_task_parameters)
 
     @staticmethod

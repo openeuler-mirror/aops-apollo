@@ -123,6 +123,5 @@ FILE_NUMBER = 1
 FILE_UPLOAD_PATH = "/opt/aops/cve/upload"
 CSV_SAVED_PATH = "/opt/aops/cve/saved"
 ADVISORY_SAVED_PATH = "/opt/aops/cve/advisory_download"
-SERVICE_TIMEOUT_THRESHOLD = 5
 TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.ini"
 SCAN_TIMED_TASK_ID = "cve scan timed task"

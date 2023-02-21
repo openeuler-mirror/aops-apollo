@@ -2840,3 +2840,78 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         raise EsOperationError(
             "Delete task from elasticsearch failed due to internal error.")
+
+    def get_running_task_form_task_cve_host(self) -> list:
+        """
+        Get all CVE repair tasks with running status under Username
+
+        Returns:
+            list: task id list
+        """
+        task_cve_query = self.session.query(TaskCveHostAssociation).filter(
+            TaskCveHostAssociation.status == "running").all()
+        task_id_list = [task.task_id for task in task_cve_query]
+        return task_id_list
+
+    def get_running_task_form_task_host_repo(self) -> list:
+        """
+        Get all repo set tasks with running status under Username
+
+        Returns:
+            list: task id list
+        """
+        host_repo_query = self.session.query(TaskHostRepoAssociation).filter(
+            TaskHostRepoAssociation.status == "running").all()
+        task_id_list = [task.task_id for task in host_repo_query]
+        return task_id_list
+
+    def get_task_create_time(self):
+        """
+        Get the creation time for each running task
+
+        Returns:
+            list: Each element is a task information, including the task ID, task type, creation time
+        """
+        task_cve_id_list = self.get_running_task_form_task_cve_host()
+        task_repo_id_list = self.get_running_task_form_task_host_repo()
+        task_id_list = task_cve_id_list + task_repo_id_list
+
+        task_query = self.session.query(Task).filter(Task.task_id.in_(task_id_list)).all()
+        running_task_list = [(task.task_id, task.task_type, task.create_time) for task in task_query]
+        return running_task_list
+
+    def update_task_status(self, task_id_list: list):
+        """
+        Change the status of the exception service to succeed
+
+        Args:
+            task_id_list: A list of IDs for the exception task
+
+        Returns:
+            int: status_code
+        """
+        cve_task_query = self.session.query(TaskCveHostAssociation).filter(
+            TaskCveHostAssociation.task_id.in_(task_id_list))
+        try:
+            cve_task_query.update(
+                {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("update task_cve_host table status failed.")
+            return DATABASE_UPDATE_ERROR
+
+        repo_task_query = self.session.query(TaskHostRepoAssociation).filter(
+            TaskHostRepoAssociation.task_id.in_(task_id_list))
+        try:
+            repo_task_query.update(
+                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("update task_host_repo table status failed.")
+            return DATABASE_UPDATE_ERROR
+
+        self.session.commit()
+
+        return SUCCEED

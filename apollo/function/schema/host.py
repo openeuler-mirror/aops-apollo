@@ -36,7 +36,7 @@ class ScanHostSchema(Schema):
     """
     validators for parameter of /vulnerability/host/scan
     """
-    host_list = fields.List(fields.String(), required=True)
+    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
     filter = fields.Nested(ScanHostFilterSchema, required=False)
 
 
@@ -44,7 +44,7 @@ class GetHostStatusSchema(Schema):
     """
     validators for parameter of /vulnerability/host/status/get
     """
-    host_list = fields.List(fields.String(), required=True)
+    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
 
 
 class GetHostListFilterSchema(Schema):
@@ -76,7 +76,7 @@ class GetHostInfoSchema(Schema):
     """
     validators for parameter of /vulnerability/host/info/get
     """
-    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
 
 
 class HostCvesFilterSchema(Schema):
@@ -96,7 +96,7 @@ class GetHostCvesSchema(Schema):
     """
     validators for parameter of /vulnerability/host/cve/get
     """
-    host_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     sort = fields.String(required=False, validate=validate.OneOf(
         ["publish_time", "cvss_score"]))
     direction = fields.String(required=False, validate=validate.OneOf(
