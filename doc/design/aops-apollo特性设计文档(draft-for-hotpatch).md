@@ -181,27 +181,41 @@ General build-info options:
 
   相关命令需要对热补丁依赖，是否已经激活热补丁做判断，以便热补丁正常生效
 
-  ```
-  dnf updateinfo
-  Updates Information Summary: available
-      184 Security notice(s)
-           23 Critical Security notice(s)
-              //新增部分
-              xx hotpatch
-           96 Important Security notice(s)
-           62 Moderate Security notice(s)
-            3 Low Security notice(s)
+```
+dnf updateinfo
+Updates Information Summary: available
+    184 Security notice(s)
+         23 Critical Security notice(s)
+         96 Important Security notice(s)
+         62 Moderate Security notice(s)
+          3 Low Security notice(s)
+Hotpatch Infomation Summary: available
+    xxx Security notice(s)
+         xx Critical Security notice(s)
+         xx Important Security notice(s)
+         xx Moderate Security notice(s)
+          x Low Security notice(s)
   
-  
-  dnf updateinfo info --hotpatch
-  回显与原格式保持一致，仅显示支持热补丁的部分
-  
-  dnf updateinfo list --hotpatch
-  回显与原格式保持一致，仅显示支持热补丁的部分
-  
-  dnf upgrade --hotpatch
-  新增--hotpatch参数，需要同时考虑--advisory/--cve/--bz/--security等组合参数
-  ```
+dnf COMMAND [OPTIONS...]
+
+List of main command：
+  hot-info                Hot patch summary info
+  hot-list                Hot patch list
+  hot-upgrade             Hot patch upgrade
+  hot-remove              Hot patch remove
+General DNF options:
+  --downloadonly          only download hotpatch
+  --load                  Load hotpatch into system
+  --active                Active hotpatch
+  --deactive              Deactive hotpatch
+  --security              Include security relevant hotpatchs, in updates
+  --advisory ADVISORY     Include hotpatchs needed to fix the given advisory, in updates
+  --cve CVES              Include hotpatchs needed to fix the given CVE, in updates
+  --sec-severity {Critical,Important,Moderate,Low} Include security relevant hotpatchs matching the severity, in updates
+  --bz BUGZILLA           Include hotpatchs needed to fix the given BZ, in updates
+  -h,--help               Help info of hotpatch
+
+```
 
   
 
