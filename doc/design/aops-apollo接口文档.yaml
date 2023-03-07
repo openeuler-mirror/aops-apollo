@@ -1856,16 +1856,39 @@ definitions:
         type: array
         description: 主机id列表，为空表示所有
         items:
-          type: string
+          type: integer
+      filter:
+        properties:
+          host_name:
+            type: string
+            description: 可模糊搜索
+          host_group:
+            type: array
+            items:
+              type: string
+          repo:
+            type: array
+            items:
+              type: string
+          status:
+            type: array
+            items:
+              type: string
+            example:
+              - scanning
+              - done
   QueryHostScanStatusRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
-            additionalProperties:
-              type: string
+            properties:
+              result:
+                type: object
+                additionalProperties:
+                  type: string
   QueryCveActionReq:
     properties:
       cve_list:
@@ -1878,15 +1901,18 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
-            additionalProperties:
-              type: object
-              properties:
-                reboot:
-                  type: boolean
-                package:
-                  type: string
+            properties:
+              result:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    reboot:
+                      type: boolean
+                    package:
+                      type: string
   SetCveStatusReq:
     properties:
       cve_list:
@@ -1911,20 +1937,23 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
-            additionalProperties:
-              description: cve的相关主机的基本信息
-              type: array
-              items:
+            properties:
+              result:
                 type: object
-                properties:
-                  host_id:
-                    type: string
-                  host_name:
-                    type: string
-                  host_ip:
-                    type: string
+                additionalProperties:
+                  description: cve的相关主机的基本信息
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      host_id:
+                        type: string
+                      host_name:
+                        type: string
+                      host_ip:
+                        type: string
   QueryCveHostReq:
     required:
       - cve_id
@@ -1944,7 +1973,6 @@ definitions:
         type: integer
         description: 每页数量,最大值50
       filter:
-        type: object
         properties:
           host_name:
             type: string
@@ -1957,41 +1985,43 @@ definitions:
             type: array
             items:
               type: string
-          status:
-            type: array
-            items:
-              type: string
+    type: object
   QueryCveHostRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-            description: 总数
-          total_page:
-            type: integer
-            description: 总页数
-          result:
-            type: array
-            description: CVE信息
-            items:
-              type: object
-              properties:
-                host_id:
-                  type: string
-                host_name:
-                  type: string
-                host_ip:
-                  type: string
-                host_group:
-                  type: string
-                repo:
-                  type: string
-                status:
-                  type: string
-                last_scan:
-                  type: integer
+          data:
+            properties:
+              total_count:
+                type: integer
+                description: 总数
+              total_page:
+                type: integer
+                description: 总页数
+              result:
+                type: array
+                description: CVE信息
+                items:
+                  properties:
+                    host_id:
+                      type: integer
+                      format: int32
+                    host_name:
+                      type: string
+                    host_ip:
+                      type: string
+                    host_group:
+                      type: string
+                    repo:
+                      type: string
+                    status:
+                      type: string
+                    last_scan:
+                      type: integer
+                    hotpatch:
+                      type: boolean
+                      description: 是否支持热修复
   QueryCveInfoReq:
     properties:
       cve_id:
@@ -2001,26 +2031,29 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
             properties:
-              cve_id:
-                type: string
-              publish_time:
-                type: string
-              severity:
-                type: string
-              description:
-                type: string
-              cvss_score:
-                type: string
-              status:
-                type: string
+              result:
+                type: object
+                properties:
+                  cve_id:
+                    type: string
+                  publish_time:
+                    type: string
+                  severity:
+                    type: string
+                  description:
+                    type: string
+                  cvss_score:
+                    type: string
+                  status:
+                    type: string
   QueryCveListReq:
     properties:
       sort:
         type: string
-        description: 可选cve_id、publish_time、cvss_score、hosts_num
+        description: 可选cve_id、publish_time、cvss_score、host_num
       direction:
         type: string
         description: 升序(asc)，降序(desc)，默认:asc
@@ -2054,71 +2087,80 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-            description: 总数
-          total_page:
-            type: integer
-            description: 总页数
-          result:
-            type: array
-            description: CVE信息
-            items:
-              type: object
-              properties:
-                cve_id:
-                  type: string
-                publish_time:
-                  type: string
-                severity:
-                  type: string
-                description:
-                  type: string
-                cvss_score:
-                  type: string
-                hosts_num:
-                  type: integer
-                status:
-                  type: string
-              example:
-                cve_id: id1
-                publish_time: 2020-09-24
-                severity: high
-                description: a long description
-                cvss_score: '7.2'
-                hosts_num: 22
-                status: in review
+          data:
+            type: object
+            properties:
+              total_count:
+                type: integer
+                description: 总数
+              total_page:
+                type: integer
+                description: 总页数
+              result:
+                type: array
+                description: CVE信息
+                items:
+                  type: object
+                  properties:
+                    cve_id:
+                      type: string
+                    publish_time:
+                      type: string
+                    severity:
+                      type: string
+                    description:
+                      type: string
+                    cvss_score:
+                      type: string
+                    hosts_num:
+                      type: integer
+                    status:
+                      type: string
+                  example:
+                    cve_id: id1
+                    publish_time: 2020-09-24
+                    severity: high
+                    description: a long description
+                    cvss_score: '7.2'
+                    hosts_num: 22
+                    status: in review
   QueryOverviewRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
+            type: object
             properties:
-              critical:
-                type: integer
-              high:
-                type: integer
-              medium:
-                type: integer
-              low:
-                type: integer
-              unknown:
-                type: integer
-                format: int32
+              result:
+                properties:
+                  critical:
+                    type: integer
+                  high:
+                    type: integer
+                  medium:
+                    type: integer
+                  low:
+                    type: integer
+                  unknown:
+                    type: integer
+                    format: int32
   RepoDeleteRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          succeed_list:
-            type: array
-            items:
-              type: string
-          fail_list:
-            type: array
-            items:
-              type: string
+          data:
+            type: object
+            properties:
+              succeed_list:
+                type: array
+                items:
+                  type: string
+              fail_list:
+                type: array
+                items:
+                  type: string
   RepoDeleteReq:
     required:
       - repo_name_list
@@ -2143,10 +2185,13 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
-            type: array
-            items:
-              $ref: '#/definitions/RepoData'
+          data:
+            type: object
+            properties:
+              result:
+                type: array
+                items:
+                  $ref: '#/definitions/RepoData'
   RepoImportReq:
     required:
       - repo_name
@@ -2173,6 +2218,7 @@ definitions:
     required:
       - code
       - msg
+      - label
     properties:
       code:
         description: 状态码
@@ -2184,11 +2230,17 @@ definitions:
         type: string
         minLength: 2
         maxLength: 512
+      label:
+        description: 状态码对应的含义
+        type: string
+        minLength: 2
+        maxLength: 512
   ErrorRsp:
     description: 失败时返回的错误对象
     required:
       - code
       - msg
+      - label
     properties:
       code:
         description: 错误码
@@ -2200,9 +2252,15 @@ definitions:
         type: string
         minLength: 2
         maxLength: 512
+      label:
+        description: 错误状态码的含义
+        type: string
+        minLength: 2
+        maxLength: 512
     example:
       code: 400
       msg: error msg
+      label: 请求出错
   UploadCveAdvisoryRsp:
     type: object
     required:
@@ -2229,7 +2287,7 @@ definitions:
         type: string
       status:
         type: string
-        description: set/unset/unknown
+        description: succeed/fail
       task_id:
         type: string
   CveScanCallbackReq:
@@ -2241,7 +2299,22 @@ definitions:
         type: string
       status:
         type: string
-        description: done/fail
+        description: succeed/fail
+      os_version:
+        type: string
+      installed_packages:
+        type: array
+        items:
+          type: object
+          additionalProperties:
+            type: string
+          description: 主机安装的软件包名列表
+      cves:
+        type: array
+        items:
+          type: object
+          additionalProperties:
+            type: string
   CveFixCallbackReq:
     type: object
     properties:
@@ -2253,3 +2326,17 @@ definitions:
         type: object
         additionalProperties:
           type: string
+        description: cveid 与修复结果(succeed/fail)
+        example:
+          cve_id_1: succeed
+          cve_id_2: fail
+  ExportCveReq:
+    type: object
+    required:
+      - host_list
+    properties:
+      host_list:
+        type: array
+        items:
+          type: integer
+        description: 空表示全部
