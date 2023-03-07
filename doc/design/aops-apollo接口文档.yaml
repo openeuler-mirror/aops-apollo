@@ -105,6 +105,7 @@ paths:
       tags:
         - repo
       summary: 更新repo源
+      deprecated: true
       operationId: update_repo
       parameters:
         - name: param
@@ -364,15 +365,67 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
-  /host/scan:
+  /cve/unaffected/upload:
     post:
       tags:
-        - task
+        - cve
       description: |-
-        扫描主机cve信息
-        feature：创建一个扫描任务，任务信息与数据库表对齐
-      summary: 扫描主机cve信息
-      operationId: scan_host
+        安全公告导入
+        feature：支持不受影响cve文件的解析和导入
+      summary: 不受影响cve导入
+      operationId: upload_cve_unaffected
+      consumes:
+        - multipart/form-data
+      produces:
+        - multipart/form-data
+      parameters:
+        - in: header
+          name: access_token
+          description: 授权码
+          type: string
+          required: false
+        - name: file
+          in: formData
+          required: false
+          type: file
+      responses:
+        '200':
+          description: ''
+          schema:
+            $ref: '#/definitions/GeneralRsp'
+        '400':
+          description: ''
+          schema:
+            $ref: '#/definitions/ErrorRsp'
+  /cve/info/export:
+    post:
+      tags:
+        - cve
+      summary: 导出cve信息
+      description: 导出cve信息
+      operationId: export_cve
+      parameters:
+        - name: req
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ExportCveReq'
+        - name: access_token
+          in: header
+          required: false
+          type: string
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: file
+  /host/status/get:
+    post:
+      tags:
+        - host
+      description: 查询主机的扫描状态
+      summary: 查询主机的扫描状态
+      operationId: query_host_status
       produces:
         - application/json
       parameters:
@@ -380,18 +433,16 @@ paths:
           name: host_list
           description: 主机id列表，为空表示所有
           schema:
-            $ref: '#/definitions/ScanHostReq'
-          required: false
+            $ref: '#/definitions/QueryHostStatusReq'
         - in: header
           name: access_token
           description: 授权码
           type: string
-          required: false
       responses:
         '200':
           description: ''
           schema:
-            $ref: '#/definitions/GeneralRsp'
+            $ref: '#/definitions/QueryHostScanStatusRsp'
         '400':
           description: ''
           schema:
@@ -403,6 +454,7 @@ paths:
       description: 查询主机的扫描状态
       summary: 查询主机的扫描状态
       operationId: query_host_scan_status
+      deprecated: true
       produces:
         - application/json
       parameters:
@@ -520,15 +572,44 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+  /host/scan:
+    post:
+      tags:
+        - task
+      description: 扫描主机cve信息
+      summary: 扫描主机cve信息
+      operationId: scan_host
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: host_list
+          description: 主机id列表，为空表示所有
+          schema:
+            $ref: '#/definitions/ScanHostReq'
+          required: false
+        - in: header
+          name: access_token
+          description: 授权码
+          type: string
+          required: false
+      responses:
+        '200':
+          description: ''
+          schema:
+            $ref: '#/definitions/GeneralRsp'
+        '400':
+          description: ''
+          schema:
+            $ref: '#/definitions/ErrorRsp'
+      x-order: 0
   /task/list/get:
     post:
       tags:
         - task
-      description: >-
+      description: |-
         获取任务的列表
-
-        feature：支持查询cve查询任务，各任务类型字段做了修改，从原来的cve/repo更改为cve fix, cve scan, repo
-        set
+        feature：各任务类型字段做了修改，从原来的cve/repo更改为cve fix,  repo set
       summary: 获取漏洞修复任务及设置repo任务的列表
       operationId: query_task_list
       produces:
@@ -554,13 +635,12 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 1
   /task/progress/get:
-    get:
+    post:
       tags:
         - task
-      description: |-
-        获取任务的最新进度
-        feature:新增支持cve扫描任务的进度查询
+      description: 获取任务的最新进度
       summary: 获取任务的最新进度
       operationId: query_task_progress
       produces:
@@ -586,6 +666,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 2
   /task/info/get:
     get:
       tags:
@@ -616,6 +697,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 3
   /task/cve/generate:
     post:
       tags:
@@ -647,6 +729,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 4
   /task/cve/info/get:
     post:
       tags:
@@ -675,6 +758,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 5
   /task/cve/status/get:
     post:
       tags:
@@ -703,6 +787,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 6
   /task/cve/progress/get:
     get:
       tags:
@@ -731,6 +816,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 7
   /task/cve/result/get:
     post:
       tags:
@@ -759,6 +845,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 8
   /task/cve/rollback:
     post:
       tags:
@@ -790,6 +877,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 9
   /task/repo/generate:
     post:
       tags:
@@ -807,12 +895,10 @@ paths:
           description: 任务信息
           schema:
             $ref: '#/definitions/GenerateUpdateRepoTaskReq'
-          required: false
         - in: header
           name: access_token
           description: 授权码
           type: string
-          required: false
       responses:
         '200':
           description: ''
@@ -822,6 +908,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 10
   /task/repo/info/get:
     post:
       tags:
@@ -850,6 +937,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 11
   /task/repo/result/get:
     post:
       tags:
@@ -878,13 +966,14 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 12
   /task/execute:
     post:
       tags:
         - task
       description: |-
         执行任务
-        feature:重构，执行中的任务不能再执行（通过状态判断）
+        feature:重构
       summary: 执行任务
       operationId: excute_task
       consumes:
@@ -892,14 +981,14 @@ paths:
       produces:
         - application/json
       parameters:
+        - in: body
+          name: task_id
+          description: 任务ID
+          schema:
+            $ref: '#/definitions/ExecuteTaskReq'
         - in: header
           name: access_token
           description: 授权码
-          type: string
-          required: false
-        - name: task_id
-          in: formData
-          required: false
           type: string
       responses:
         '200':
@@ -910,6 +999,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 13
   /task/delete:
     delete:
       tags:
@@ -917,7 +1007,7 @@ paths:
       description: |-
         删除任务
         feature:重构
-      summary: 删除漏洞修复任务
+      summary: 删除任务
       operationId: delete_task
       produces:
         - application/json
@@ -942,6 +1032,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 14
   /task/playbook/get:
     get:
       tags:
@@ -973,6 +1064,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/ErrorRsp'
+      x-order: 15
   /task/callback/repo/set:
     post:
       tags:
@@ -997,6 +1089,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/GeneralRsp'
+      x-order: 16
   /task/callback/cve/scan:
     post:
       tags:
@@ -1021,6 +1114,7 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/GeneralRsp'
+      x-order: 17
   /task/callback/cve/fix:
     post:
       tags:
@@ -1045,14 +1139,18 @@ paths:
           description: ''
           schema:
             $ref: '#/definitions/GeneralRsp'
+      x-order: 18
 definitions:
   GetRepoTemplateRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
-            type: string
+          data:
+            type: object
+            properties:
+              result:
+                type: string
   CallbackCveFixReq:
     type: object
     properties:
@@ -1081,15 +1179,12 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
-            type: string
+          data:
+            type: object
+            properties:
+              result:
+                type: string
   DeleteTaskReq:
-    allOf:
-      - $ref: '#/definitions/ExecuteTaskReq'
-  DeleteTaskRsp:
-    allOf:
-      - $ref: '#/definitions/ExecuteTaskRsp'
-  ExecuteTaskReq:
     required:
       - task_list
     properties:
@@ -1097,7 +1192,17 @@ definitions:
         type: array
         items:
           type: string
-        description: 任务列表
+        description: 任务id列表
+  DeleteTaskRsp:
+    allOf:
+      - $ref: '#/definitions/ExecuteTaskRsp'
+  ExecuteTaskReq:
+    required:
+      - task_id
+    properties:
+      task_id:
+        type: string
+        description: 任务id
   ExecuteTaskRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
@@ -1111,42 +1216,45 @@ definitions:
       host_list:
         type: array
         items:
-          type: string
+          type: integer
   QueryRepoSetTaskResultRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
+            type: object
             properties:
-              task_id:
-                type: string
-              task_type:
-                type: string
-              latest_execute_time:
-                type: integer
-              task_result:
-                type: array
-                items:
-                  properties:
-                    host_id:
-                      type: string
-                    host_name:
-                      type: string
-                    host_ip:
-                      type: string
-                    status:
-                      type: string
-                    check_items:
-                      type: array
-                      items:
-                        properties:
-                          item:
-                            type: string
-                          result:
-                            type: boolean
-                    log:
-                      type: string
+              result:
+                properties:
+                  task_id:
+                    type: string
+                  task_type:
+                    type: string
+                  latest_execute_time:
+                    type: integer
+                  task_result:
+                    type: array
+                    items:
+                      properties:
+                        host_id:
+                          type: string
+                        host_name:
+                          type: string
+                        host_ip:
+                          type: string
+                        status:
+                          type: string
+                        check_items:
+                          type: array
+                          items:
+                            properties:
+                              item:
+                                type: string
+                              result:
+                                type: boolean
+                        log:
+                          type: string
   QueryRepoSetTaskInfoReq:
     required:
       - task_id
@@ -1167,32 +1275,45 @@ definitions:
             type: array
             items:
               type: string
+            example:
+              - succeed
+              - fail
+              - unkown
+              - running
     type: object
   QueryRepoSetTaskInfoRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-          total_page:
-            type: integer
-          result:
-            type: array
-            items:
-              type: object
-              properties:
-                host_id:
-                  type: string
-                host_name:
-                  type: string
-                host_ip:
-                  type: string
-                repo_name:
-                  type: string
-                status:
-                  type: string
+          data:
+            type: object
+            properties:
+              total_count:
+                type: integer
+              total_page:
+                type: integer
+              result:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    host_id:
+                      type: string
+                    host_name:
+                      type: string
+                    host_ip:
+                      type: string
+                    repo_name:
+                      type: string
+                    status:
+                      type: string
   GenerateUpdateRepoTaskReq:
+    required:
+      - task_name
+      - description
+      - repo_name
+      - info
     properties:
       task_name:
         type: string
@@ -1210,6 +1331,8 @@ definitions:
               type: string
             host_ip:
               type: string
+      check_items:
+        type: string
     type: object
   GenerateUpdateRepoTaskRsp:
     allOf:
@@ -1219,81 +1342,90 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          succeed_list:
-            type: array
-            items:
-              type: string
-            description: 执行成功列表
-          fail_list:
-            type: array
-            items:
-              type: string
-            description: 执行失败列表
+          data:
+            type: object
+            properties:
+              succeed_list:
+                type: array
+                items:
+                  type: string
+                description: 执行成功列表
+              fail_list:
+                type: array
+                items:
+                  type: string
+                description: 执行失败列表
   QueryCveTaskResultRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
             properties:
-              task_id:
-                type: string
-              task_type:
-                type: string
-              latest_execute_time:
-                type: string
-              task_result:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    host_id:
-                      type: string
-                    host_name:
-                      type: string
-                    host_ip:
-                      type: string
-                    status:
-                      type: string
-                    check_items:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          item:
-                            type: string
-                          result:
-                            type: boolean
-                    cves:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          cve_id:
-                            type: string
-                          log:
-                            type: string
-                            description: 具体日志
-                          result:
-                            type: string
+              result:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                  task_type:
+                    type: string
+                  latest_execute_time:
+                    type: string
+                  task_result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        host_id:
+                          type: string
+                        host_name:
+                          type: string
+                        host_ip:
+                          type: string
+                        status:
+                          type: string
+                        check_items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              item:
+                                type: string
+                              result:
+                                type: boolean
+                        cves:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              cve_id:
+                                type: string
+                              log:
+                                type: string
+                                description: 具体日志
+                              result:
+                                type: string
   QueryCveTaskProgressRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
-            type: array
-            items:
-              type: object
-              additionalProperties:
-                properties:
-                  cve_id:
-                    type: string
-                  progress:
-                    type: integer
-                  status:
-                    type: string
+          data:
+            type: object
+            properties:
+              result:
+                type: array
+                items:
+                  type: object
+                  additionalProperties:
+                    properties:
+                      cve_id:
+                        type: string
+                      progress:
+                        type: integer
+                      status:
+                        type: string
   QueryCveTaskStatusReq:
     properties:
       task_id:
@@ -1309,19 +1441,22 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
-            additionalProperties:
-              type: object
-              properties:
-                host_id:
-                  type: string
-                host_name:
-                  type: string
-                host_ip:
-                  type: string
-                status:
-                  type: string
+            properties:
+              result:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    host_id:
+                      type: string
+                    host_name:
+                      type: string
+                    host_ip:
+                      type: string
+                    status:
+                      type: string
   QueryCveTaskInfoReq:
     required:
       - task_id
@@ -1352,29 +1487,37 @@ definitions:
             type: array
             items:
               type: string
+            example:
+              - fail
+              - succeed
+              - running
+              - unknown
   QueryCveTaskInfoRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-          total_page:
-            type: integer
-          result:
-            type: array
-            items:
-              properties:
-                cve_id:
-                  type: string
-                package:
-                  type: string
-                reboot:
-                  type: boolean
-                host_num:
-                  type: integer
-                status:
-                  type: string
+          data:
+            type: object
+            properties:
+              total_count:
+                type: integer
+              total_page:
+                type: integer
+              result:
+                type: array
+                items:
+                  properties:
+                    cve_id:
+                      type: string
+                    package:
+                      type: string
+                    reboot:
+                      type: boolean
+                    host_num:
+                      type: integer
+                    status:
+                      type: string
   GenerateCveTaskReq:
     required:
       - task_name
@@ -1390,6 +1533,9 @@ definitions:
       auto_reboot:
         type: boolean
         description: 默认为False
+      check_items:
+        type: string
+        description: 任务描述
       info:
         type: array
         description: 需要修复的主机与cve的信息
@@ -1402,11 +1548,14 @@ definitions:
               items:
                 properties:
                   host_id:
-                    type: string
+                    type: integer
+                    format: int32
                   host_name:
                     type: string
                   host_ip:
                     type: string
+                  hotpatch:
+                    type: boolean
             reboot:
               type: boolean
     type: object
@@ -1415,9 +1564,12 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          task_id:
-            type: string
-            description: 任务ID
+          data:
+            type: object
+            properties:
+              task_id:
+                type: string
+                description: 任务ID
   QueryTaskInfoReq:
     properties:
       task_id:
@@ -1428,20 +1580,23 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
+            type: object
             properties:
-              task_name:
-                type: string
-              description:
-                type: string
-              host_num:
-                type: integer
-              need_reboot:
-                type: integer
-              latest_execute_time:
-                type: integer
-              auto_reboot:
-                type: boolean
+              result:
+                properties:
+                  task_name:
+                    type: string
+                  description:
+                    type: string
+                  host_num:
+                    type: integer
+                  need_reboot:
+                    type: integer
+                  latest_execute_time:
+                    type: integer
+                  auto_reboot:
+                    type: boolean
   QueryTaskProgressReq:
     properties:
       task_list:
@@ -1454,18 +1609,21 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
-            additionalProperties:
-              properties:
-                succeed:
-                  type: integer
-                fail:
-                  type: integer
-                running:
-                  type: integer
-                unknown:
-                  type: integer
+            properties:
+              result:
+                type: object
+                additionalProperties:
+                  properties:
+                    succeed:
+                      type: integer
+                    fail:
+                      type: integer
+                    running:
+                      type: integer
+                    unknown:
+                      type: integer
   QueryTaskListReq:
     properties:
       sort:
@@ -1496,27 +1654,30 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-          total_page:
-            type: integer
-          result:
-            type: array
-            items:
-              type: object
-              properties:
-                task_id:
-                  type: string
-                task_name:
-                  type: string
-                task_type:
-                  type: string
-                description:
-                  type: string
-                host_num:
-                  type: integer
-                create_time:
-                  type: integer
+          data:
+            type: object
+            properties:
+              total_count:
+                type: integer
+              total_page:
+                type: integer
+              result:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    task_id:
+                      type: string
+                    task_name:
+                      type: string
+                    task_type:
+                      type: string
+                    description:
+                      type: string
+                    host_num:
+                      type: integer
+                    create_time:
+                      type: integer
   QueryHostCveInfoReq:
     required:
       - host_id
@@ -1547,6 +1708,12 @@ definitions:
             type: array
             items:
               type: string
+            example:
+              - not reviewd
+              - in review
+              - on-hold
+              - resloved
+              - no action
           affected:
             type: boolean
             description: 默认为True
@@ -1558,27 +1725,30 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-          total_page:
-            type: integer
-          result:
-            type: array
-            items:
-              type: object
-              properties:
-                cve_id:
-                  type: string
-                publish_time:
-                  type: string
-                severity:
-                  type: string
-                description:
-                  type: string
-                cvss_score:
-                  type: string
-                status:
-                  type: string
+          data:
+            properties:
+              total_count:
+                type: integer
+              total_page:
+                type: integer
+              result:
+                type: array
+                items:
+                  properties:
+                    cve_id:
+                      type: string
+                    publish_time:
+                      type: string
+                    severity:
+                      type: string
+                    description:
+                      type: string
+                    cvss_score:
+                      type: string
+                    status:
+                      type: string
+                    hotpatch:
+                      type: boolean
   QueryHostInfoReq:
     properties:
       host_id:
@@ -1589,21 +1759,24 @@ definitions:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          result:
+          data:
             type: object
             properties:
-              host_name:
-                type: string
-              host_ip:
-                type: string
-              host_group:
-                type: string
-              repo:
-                type: string
-              cve_num:
-                type: integer
-              last_scan:
-                type: integer
+              result:
+                type: object
+                properties:
+                  host_name:
+                    type: string
+                  host_ip:
+                    type: string
+                  host_group:
+                    type: string
+                  repo:
+                    type: string
+                  cve_num:
+                    type: integer
+                  last_scan:
+                    type: integer
   QueryHostListReq:
     properties:
       sort:
@@ -1635,35 +1808,48 @@ definitions:
             type: array
             items:
               type: string
+            example:
+              - scanning
+              - done
     type: object
   QueryHostListRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
       - type: object
         properties:
-          total_count:
-            type: integer
-          total_page:
-            type: integer
-          result:
+          data:
             type: object
-            additionalProperties:
-              type: object
-              properties:
-                host_id:
-                  type: string
-                host_name:
-                  type: string
-                host_ip:
-                  type: string
-                host_group:
-                  type: string
-                repo:
-                  type: string
-                cve_num:
-                  type: integer
-                last_scan:
-                  type: integer
+            properties:
+              total_count:
+                type: integer
+              total_page:
+                type: integer
+              result:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    host_id:
+                      type: string
+                    host_name:
+                      type: string
+                    host_ip:
+                      type: string
+                    host_group:
+                      type: string
+                    repo:
+                      type: string
+                    cve_num:
+                      type: integer
+                    last_scan:
+                      type: integer
+  QueryHostStatusReq:
+    properties:
+      host_list:
+        type: array
+        description: 主机id列表，为空表示所有
+        items:
+          type: integer
   ScanHostReq:
     properties:
       host_list:
