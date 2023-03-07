@@ -1010,19 +1010,218 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 
 # 5、外部接口清单
 
+## 5.1、apollo restful接口清单
+
 [aops-apollo接口文档.yaml](aops-apollo接口文档.yaml)
+
+## 5.2、热补丁接口清单
+
+### 5.2.1、热补丁扫描
+
+```shell
+dnf hotinfo [--summary | --list | --info] [--cve [cve_id]]
+
+General DNF options:
+  -q, --quiet           quiet operation
+  -v, --verbose         verbose operation
+  -h, --help, --help-cmd
+                        show command help
+  --cve CVES, --cves CVES
+                        Include packages needed to fix the given CVE, in updates
+
+command-specific options:
+  --summary    show summary of advisories(default)
+  --list       show list of cves
+  --info       show info of advisories
+```
+
+- `--summary`
+
+  ```shell
+  [root@localhost dnf]# dnf hotinfo --summary
+  Hotpatch Information Summary: installed
+      145 Security notice(s)
+           22 Critical Security notice(s)
+           81 Important Security notice(s)
+           47 Moderate Security notice(s)
+            2 Low Security notice(s)
+  ```
+  
+- `--list`
+
+    ```shell
+    [root@localhost dnf]# dnf hotinfo --list
+    # cve-id   level    cold-patch   hot-patch
+    CVE-2022-3080  Important/Sec.  bind-libs-9.16.23-10.oe2203.aarch64   patch-bind-libs-9.16.23-09-name-1-111
+    CVE-2021-25220 Moderate/Sec.   bind-9.16.23-10.oe2203.aarch64        -
+    CVE-2022-1886  Critical/Sec.   vim-common-8.2-39.oe2203.aarch64      patch-vim-common-8.2-38-name-1-233
+    CVE-2022-1725  Low/Sec.        vim-minimal-8.2-58.oe2203.aarch64     patch-vim-minimal-8.2-57-name-2-11
+    ```
+    
+- `--info`
+
+    ```shell
+    [root@localhost dnf]# dnf hotinfo --info
+    # 展示全量公告信息
+    ===============================================================================
+      An update for vim is now available for openEuler-22.03-LTS
+    ===============================================================================
+      Update ID: openEuler-SA-2023-1061
+           Type: security
+        Updated: 1970-01-01 08:00:00
+           CVEs: CVE-2022-47024
+               : CVE-2023-0288
+    Description: Heap-based Buffer Overflow in GitHub repository vim/vim prior to 9.0.1189.(CVE-2023-0288)A null pointer dereference issue was discovered in function gui_x11_create_blank_mouse in gui_x11.c in vim 8.1.2269 thru 9.0.0339 allows attackers to cause denial of service or other unspecified impacts.(CVE-2022-47024)
+       Severity: Important
+    ===============================================================================
+      CVE-2022-47024   patch-bind-libs-9.16.23-09-name-1-111
+      CVE-2023-0288    patch-vim-minimal-8.2-58-name-2-11
+    
+    ===============================================================================
+      An update for zlib is now available for openEuler-22.03-LTS
+    ===============================================================================
+      Update ID: openEuler-SA-2022-1843
+           Type: security
+        Updated: 1970-01-01 08:00:00
+           CVEs: CVE-2022-37434
+    Description: zlib through 1.2.12 has a heap-based buffer over-read or buffer overflow in inflate in inflate.c via a large gzip header extra field. NOTE: only applications that call inflateGetHeader are affected. Some common applications bundle the affected zlib source code but may be unable to call inflateGetHeader (e.g., see the nodejs/node reference).(CVE-2022-37434)
+       Severity: Critical
+    ===============================================================================
+    
+    
+    [root@localhost dnf]# dnf hotinfo info --cve CVE-2022-47024
+    # 只展示指定cve相关的安全公告信息
+    ===============================================================================
+      An update for vim is now available for openEuler-22.03-LTS
+    ===============================================================================
+      Update ID: openEuler-SA-2023-1061
+           Type: security
+        Updated: 1970-01-01 08:00:00
+           CVEs: CVE-2022-47024
+               : CVE-2023-0288
+    Description: Heap-based Buffer Overflow in GitHub repository vim/vim prior to 9.0.1189.(CVE-2023-0288)A null pointer dereference issue was discovered in function gui_x11_create_blank_mouse in gui_x11.c in vim 8.1.2269 thru 9.0.0339 allows attackers to cause denial of service or other unspecified impacts.(CVE-2022-47024)
+       Severity: Important
+    ===============================================================================
+      CVE-2022-47024   patch-bind-libs-9.16.23-09-name-1-111
+      CVE-2023-0288    patch-vim-minimal-8.2-58-name-2-11
+    ```
+
+
+
+
+### 5.2.2、热补丁应用
+
+```shell
+dnf hotpatch [--download | --apply | --status | --list | --active | --deactive | --remove] [SPEC ...] [--cve [cve_id]]
+
+General DNF options:
+  -q, --quiet           quiet operation
+  -v, --verbose         verbose operation
+  -h, --help, --help-cmd
+                        show command help
+  --cve CVES, --cves CVES
+                        Include packages needed to fix the given CVE, in updates
+
+command-specific options:
+  --download      download the patch
+  --apply         apply the patch
+  --status        show patch status
+  --list          show list of installed patches
+  --active        active the patch
+  --deactive      deactive the patch
+  --remove        remove the patch
+  
+  SPEC            Hotpatch specification
+```
+
+- `--download`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --download
+    ```
+    
+- `--apply`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --apply --patch bind-libs-hotpatch
+    # 安装热补丁
+    ```
+- `--status`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --status bind-libs-hotpatch-6.2.5-1-HP001
+    # 查看该patch的状态
+    ACTIVED
+    ```
+
+- `--list`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --list
+    redis-6.2.5-1     redis-hotpatch-6.2.5-1-HP001    ACTIVED
+    redis-6.2.5-1     redis-hotpatch-6.2.5-1-HP002    NOT-APPLIED
+    redis-6.2.5-1     redis-hotpatch-6.2.5-1-HP003    DEACTIVED
+    ```
+    
+- `--active`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --active bind-libs-hotpatch
+    # 激活该热补丁
+    ```
+    
+- `--deactive`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --deactive bind-libs-hotpatch
+    # 去激活该热补丁
+    ```
+    
+- `--remove`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --remove bind-libs-hotpatch
+    # 移除热补丁，与apply对应，只有DEACTIVED状态下才能移除
+    ```
+    
+- `--cve`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch --cve CVE-2022-3080
+    succeed
+    
+    [root@localhost dnf]# dnf hotpatch --cve CVE-2022-3080
+    fail
+    
+    [root@localhost dnf]# dnf hotpatch --cve CVE-2022-0000
+    wrong cve or package
+    
+    [root@localhost dnf]# dnf hotpatch --cve CVE-2021-25220
+    hotpatch is unsupported
+    ```
+
+- `SPEC`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch bind-libs-hotpatch
+    succeed
+    ```
+
 
 # 6、数据库设计
 [aops-apollo数据库设计.sql](aops-apollo数据库设计.sql)
 
+
+
 # 7、修改日志
 
-| 版本 | 发布说明             | 修改人|
-| :--- | :-------------------|:-----|
-| 1.0  | 初稿，完部分模块设计 |朱运成|
-| 2.0  | 任务管理模块重构     |xxx|
-| 3.0  | 新增热补丁支持，初稿 |solarhu|
-| 3.1  | 更新热补丁支持接口描述|solarhu|
+| 版本  | 发布说明                                                     | 修改人        |
+| :---- | :----------------------------------------------------------- | ------------- |
+| 1.0.0 | 初稿，完成部分模块设计                                       | 罗盛炜/朱云成 |
+| 2.0.0 | 任务管理模块重构，由ansible改为zeus服务统一命令下发          | 罗盛炜        |
+| 2.0.1 | 1.任务管理：cve扫描做修改，目前cve扫描不会作为一个任务存入数据库，并且逻辑为收集目标主机rpm信息、cve信息，通过callback返回，在服务端解析rpm信息得出不受影响cve，直接存入数据库。 | 罗盛炜        |
+| 2.1.0 | 1.cve扫描逻辑做调整，返回参数修改，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式<br />3.新增热补丁插件相关视图<br />4.更新热补丁接口清单<br />5.每个版本需求列表更新 | 胡峰/罗盛炜   |
+|       |                                                              |               |
 
 
 # 8、参考目录
