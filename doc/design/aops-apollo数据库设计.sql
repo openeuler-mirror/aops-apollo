@@ -1,25 +1,27 @@
 CREATE TABLE IF NOT EXISTS `cve` (
-    `cve_id`        VARCHAR(20)  NOT NULL COMMENT 'cve id', 
-    `affected_os`   VARCHAR(200) NULL, 
-    `unaffected_os` VARCHAR(200) NULL, 
-    `severity`      VARCHAR(20)  NULL     COMMENT '严重程度', 
-    `cvss_score`    VARCHAR(20)  NULL     COMMENT 'cve分数', 
-    `reboot`        TINYINT(1)   NULL     COMMENT '修复该cve是否需要重启', 
-    `publish_time`  VARCHAR(20)  NULL     COMMENT '发布日期', 
+    `cve_id`       VARCHAR(20) NOT NULL COMMENT 'cve id', 
+    `severity`     VARCHAR(20) NULL     COMMENT '严重程度', 
+    `cvss_score`   VARCHAR(20) NULL     COMMENT 'cve分数', 
+    `reboot`       TINYINT(1)  NULL     COMMENT '修复该cve是否需要重启', 
+    `publish_time` VARCHAR(20) NULL     COMMENT '发布日期', 
     PRIMARY KEY (`cve_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci ROW_FORMAT=DYNAMIC  COMMENT='cve详细信息';
 
-CREATE TABLE IF NOT EXISTS `cve_afftected_pkgs` (
-    `cve_id`  VARCHAR(20) NOT NULL, 
-    `package` VARCHAR(40) NOT NULL, 
-    PRIMARY KEY (`cve_id`,`package`), 
+CREATE TABLE IF NOT EXISTS `cve_affected_pkgs` (
+    `cve_id`          VARCHAR(20) NOT NULL, 
+    `package`         VARCHAR(40) NOT NULL, 
+    `package_version` VARCHAR(32) NOT NULL, 
+    `os_version`      VARCHAR(32) NOT NULL, 
+    `affected`        TINYINT(1)  NOT NULL DEFAULT '0', 
     KEY `cve_id_auto_index` (`cve_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci ROW_FORMAT=DYNAMIC ;
 
 CREATE TABLE IF NOT EXISTS `cve_host_match` (
     `cve_id`   VARCHAR(20) NOT NULL COMMENT 'cve id', 
-    `host_id`  VARCHAR(20) NOT NULL COMMENT '主机id', 
+    `host_id`  INT(11)     NOT NULL COMMENT '主机id', 
     `affected` TINYINT(1)  NOT NULL COMMENT '是否受影响', 
+    `fixed`    TINYINT(1)  NOT NULL DEFAULT '0', 
+    `hotpatch` TINYINT(1)  NULL     DEFAULT '0', 
     PRIMARY KEY (`cve_id`,`host_id`), 
     UNIQUE KEY `联合主键` (`cve_id`,`host_id`), 
     KEY `FK_cve_host_cve_id_auto_index` (`cve_id`), 
@@ -47,11 +49,10 @@ CREATE TABLE IF NOT EXISTS `cve_user_status` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci ROW_FORMAT=DYNAMIC  COMMENT='cve状态';
 
 CREATE TABLE IF NOT EXISTS `host` (
-    `id`        INT(11)     NOT NULL AUTO_INCREMENT COMMENT 'id', 
-    `host_id`   VARCHAR(20) NOT NULL COMMENT '主机id', 
+    `host_id`   INT(11)     NOT NULL COMMENT '主机id', 
     `repo_name` VARCHAR(20) NOT NULL COMMENT 'repo', 
     `last_scan` INT(11)     NULL, 
-    PRIMARY KEY (`id`), 
+    PRIMARY KEY (`host_id`), 
     KEY `FK_host_repo_name_auto_index` (`repo_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci ROW_FORMAT=DYNAMIC  COMMENT='host cve相关信息';
 
@@ -67,10 +68,10 @@ CREATE TABLE IF NOT EXISTS `repo` (
 
 CREATE TABLE IF NOT EXISTS `task_cve_host` (
     `task_id`   VARCHAR(32) NOT NULL COMMENT '任务id', 
-    `host_id`   VARCHAR(32) NOT NULL COMMENT '主机id', 
+    `host_id`   INT(11)     NOT NULL COMMENT '主机id', 
     `cve_id`    VARCHAR(20) NOT NULL COMMENT 'cve id', 
     `host_name` VARCHAR(20) NOT NULL COMMENT '主机名', 
-    `public_ip` VARCHAR(16) NOT NULL COMMENT '主机IP', 
+    `host_ip`   VARCHAR(16) NOT NULL COMMENT '主机IP', 
     `status`    VARCHAR(20) NOT NULL COMMENT '主机cve修复状态', 
     PRIMARY KEY (`task_id`,`host_id`), 
     KEY `FK_task_cve_host_task_id_auto_index` (`task_id`), 
@@ -80,8 +81,8 @@ CREATE TABLE IF NOT EXISTS `task_cve_host` (
 
 CREATE TABLE IF NOT EXISTS `task_host_repo` (
     `task_id`   VARCHAR(32) NOT NULL COMMENT '任务ID', 
-    `host_id`   VARCHAR(32) NOT NULL COMMENT '主机ID', 
-    `public_ip` VARCHAR(16) NOT NULL COMMENT '主机IP', 
+    `host_id`   INT(11)     NOT NULL COMMENT '主机ID', 
+    `host_ip`   VARCHAR(16) NOT NULL COMMENT '主机IP', 
     `host_name` VARCHAR(20) NOT NULL COMMENT '主机名', 
     `repo_name` VARCHAR(20) NOT NULL COMMENT 'repo名称', 
     `status`    VARCHAR(20) NULL     COMMENT '状态', 
@@ -111,7 +112,7 @@ CREATE TABLE IF NOT EXISTS `vul_task` (
     KEY `FK_cve_task_user_auto_index` (`need_reboot`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci ROW_FORMAT=DYNAMIC  COMMENT='任务相关信息';
 
-ALTER TABLE cve_afftected_pkgs
+ALTER TABLE cve_affected_pkgs
 ADD CONSTRAINT `cve_id` FOREIGN KEY (`cve_id`) REFERENCES `cve` (`cve_id`) ON DELETE RESTRICT ON UPDATE RESTRICT ;
 
 ALTER TABLE cve_host_match
