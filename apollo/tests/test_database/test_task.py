@@ -721,7 +721,7 @@ class TestTaskMysqlSecond(unittest.TestCase):
         self.assertEqual(
             changed_task_info[1]["result"]["latest_execute_time"], 1234567890)
 
-    def test_save_scan_result(self):
+    def test_save_cve_scan_result(self):
         host_database = HostProxy(configuration)
         host_database.connect(SESSION)
         host_data = {
@@ -733,42 +733,71 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "filter": {}
         }
         expected_host_list = {
-            "total_count": 2,
+            "total_count": 3,
             "total_page": 1,
-            "result": [
-                {
-                    "host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2",
-                    "host_group": "group1", "repo": "repo1", "cve_num": 3, "last_scan": 123836152
-                },
-                {
-                    "host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1",
-                    "host_group": "group1", "repo": "repo1", "cve_num": 2, "last_scan": 123836100
-                }
-            ]
+            "result": [{'cve_num': 2,
+                        'host_group': 'group1',
+                        'host_id': 2,
+                        'host_ip': '127.0.0.2',
+                        'host_name': 'host2',
+                        'last_scan': 123836152,
+                        'repo': 'repo1'},
+                       {'cve_num': 1,
+                        'host_group': 'group1',
+                        'host_id': 1,
+                        'host_ip': '127.0.0.1',
+                        'host_name': 'host1',
+                        'last_scan': 123836100,
+                        'repo': 'repo1'},
+                       {'cve_num': 0,
+                        'host_group': 'group1',
+                        'host_id': 3,
+                        'host_ip': '127.0.0.2',
+                        'host_name': 'host3',
+                        'last_scan': 123837152,
+                        'repo': 'repo1'}]
         }
         self.assertEqual(host_database.get_host_list(
             host_data), (SUCCEED, expected_host_list))
 
         data = {
-            "id1": [],
-            "id2": ["qwfqwff4", "qwfqwff5", "qwfqwff6"],
+            "status": "succeed",
+            "host_id": 1,
+            "installed_packages": {
+                "pkg1": "1.2.3",
+                "pkg2": "2.2.3",
+                "pkg3": "0.2.3",
+            },
+            "os_version": "string",
+            "cves": ["string"]
         }
-        self.assertEqual(self.task_database.save_scan_result(
-            "admin", data), SUCCEED)
+        self.assertEqual(self.task_database.save_cve_scan_result(
+            data, "admin"), SUCCEED)
 
         expected_host_list = {
-            "total_count": 2,
+            "total_count": 3,
             "total_page": 1,
-            "result": [
-                {
-                    "host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2",
-                    "host_group": "group1", "repo": "repo1", "cve_num": 3, "last_scan": 123836152
-                },
-                {
-                    "host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1",
-                    "host_group": "group1", "repo": "repo1", "cve_num": 0, "last_scan": 123836100
-                }
-            ]
+            "result": [{'cve_num': 2,
+                        'host_group': 'group1',
+                        'host_id': 2,
+                        'host_ip': '127.0.0.2',
+                        'host_name': 'host2',
+                        'last_scan': 123836152,
+                        'repo': 'repo1'},
+                       {'cve_num': 0,
+                        'host_group': 'group1',
+                        'host_id': 1,
+                        'host_ip': '127.0.0.1',
+                        'host_name': 'host1',
+                        'last_scan': 123836100,
+                        'repo': 'repo1'},
+                       {'cve_num': 0,
+                        'host_group': 'group1',
+                        'host_id': 3,
+                        'host_ip': '127.0.0.2',
+                        'host_name': 'host3',
+                        'last_scan': 123837152,
+                        'repo': 'repo1'}]
         }
         self.assertEqual(host_database.get_host_list(
             host_data), (SUCCEED, expected_host_list))

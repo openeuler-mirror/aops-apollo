@@ -471,7 +471,7 @@ class VulExportExcel(BaseResponse):
             host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
             if host_name:
                 self.filename = f"{host_name}.csv"
-                csv_head = ["cve_id", "status"]
+                csv_head = ["cve_id", "status", "fix_status"]
                 export_csv(cve_info_list, os.path.join(
                     self.filepath, self.filename), csv_head)
 
@@ -489,8 +489,7 @@ class VulExportExcel(BaseResponse):
 
     def post(self):
         """
-        Get rar/zip/rar compressed package or single xml file, decompress and insert data
-        into database
+        Get rar/zip/rar compressed package or single xml file, decompress and insert data into database
 
         Returns:
             dict: response body

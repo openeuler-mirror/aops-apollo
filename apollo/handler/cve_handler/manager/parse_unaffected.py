@@ -88,8 +88,8 @@ def parse_cvrf_dict(cvrf_dict):
     doc_list = []
     for cve_info in cve_info_list:
         product_id = cve_info["ProductStatuses"]["Status"]["ProductID"]
-        if isinstance(product_id, list):
-            product_id = ','.join(product_id)
+        if not isinstance(product_id, list):
+            product_id = [product_id]
         remediation = cve_info["Remediations"]["Remediation"]
         if isinstance(remediation, list):
             remediation = remediation[0]
@@ -100,15 +100,17 @@ def parse_cvrf_dict(cvrf_dict):
             "publish_time": remediation["DATE"],
             "severity": severity,
             "cvss_score": cvss_score,
-            "reboot": False,
-            "affected_os": None,
-            "unaffected_os": product_id
+            "reboot": False
         }
         cve_table_rows.append(cve_row)
-        cve_pkg_rows.append({
-            "cve_id": cve_info["CVE"],
-            "package": remediation["Description"]
-        })
+        for os_version in product_id:
+            cve_pkg_rows.append({
+                "cve_id": cve_info["CVE"],
+                "package": remediation["Description"],
+                "package_version": "",
+                "os_version": os_version,
+                "affected": False
+            })
         description = cve_info["Notes"]["Note"].get("text", "")
         doc_list.append({
             "cve_id": cve_info["CVE"],

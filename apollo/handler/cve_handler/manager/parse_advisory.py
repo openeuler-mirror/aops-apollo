@@ -95,6 +95,7 @@ def parse_cvrf_dict(cvrf_dict):
         list: list of dict, each dict is a row for mysql CveAffectedPkgs table
         list: list of dict, each dict is a document for es cve package index
 
+
     Raises:
         ParseXmlError
     """
@@ -102,24 +103,22 @@ def parse_cvrf_dict(cvrf_dict):
     cve_document_notes = cvrf_dict["cvrfdoc"].get("DocumentNotes", "")
     if not cve_document_notes:
         return [], [], []
+    cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
+
     cvrf_note = cve_document_notes["Note"]
-    affected_pkgs = ""
+    srcpackage = ""
     for info in cvrf_note:
         if info["Title"] == "Affected Component":
-            affected_pkgs = info["text"]
+            srcpackage = info["text"]
             break
-
-    if not affected_pkgs:
-        raise ParseAdvisoryError("Affected component (packages) is not list in this xml file.")
-
-    pkg_list = affected_pkgs.split(",")
-    cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
 
     if isinstance(cve_info_list, dict):
         cve_info_list = [cve_info_list]
 
+    package_info_list = cvrf_dict["cvrfdoc"].get("ProductTree", "").get("Branch")
+
     try:
-        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, pkg_list)
+        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, srcpackage, package_info_list)
         es_cve_pkg_docs = parse_arch_info(cve_description)
     except (KeyError, TypeError) as error:
         LOGGER.error(error)
@@ -127,11 +126,10 @@ def parse_cvrf_dict(cvrf_dict):
     return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs
 
 
-def parse_cve_info(cve_info_list, affected_pkgs):
+def parse_cve_info(cve_info_list, srcpackage, package_info_list):
     """
     get mysql Cve and CveAffectedPkgs table rows, and description info for elasticsearch
     Args:
-        affected_pkgs (list): affected packages
         cve_info_list (list): list of dict. e.g.
             [{'CVE': 'CVE-2020-25681',
               'CVSSScoreSets': {'ScoreSet': {'BaseScore': '8.1',
@@ -152,6 +150,19 @@ def parse_cve_info(cve_info_list, affected_pkgs):
                                                'URL': 'security advisory url'}},
               'Threats': {'Threat': {'Description': 'High', 'Type': 'Impact'}}}]
 
+        srcpackage(str): Source package name.
+
+        package_info_list(list): Software package information, e.g.
+            [{'FullProductName': [{'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP3',
+                                   'ProductID': 'vim-debugsource-8.2-12',
+                                   'text': 'vim-debugsource-8.2-11.oe1.aarch64.rpm'},
+                                  {'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP3',
+                                   'ProductID': 'vim-debuginfo-8.2-12',
+                                   'text': 'vim-debuginfo-8.2-11.oe1.aarch64.rpm'}],
+              'Name': 'openEuler',
+              'Type': 'Product Name'}]
+
+
     Returns:
         list: list of dict for mysql Cve table. e.g.
             [{
@@ -162,36 +173,57 @@ def parse_cve_info(cve_info_list, affected_pkgs):
                 "reboot": False  // need reboot or not is default False for now
             }]
         list: list of dict for mysql CveAffectedPkgs table. e.g.
-            [{"cve_id": "cve-2021-1001", "package": "redis"}]
+            [{
+                "cve_id": "cve-2021-1001",
+                "package": "redis",
+                "package_version": "1.2",
+                "os_version": "openEuler-20.03-LTS",
+                "affected": True
+            }]
         dict: cve id mapped with its description
     """
     cve_table_rows = []
     cve_pkg_rows = []
     cve_description = {}
+    os_package_version = {}
+    for package_info in package_info_list:
+        # Branch Name is "openEuler" or "src", don`t need the package information
+        if package_info["Name"] in ["openEuler", "src"]:
+            continue
+        full_product_name = package_info.get("FullProductName")
+        if not full_product_name:
+            continue
+        if isinstance(full_product_name, dict):
+            full_product_name = [full_product_name]
+        for product in full_product_name:
+            cpe = product.get("CPE")
+            if not cpe:
+                continue
+            os_version = "openEuler-" + cpe.split(":")[-1]
+            product_id = product.get("ProductID")
+            if not product_id:
+                continue
+            package_and_version = product_id.rsplit("-", 2)
+            package_version = "-".join(package_and_version[1:])
+            os_package_version[os_version] = package_version
 
     for cve_info in cve_info_list:
         cve_id = cve_info["CVE"]
-        status = cve_info["ProductStatuses"]["Status"]
-        if isinstance(status, list):
-            product_id = status[0]["ProductID"]
-        else:
-            product_id = status["ProductID"]
-
-        if isinstance(product_id, list):
-            product_id = ','.join(product_id)
-
         cve_row = {
             "cve_id": cve_id,
             "publish_time": cve_info["ReleaseDate"],
             "severity": cve_info["Threats"]["Threat"]["Description"],
             "cvss_score": cve_info["CVSSScoreSets"]["ScoreSet"]["BaseScore"],
-            "reboot": False,
-            "affected_os": product_id,
-            "unaffected_os": None
+            "reboot": False
         }
         cve_table_rows.append(cve_row)
-        for pkg in affected_pkgs:
-            cve_pkg_rows.append({"cve_id": cve_id, "package": pkg})
+        for os_version, package_version in os_package_version.items():
+            cve_pkg_rows.append({"cve_id": cve_id,
+                                 "package": srcpackage,
+                                 "package_version": package_version,
+                                 "os_version": os_version,
+                                 "affected": True
+                                 })
 
         # some cve may not have the 'text' key, which is description
         description = cve_info["Notes"]["Note"].get("text", "")

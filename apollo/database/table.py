@@ -32,7 +32,9 @@ class CveHostAssociation(Base, MyBase):
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     host_id = Column(Integer, ForeignKey('host.host_id', ondelete="CASCADE"), primary_key=True)
     affected = Column(Boolean)
-    
+    fixed = Column(Boolean)
+    hotpatch = Column(Boolean)
+
 
 class CveUserAssociation(Base, MyBase):
     """
@@ -54,6 +56,9 @@ class CveAffectedPkgs(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     package = Column(String(40), primary_key=True)
+    package_version = Column(String(20), primary_key=True)
+    os_version = Column(String(20), primary_key=True)
+    affected = Column(Integer)
 
 
 class CveTaskAssociation(Base, MyBase):
@@ -112,8 +117,6 @@ class Cve(Base, MyBase):
     severity = Column(String(20))
     cvss_score = Column(String(20))
     reboot = Column(Boolean)
-    affected_os = Column(String(512), nullable=True)
-    unaffected_os = Column(String(512), nullable=True)
 
 
 class Repo(Base, MyBase):
@@ -150,6 +153,8 @@ class Task(Base, MyBase):
     username = Column(String(40), ForeignKey('user.username'))
 
 
+
+
 def create_vul_tables(engine=ENGINE):
     """
     create vulnerability tables of apollo service
@@ -160,7 +165,7 @@ def create_vul_tables(engine=ENGINE):
 
     """
     # pay attention, the sequence of list is important. Base table need to be listed first.
-    tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo,
+    tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo, 
               CveTaskAssociation, TaskHostRepoAssociation, TaskCveHostAssociation, CveAffectedPkgs]
     tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]
     create_tables(Base, engine, tables=tables_objects)

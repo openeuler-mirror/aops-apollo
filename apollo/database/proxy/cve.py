@@ -869,7 +869,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             list
         """
         pkg_query = self.session.query(CveAffectedPkgs.package) \
-            .filter(CveAffectedPkgs.cve_id == cve_id)
+            .filter(CveAffectedPkgs.cve_id == cve_id, CveAffectedPkgs.affected == 1)
         pkg_list = [row.package for row in pkg_query]
         return pkg_list
 
@@ -1068,16 +1068,20 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             cve_pkg_rows (list): list of row dict. e.g.
                 [{
                     "cve_id": "cve-2021-1001",
-                     "package": "redis"
+                     "package": "redis",
+                     "package_version": "1.2",
+                     "os_version": "openEuler-22.03-LTS",
+                     "affected": 1
                 }]
         """
         # get the tuples of cve_id and package name
-        cve_pkg_keys = [(row["cve_id"], row["package"])
+        cve_pkg_keys = [(row["cve_id"], row["package"], row["package_version"], row["os_version"])
                         for row in cve_pkg_rows]
 
         # delete the exist records first then insert the rows
         self.session.query(CveAffectedPkgs) \
-            .filter(tuple_(CveAffectedPkgs.cve_id, CveAffectedPkgs.package)
+            .filter(tuple_(CveAffectedPkgs.cve_id, CveAffectedPkgs.package, CveAffectedPkgs.package_version,
+                           CveAffectedPkgs.os_version)
                     .in_(cve_pkg_keys)) \
             .delete(synchronize_session=False)
         self.session.bulk_insert_mappings(CveAffectedPkgs, cve_pkg_rows)
@@ -1267,7 +1271,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         for cve in cve_query:
             cve_list.append([
                 cve.cve_id,
-                "affected" if cve.affected else "unaffected"
+                "affected" if cve.affected else "unaffected",
+                "fixed" if cve.fixed else "unfixed"
             ])
 
         host_info_query = self.session.query(

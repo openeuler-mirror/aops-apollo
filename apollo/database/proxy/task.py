@@ -150,7 +150,57 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Init host scan status failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
-    def save_cve_scan_result(self, task_info: dict, username: str):
+    def _get_installed_packages_cve(self, os_version: str, installed_packages: list):
+        """
+        Compare the installed software packages from all cves under the OS to obtain the corresponding cves
+
+        Args:
+            os_version(str): OS version
+            installed_packages(list): Scanned installed packages information,
+                e.g: ["pkg1", "pkg2", "pkg3"]
+
+        Returns:
+            list: list of cve info
+
+        """
+        installed_packages_cve = self.session.query(CveAffectedPkgs).filter(CveAffectedPkgs.os_version == os_version,
+                                                                            CveAffectedPkgs.package.in_(
+                                                                                installed_packages)).all()
+        return installed_packages_cve
+
+    def _get_fixed_and_unfixed_cve(self, installed_packages_cve: list, installed_packages: dict):
+        """
+        According to the scanned installed software package, compare the software package version to obtain the
+        fixed and unfixed cve
+
+        Args:
+            installed_packages_cve: list of cve info
+            installed_packages(dict): Scanned installed package information,e.g:
+                {
+                    "pkg1": "1.2.3",
+                    "pkg2": "2.2.3",
+                    "pkg3": "0.2.3",
+                }
+        Returns:
+            list: each element of fixed cve
+            list: each element of unfixed cve
+        """
+        unfixed_cve = []
+        fixed_cve = []
+        for cve in installed_packages_cve:
+            if cve.package_version == "":
+                unfixed_cve.append(cve)
+            else:
+                package_version = cve.package_version
+                current_version = installed_packages[cve.package]
+                if package_version <= current_version:
+                    fixed_cve.append(cve)
+                else:
+                    unfixed_cve.append(cve)
+
+        return fixed_cve, unfixed_cve
+
+    def save_cve_scan_result(self, task_info: dict, username: str) -> int:
         """
         Save cve scan result to database.
         Args:
@@ -158,7 +208,11 @@ class TaskMysqlProxy(MysqlProxy):
                 {
                     "status":"succeed" / "fail" / "unknown",
                     "host_id":1,
-                    "installed_packages":["string"],
+                    "installed_packages":{
+                                            "pkg1": "1.2.3",
+                                            "pkg2": "2.2.3",
+                                            "pkg3": "0.2.3",
+                                        },
                     "os_version":"string",
                     "cves":["string"]
                 }
@@ -181,36 +235,50 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Save cve scan result failed.")
             return DATABASE_INSERT_ERROR
 
-    def _save_cve_scan_result(self, task_info: dict, username: str):
-
+    def _save_cve_scan_result(self, task_info: dict, username: str) -> int:
+        """
+        Save cve scan result to database.
+        Args:
+            task_info (dict): task info, e.g.
+                {
+                    "status":"succeed" / "fail" / "unknown",
+                    "host_id":1,
+                    "installed_packages":{
+                                            "pkg1": "1.2.3",
+                                            "pkg2": "2.2.3",
+                                            "pkg3": "0.2.3",
+                                        },
+                    "os_version":"string",
+                    "cves":["string"]
+                }
+        Returns:
+            int: status code
+        """
         host_id = task_info["host_id"]
         installed_packages = task_info["installed_packages"]
         os_version = task_info["os_version"]
         affected_cves = task_info["cves"]
 
         cve_list = []
-        exist_affected_cves = []
-        unaffected_cve_list = []
 
-        if affected_cves:
-            exist_affected_cves = self._get_exist_cves(affected_cves)
-            for cve in exist_affected_cves:
-                cve_list.append({
-                    "cve_id": cve,
-                    "host_id": host_id,
-                    "affected": True
-                })
+        installed_packages_cve = self._get_installed_packages_cve(os_version, installed_packages.keys())
+        fixed_cve, unfixed_cve = self._get_fixed_and_unfixed_cve(installed_packages_cve, installed_packages)
 
-        if installed_packages:
-            unaffected_cve_list = self._get_unaffected_cve(affected_cves, os_version)
-            for unaffected_cve in unaffected_cve_list:
+        for cve in fixed_cve + unfixed_cve:
+            if cve.cve_id in affected_cves:
                 cve_list.append({
-                    "cve_id": unaffected_cve,
+                    "cve_id": cve.cve_id,
                     "host_id": host_id,
-                    "affected": False
+                    "affected": cve.affected,
+                    "fixed": False
                 })
-        else:
-            LOGGER.info("Installed packages is null")
+            else:
+                cve_list.append({
+                    "cve_id": cve.cve_id,
+                    "host_id": host_id,
+                    "affected": cve.affected,
+                    "fixed": True
+                })
 
         self.session.query(CveHostAssociation) \
             .filter(CveHostAssociation.host_id == host_id) \
@@ -218,8 +286,7 @@ class TaskMysqlProxy(MysqlProxy):
 
         self.session.bulk_insert_mappings(
             CveHostAssociation, cve_list)
-        user_cves = exist_affected_cves + unaffected_cve_list
-        self.update_user_cve_status(username, user_cves)
+        self.update_user_cve_status(username, [cve.cve_id for cve in unfixed_cve])
         return SUCCEED
 
     def _get_exist_cves(self, cves):
@@ -245,36 +312,38 @@ class TaskMysqlProxy(MysqlProxy):
             cves (list): CVE list, e.g.
                 ["CVE-1999-20304", "CVE-1999-20303", "CVE-1999-20301"]
             os_version(str): os version, e.g. "openEuler-22.03-LTS"
+
         Returns:
             list: unaffected CVEs
         """
-        unaffected_cve_dict = self.get_cve_unaffected_os_dict(os_version)
+        os_unaffected_cve_list = self._get_os_unaffected_cve(os_version)
 
         unaffected_cve_list = []
         for cve in cves:
-            if cve in unaffected_cve_dict:
+            if cve in os_unaffected_cve_list:
                 unaffected_cve_list.append(cve)
 
         return unaffected_cve_list
 
-    def get_cve_unaffected_os_dict(self, os_version: str) -> dict:
+    def _get_os_unaffected_cve(self, os_version: str) -> list:
         """
         Query the unaffected cves under the os.
         Args:
             os_version(str):e.g. "openEuler-22.03-LTS"
-        Returns:
-            dict:e.g. {
-                        'CVE-2018-16301': 'openEuler-22.03-LTS',
-                        'CVE-2019-10301': 'openEuler-22.03-LTS'
-                      }
-        """
-        cve_os_version_query = self.session.query(Cve.cve_id, Cve.unaffected_os).filter(
-            Cve.unaffected_os.like(f"%{os_version}%"), Cve.severity is not None).all()
-        cve_id_and_os_version = {}
-        for cve_id, os_version in cve_os_version_query:
-            cve_id_and_os_version[cve_id] = os_version
 
-        return cve_id_and_os_version
+        Returns:
+            list: CVE list, e.g.
+                ['CVE-2018-16301', 'CVE-2019-10301', 'CVE-2019-11301']
+        """
+        cves_list_query = self.session.query(CveAffectedPkgs.cve_id).filter(
+            CveAffectedPkgs.os_version == os_version,
+            CveAffectedPkgs.affected == 0).all()
+
+        cve_list = []
+        if cves_list_query:
+            cve_list = [cve[0] for cve in cves_list_query]
+
+        return cve_list
 
     def _update_host_scan(self, update_type, host_list, username=None):
         """

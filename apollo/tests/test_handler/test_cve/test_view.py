@@ -322,26 +322,32 @@ class VulExportExcelTestCase(unittest.TestCase):
         mock_connect.return_value = False
         response = client.post(
             VUL_EXPORT_EXCEL,
-            json={"host_list": ["127.0.0.0"]},
+            json={"host_list": [1]},
             headers=header_with_token).json
         self.assertEqual(response['code'], DATABASE_CONNECT_ERROR)
 
+    @mock.patch.object(os.path, 'exists')
+    @mock.patch.object(os.path, 'join')
+    @mock.patch.object(shutil, 'rmtree')
+    @mock.patch.object(os, 'mkdir')
     @mock.patch.object(CveProxy, 'connect')
-    @mock.patch.object(BaseResponse, 'verify_request')
     @mock.patch('apollo.handler.cve_handler.view.compress_cve')
     @mock.patch.object(CveProxy, 'query_host_name_and_related_cves')
     def test_vulexportexcel_should_return_server_error_when_compress_cve_fail(self,
                                                                               mock_query_host_name_and_related_cves,
                                                                               mock_compress_cve,
-                                                                              mock_verify_request,
-                                                                              mock_connect):
+                                                                              mock_connect,
+                                                                              mock_mkdir,
+                                                                              mock_rmtree,
+                                                                              mock_join,
+                                                                              mock_exists):
+        mock_exists.return_value = True
         mock_connect.return_value = True
-        mock_verify_request.return_value = {}, SUCCEED
         mock_query_host_name_and_related_cves.return_value = "123.8.8.9", ["111", "222"]
         mock_compress_cve.return_value = "", ""
 
         response = client.post(
             VUL_EXPORT_EXCEL,
-            json={"host_list": ["127.0.0.0", "127.0.0.1"]},
+            json={"host_list": [1, 2], "username": "admin"},
             headers=header_with_token).json
         self.assertEqual(response['code'], SERVER_ERROR)
