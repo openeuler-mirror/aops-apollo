@@ -168,38 +168,6 @@ class TaskMysqlProxy(MysqlProxy):
                                                                                 installed_packages)).all()
         return installed_packages_cve
 
-    def _get_fixed_and_unfixed_cve(self, installed_packages_cve: list, installed_packages: dict):
-        """
-        According to the scanned installed software package, compare the software package version to obtain the
-        fixed and unfixed cve
-
-        Args:
-            installed_packages_cve: list of cve info
-            installed_packages(dict): Scanned installed package information,e.g:
-                {
-                    "pkg1": "1.2.3",
-                    "pkg2": "2.2.3",
-                    "pkg3": "0.2.3",
-                }
-        Returns:
-            list: each element of fixed cve
-            list: each element of unfixed cve
-        """
-        unfixed_cve = []
-        fixed_cve = []
-        for cve in installed_packages_cve:
-            if cve.package_version == "":
-                unfixed_cve.append(cve)
-            else:
-                package_version = cve.package_version
-                current_version = installed_packages[cve.package]
-                if package_version <= current_version:
-                    fixed_cve.append(cve)
-                else:
-                    unfixed_cve.append(cve)
-
-        return fixed_cve, unfixed_cve
-
     def save_cve_scan_result(self, task_info: dict, username: str) -> int:
         """
         Save cve scan result to database.
@@ -260,12 +228,12 @@ class TaskMysqlProxy(MysqlProxy):
         affected_cves = task_info["cves"]
 
         cve_list = []
+        unfixed_cve = []
 
         installed_packages_cve = self._get_installed_packages_cve(os_version, installed_packages.keys())
-        fixed_cve, unfixed_cve = self._get_fixed_and_unfixed_cve(installed_packages_cve, installed_packages)
-
-        for cve in fixed_cve + unfixed_cve:
+        for cve in installed_packages_cve:
             if cve.cve_id in affected_cves:
+                unfixed_cve.append(cve.cve_id)
                 cve_list.append({
                     "cve_id": cve.cve_id,
                     "host_id": host_id,
@@ -286,24 +254,8 @@ class TaskMysqlProxy(MysqlProxy):
 
         self.session.bulk_insert_mappings(
             CveHostAssociation, cve_list)
-        self.update_user_cve_status(username, [cve.cve_id for cve in unfixed_cve])
+        self.update_user_cve_status(username, unfixed_cve)
         return SUCCEED
-
-    def _get_exist_cves(self, cves):
-        """
-        Get exist cves
-        Args:
-            cves (list): cve list
-        Returns:
-            code status(int)
-        """
-        cve_query = self.session.query(Cve.cve_id).all()
-        cve_id_list = [cve.cve_id for cve in cve_query]
-        exists_cve = list(set(cves) & set(cve_id_list))
-        no_exists_cve = set(cves) - set(cve_id_list)
-        if no_exists_cve:
-            LOGGER.error(f"Cve scan no exist cve is {no_exists_cve}")
-        return exists_cve
 
     def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
         """
