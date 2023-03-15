@@ -36,9 +36,9 @@ Mulan V2
 ## 2.1、apollo需求场景分析
 
 - apollo通过发布目录的updateinfo.xml获取缺陷发布信息，通过相关字段区分冷热补丁。相关补丁从发布目录获取，使用syscare和dnf命令实现缺陷管理。管理员通过apollo的cli和webui对集群机器巡检和修复。
-  ![apollo上下文视图](/pic/apos-apollo上下文视图.png)
+  ![apollo上下文视图](./pic/apos-apollo上下文视图.png)
 - apollo提供补丁制作组件，rpm和dnf插件模块，实现热补丁功能扩展。实现热补丁流水线，客户可使用rpm和dnf进行操作，实现独立使用和适配轻量化场景
-  ![逻辑架构图](/pic/逻辑架构图.png)
+  ![逻辑架构图](./pic/逻辑架构图.png)
 
 **需求如下**
 
@@ -61,7 +61,7 @@ Mulan V2
 
 - 热修复除了热补丁限制外，还需要解决无米之炊的问题，通过在CICD中集成热补丁流水线，实现依赖PR完成热补丁制作。除了热补丁交付件本身外，还在updateinfo.xml内嵌入热补丁信息，管理热补丁到CVE和bugfix的关系。本章节主要介绍信息管理，详细热补丁流程参考2.1.1
 - apollo发布件新增热补丁制作工具集，主要包含1.热补丁制作管理，管理热补丁制作环境和提供对外接口；2.提供updateinfo.xml生成工具，根据传入的热补丁名称，PR描述（CVE和Bugfix信息）等，生成具备热补丁信息描述的updateinfo.xml（增量）
-  ![热补丁发布流程](/pic/热补丁发布流程.png)
+  ![热补丁发布流程](./pic/热补丁发布流程.png)
 
 **需求如下**
 
@@ -137,9 +137,9 @@ Mulan V2
 - 对外提供CVE/Bugfix巡检、修复、回退和查询操作，通过集群管理模块提供集群巡检能力
 - 需要支持在rpm信息中设置和查询热补丁标签？
 
-![缺陷修复流程](/pic/缺陷修复流程.png)
+![缺陷修复流程](./pic/缺陷修复流程.png)
 
-![缺陷信息数据流程图](/pic/缺陷信息数据流程图.png)
+![缺陷信息数据流程图](./pic/缺陷信息数据流程图.png)
 
 
 
@@ -674,7 +674,7 @@ openEuler Security has rated this update as having a security impact of high. A 
 
   - 解析主机cve信息，存入数据库
     
-    ![cve扫描逻辑](/pic/cve扫描逻辑.png)
+    ![cve扫描逻辑](./pic/cve扫描逻辑.png)
     
     - 根据cve_affected_pkgs{"os_version==os_version"}查询得到cve信息{cve_id, package, package_version, os_version, affected}
     - 与installed_packages进行比较，得到cve列表{cve_id, affected, fixed}
@@ -819,10 +819,10 @@ openEuler Security has rated this update as having a security impact of high. A 
 ### 3.5.2、热补丁命名
 
 ```
-patch-[软件名称]-[软件版本]-[补丁名称]-[热补丁版本].[架构].rpm
+patch-[软件名称]-[软件版本]-[热补丁名称]-[热补丁版本].[架构].rpm
 
 # example
-patch-kernel-5.10.0-60.66.0.91.oe2203-name-1-c15c1a6a.x86_64.rpm
+patch-kernel-5.10.0-60.66.0.91.oe2203-HP001-1-1.x86_64.rpm
 ```
 
 ### 3.5.3、热补丁扫描
