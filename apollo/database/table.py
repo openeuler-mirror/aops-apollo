@@ -56,8 +56,8 @@ class CveAffectedPkgs(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     package = Column(String(40), primary_key=True)
-    package_version = Column(String(20), primary_key=True)
-    os_version = Column(String(20), primary_key=True)
+    package_version = Column(String(40), primary_key=True)
+    os_version = Column(String(40), primary_key=True)
     affected = Column(Integer)
 
 
@@ -153,6 +153,15 @@ class Task(Base, MyBase):
     username = Column(String(40), ForeignKey('user.username'))
 
 
+class AdvisoryDownloadRecord(Base, MyBase):
+    """
+    Download and parse advisory's record
+    """
+    __tablename__ = "parse_advisory_record"
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    advisory_year = Column(String(4), nullable=False)
+    advisory_serial_number = Column(String(10), nullable=False)
+    download_status = Column(Boolean)
 
 
 def create_vul_tables(engine=ENGINE):
@@ -165,7 +174,7 @@ def create_vul_tables(engine=ENGINE):
 
     """
     # pay attention, the sequence of list is important. Base table need to be listed first.
-    tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo, 
+    tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo, AdvisoryDownloadRecord,
               CveTaskAssociation, TaskHostRepoAssociation, TaskCveHostAssociation, CveAffectedPkgs]
     tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]
     create_tables(Base, engine, tables=tables_objects)

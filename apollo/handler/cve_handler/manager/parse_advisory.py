@@ -48,8 +48,8 @@ def parse_security_advisory(xml_path):
 
     root = tree.getroot()
     xml_dict = etree_to_dict(root)
-    cve_rows, cve_pkg_rows, cve_pkg_docs = parse_cvrf_dict(xml_dict)
-    return cve_rows, cve_pkg_rows, cve_pkg_docs
+    cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_cvrf_dict(xml_dict)
+    return cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
 
 
 def etree_to_dict(node):
@@ -94,6 +94,8 @@ def parse_cvrf_dict(cvrf_dict):
         list: list of dict, each dict is a row for mysql Cve table
         list: list of dict, each dict is a row for mysql CveAffectedPkgs table
         list: list of dict, each dict is a document for es cve package index
+        str: sa year
+        str: sa number
 
 
     Raises:
@@ -101,9 +103,13 @@ def parse_cvrf_dict(cvrf_dict):
     """
     # affected package of this security advisory. joined with ',' if have multiple packages
     cve_document_notes = cvrf_dict["cvrfdoc"].get("DocumentNotes", "")
-    if not cve_document_notes:
-        return [], [], []
+    cve_document_tracking = cvrf_dict["cvrfdoc"].get("DocumentTracking", "")
+    if not all([cve_document_notes, cve_document_tracking]):
+        return [], [], [], "", ""
+
     cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
+    cvrf_sa = cve_document_tracking["Identification"]["ID"]
+    sa_year, sa_number = cvrf_sa.split("-")[2:]
 
     cvrf_note = cve_document_notes["Note"]
     srcpackage = ""
@@ -123,7 +129,7 @@ def parse_cvrf_dict(cvrf_dict):
     except (KeyError, TypeError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the advisory xml.")
-    return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs
+    return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs, sa_year, sa_number
 
 
 def parse_cve_info(cve_info_list, srcpackage, package_info_list):

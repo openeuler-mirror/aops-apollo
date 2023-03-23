@@ -22,7 +22,7 @@ from sqlalchemy import func, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
 from apollo.database.mapping import CVE_INDEX
-from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs
+from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation, CveAffectedPkgs, AdvisoryDownloadRecord
 from apollo.function.customize_exception import EsOperationError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
@@ -994,7 +994,65 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             self.session.commit()
             raise
 
-    def save_security_advisory(self, file_name, cve_rows, cve_pkg_rows, cve_pkg_docs):
+    def save_advisory_download_record(self, sa_record_rows: list) -> int:
+        """
+        Save the record of download sa
+        Args:
+            sa_record_rows(list): aach element is a record of the AdvisoryDownloadRecord table,e.g.
+                [{"advisory_year": 2022,
+                "advisory_serial_number": 1230,
+                "download_status": 1}]
+
+        Returns:
+            int: status code
+        """
+        try:
+            self.session.bulk_insert_mappings(AdvisoryDownloadRecord, sa_record_rows)
+            self.session.commit()
+            return SUCCEED
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("Insert sa parsed record failed due to internal error.")
+            return DATABASE_INSERT_ERROR
+
+    def get_advisory_download_record(self):
+        """
+        Get records of download successes and failures
+        Returns:
+            list: each element is download succeeded AdvisoryDownloadRecord object
+            list: each element is download failed AdvisoryDownloadRecord object
+        """
+        download_succeed_record, download_failed_advisory = [], []
+        try:
+            download_record = self.session.query(AdvisoryDownloadRecord).all()
+            for record in download_record:
+                if record.download_status:
+                    download_succeed_record.append(record)
+                else:
+                    download_failed_advisory.append(record)
+            return download_succeed_record, download_failed_advisory
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("Query AdvisoryDownloadRecord failed due to internal error.")
+            return [], []
+
+    def delete_advisory_download_failed_record(self, id_list: list):
+        """
+        When sa download fails, need to delete this download record from the database
+
+        Args:
+            id_list: Need to delete the record the id of the list
+        """
+        try:
+            self.session.query(AdvisoryDownloadRecord).filter(AdvisoryDownloadRecord.id.in_(id_list)).delete()
+            self.session.commit()
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("delete advisory download failed record error.")
+            self.session.rollback()
+
+    def save_security_advisory(self, file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year=None, sa_number=None):
         """
         save security advisory to mysql and es
         Args:
@@ -1002,12 +1060,14 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             cve_rows (list): list of dict to insert to mysql Cve table
             cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
             cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
+            sa_year(str): security advisory year
+            sa_number(str): security advisory order number
 
         Returns:
             int: status code
         """
         try:
-            self._save_security_advisory(cve_rows, cve_pkg_rows, cve_pkg_docs)
+            self._save_security_advisory(cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
             self.session.commit()
             LOGGER.debug("Finished saving security advisory '%s'." % file_name)
             return SUCCEED
@@ -1018,7 +1078,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 "Saving security advisory '%s' failed due to internal error." % file_name)
             return DATABASE_INSERT_ERROR
 
-    def _save_security_advisory(self, cve_rows, cve_pkg_rows, cve_pkg_docs):
+    def _save_security_advisory(self, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year=None, sa_number=None):
         """
         save data into mysql and es
 
@@ -1026,6 +1086,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             cve_rows (list): list of dict to insert to mysql Cve table
             cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
             cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
+            sa_year(str): security advisory year
+            sa_number(str): security advisory order number
 
         Raises:
             SQLAlchemyError, ElasticsearchException, EsOperationError
@@ -1054,6 +1116,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             self.session.bulk_update_mappings(Cve, update_cve_rows)
             self._insert_cve_pkg_rows(cve_pkg_rows)
             self._save_cve_docs(cve_pkg_docs)
+            if all([sa_year, sa_number]):
+                self.save_advisory_download_record([{"advisory_year": sa_year,
+                                                     "advisory_serial_number": sa_number,
+                                                     "download_status": True}])
         except (SQLAlchemyError, ElasticsearchException, EsOperationError):
             self.session.rollback()
             self._delete_cve_rows(insert_cve_rows)

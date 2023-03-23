@@ -229,7 +229,7 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
+            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
             os.remove(file_path)
             if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                 return WRONG_FILE_FORMAT
@@ -241,7 +241,7 @@ class VulUploadAdvisory(BaseResponse):
             return WRONG_FILE_FORMAT
 
         status_code = proxy.save_security_advisory(
-            file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
+            file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
 
         return status_code
 
@@ -269,7 +269,7 @@ class VulUploadAdvisory(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs = parse_security_advisory(file_path)
+                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
                 if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
@@ -287,7 +287,7 @@ class VulUploadAdvisory(BaseResponse):
                 continue
             # elasticsearch need 1 second to update doc
             status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows,
-                                                       cve_pkg_docs)
+                                                       cve_pkg_docs, sa_year, sa_number )
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
