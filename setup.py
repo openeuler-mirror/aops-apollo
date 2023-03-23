@@ -20,7 +20,8 @@ REQUIRES = [
     'Flask-APScheduler',
     'setuptools',
     'SQLAlchemy',
-    'PyYAML'
+    'PyYAML',
+    'retrying'
 ]
 
 setup(

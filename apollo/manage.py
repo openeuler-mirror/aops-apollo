@@ -23,6 +23,7 @@ from redis import RedisError
 from apollo import BLUE_POINT
 from apollo.conf import configuration
 from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
+from apollo.cron.download_sa_manager import TimedDownloadSATask
 from apollo.cron.manager import TimedTaskManager, get_timed_task_config_info
 from apollo.cron.timed_correct_manager import TimedCorrectTask
 from apollo.cron.timed_scan_task import TimedScanTask
@@ -99,6 +100,7 @@ def init_timed_task(app):
     TimedTaskManager().init_app(app)
     TimedTaskManager().add_task(TimedScanTask.task_enter, **config_info.get("cve_scan"))
     TimedTaskManager().add_task(TimedCorrectTask.task_enter, **config_info.get("correct_data"))
+    TimedTaskManager().add_task(TimedDownloadSATask.task_enter, **config_info.get("download_sa"))
     TimedTaskManager().start_task()
 
 

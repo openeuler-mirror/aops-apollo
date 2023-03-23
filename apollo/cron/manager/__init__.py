@@ -105,7 +105,6 @@ class TimedTaskManager():
             if not auto_start:
                 LOGGER.info(f"{task_id}, This task is configured to not start.")
                 return
-
         TimedTaskManager._APscheduler.add_job(**timed_task_parameters)
 
     @staticmethod
