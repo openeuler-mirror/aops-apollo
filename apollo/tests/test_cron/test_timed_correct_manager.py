@@ -21,7 +21,7 @@ from unittest import mock
 
 from apollo.database.proxy.task import TaskProxy
 from apollo.cron.timed_correct_manager import TimedCorrectTask
-from vulcanus.restful.status import DATABASE_CONNECT_ERROR, SUCCEED
+from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, SUCCEED
 
 
 class TestTimedCorrectTask(unittest.TestCase):

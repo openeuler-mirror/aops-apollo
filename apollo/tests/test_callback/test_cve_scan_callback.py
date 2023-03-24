@@ -21,14 +21,14 @@ from unittest import mock
 from apollo.conf import configuration
 from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
-from vulcanus.restful.status import DATABASE_UPDATE_ERROR, DATABASE_INSERT_ERROR, SUCCEED
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, DATABASE_INSERT_ERROR, SUCCEED
 
 
 class TestCveScanCallback(unittest.TestCase):
     def setUp(self):
         self.task_info = {
             "status": "init",
-            "host_id": "127.0.0.1",
+            "host_id": 1,
             "installed_packages": ["string"],
             "os_version": "openEuler 22.03 LTS",
             "cves": ["CVE-2021-11111", "CVE-2022-13111"]

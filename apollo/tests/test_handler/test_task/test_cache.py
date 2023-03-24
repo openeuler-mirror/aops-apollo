@@ -19,7 +19,7 @@ import unittest
 from unittest import mock
 
 from apollo.handler.task_handler.cache import TaskCache
-from vulcanus.restful.status import SUCCEED
+from vulcanus.restful.resp.state import SUCCEED
 
 
 class TestCache(unittest.TestCase):
@@ -31,12 +31,12 @@ class TestCache(unittest.TestCase):
                 "host_info": [
                     {
                         "host_name": "name1",
-                        "host_id": "id1",
+                        "host_id": 1,
                         "host_ip": "ip1"
                     },
                     {
                         "host_name": "name2",
-                        "host_id": "id2",
+                        "host_id": 2,
                         "host_ip": "ip2"
                     }
                 ]
@@ -46,7 +46,7 @@ class TestCache(unittest.TestCase):
                 "host_info": [
                     {
                         "host_name": "name1",
-                        "host_id": "id1",
+                        "host_id": 1,
                         "host_ip": "ip1"
                     }
                 ]
@@ -60,7 +60,7 @@ class TestCache(unittest.TestCase):
             "host": {
                 "name1": {
                     "host_name": "name1",
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_ip": "ip1",
                     "cve": {
                         "1": 1,
@@ -69,7 +69,7 @@ class TestCache(unittest.TestCase):
                 },
                 "name2": {
                     "host_name": "name2",
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_ip": "ip2",
                     "cve": {
                         "1": 1
@@ -86,24 +86,24 @@ class TestCache(unittest.TestCase):
             "result": [
                 {
                     "host_name": "name1",
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_ip": "ip1"
                 },
                 {
                     "host_name": "name2",
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_ip": "ip2"
                 }
             ]}
         expected_res = {
             "name1": {
                 "host_name": "name1",
-                "host_id": "id1",
+                "host_id": 1,
                 "host_ip": "ip1"
             },
             "name2": {
                 "host_name": "name2",
-                "host_id": "id2",
+                "host_id": 2,
                 "host_ip": "ip2"
             }
         }

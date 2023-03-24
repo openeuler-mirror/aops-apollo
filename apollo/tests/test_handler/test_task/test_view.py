@@ -29,12 +29,13 @@ from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.view import VulGenerateCveTask, VulExecuteTask
 from apollo.url import SPECIFIC_URLS
-from vulcanus.restful.status import DATABASE_CONNECT_ERROR, PARAM_ERROR, SUCCEED, UNKNOWN_ERROR, REPEAT_TASK_EXECUTION, \
+from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, PARAM_ERROR, SUCCEED, UNKNOWN_ERROR, \
+    REPEAT_TASK_EXECUTION, \
     DATABASE_UPDATE_ERROR
 
 API = Api()
 for view, url in SPECIFIC_URLS['CVE_TASK_URLS'] + \
-        SPECIFIC_URLS['CVE_TASK_CALLBACK_URLS']:
+                 SPECIFIC_URLS['CVE_TASK_CALLBACK_URLS']:
     API.add_resource(view, url)
 
 APOLLO = Blueprint('apollo', __name__)
@@ -59,7 +60,7 @@ class VulGenerteCveTaskTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_TASK_CVE_GENERATE, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_handle_should_return_param_error_when_input_wrong_param(
             self):
@@ -84,7 +85,7 @@ class VulGenerteCveTaskTestCase(unittest.TestCase):
             VUL_TASK_CVE_GENERATE,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, 'connect')
     @mock.patch.object(VulGenerateCveTask, 'verify_request')
@@ -97,7 +98,7 @@ class VulGenerteCveTaskTestCase(unittest.TestCase):
             VUL_TASK_CVE_GENERATE,
             json={},
             headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_CONNECT_ERROR)
+        self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
     @mock.patch.object(uuid, 'uuid1')
     @mock.patch.object(time, 'time')
@@ -119,7 +120,7 @@ class VulGenerteCveTaskTestCase(unittest.TestCase):
             VUL_TASK_CVE_GENERATE, json={}, headers=header_with_token).json
         mock_generate_task.assert_called_with(
             {"task_id": "aa", "task_type": "cve fix", "create_time": 11})
-        self.assertEqual(response['code'], UNKNOWN_ERROR)
+        self.assertEqual(response['label'], UNKNOWN_ERROR)
 
     @mock.patch.object(uuid, 'uuid1')
     @mock.patch.object(time, 'time')
@@ -141,8 +142,8 @@ class VulGenerteCveTaskTestCase(unittest.TestCase):
             VUL_TASK_CVE_GENERATE, json={}, headers=header_with_token).json
         mock_generate_task.assert_called_with(
             {"task_id": "aa", "task_type": "cve fix", "create_time": 11})
-        self.assertEqual(response['code'], SUCCEED)
-        self.assertEqual(response['task_id'], "aa")
+        self.assertEqual(response['label'], SUCCEED)
+        self.assertEqual(response.get("data", dict())['task_id'], "aa")
 
 
 class VulExecuteTaskTestCase(unittest.TestCase):
@@ -151,7 +152,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_TASk_EXECUTE, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_handle_should_return_param_error_when_input_wrong_param(
             self):
@@ -162,7 +163,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
             VUL_TASk_EXECUTE,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, 'connect')
     @mock.patch.object(VulExecuteTask, 'verify_request')
@@ -175,7 +176,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
             VUL_TASk_EXECUTE,
             json={},
             headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_CONNECT_ERROR)
+        self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
     @mock.patch.object(TaskProxy, 'get_task_type')
     @mock.patch.object(TaskProxy, 'connect')
@@ -187,14 +188,14 @@ class VulExecuteTaskTestCase(unittest.TestCase):
         fake_task_id = Mock()
         fake_username = Mock()
         mock_verify_request.return_value = {
-            "task_id": fake_task_id, "username": fake_username}, SUCCEED
+                                               "task_id": fake_task_id, "username": fake_username}, SUCCEED
         mock_connect.return_value = True
         mock_get_task_type.return_value = Mock()
         response = client.post(
             VUL_TASk_EXECUTE,
             json={},
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, 'check_task_status')
     @mock.patch.object(TaskProxy, 'get_task_type')
@@ -208,7 +209,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
         fake_task_id = Mock()
         fake_username = Mock()
         mock_verify_request.return_value = {
-            "task_id": fake_task_id, "username": fake_username}, SUCCEED
+                                               "task_id": fake_task_id, "username": fake_username}, SUCCEED
         mock_connect.return_value = True
         mock_get_task_type.return_value = "cve fix"
         mock_check_task_status.return_value = False
@@ -216,7 +217,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
             VUL_TASk_EXECUTE,
             json={},
             headers=header_with_token).json
-        self.assertEqual(response['code'], REPEAT_TASK_EXECUTION)
+        self.assertEqual(response['label'], REPEAT_TASK_EXECUTION)
 
     @mock.patch.object(CveFixManager, 'create_task')
     def test_handle_cve_fix_should_return_error_when_create_task_fail(
@@ -275,4 +276,4 @@ class VulCveFixTaskCallbackTestCase(unittest.TestCase):
             VUL_TASK_CVE_FIX_CALLBACK,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)

@@ -17,19 +17,19 @@ Description:
 """
 import json
 from time import sleep
+
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
 
-from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
-from vulcanus.database.helper import drop_tables, create_database_engine
-from vulcanus.database.table import Base, User, Host, HostGroup, create_utils_tables
+from apollo.conf import configuration
+from apollo.conf.constant import CVE_INDEX, TASK_INDEX
+from apollo.database.mapping import MAPPINGS
 from apollo.database.table import CveHostAssociation, TaskHostRepoAssociation, \
     CveUserAssociation, Cve, CveTaskAssociation, TaskCveHostAssociation, Task, Repo, CveAffectedPkgs
 from apollo.database.table import create_vul_tables
-from apollo.database.mapping import MAPPINGS
-from apollo.conf import configuration
-from apollo.conf.constant import CVE_INDEX, TASK_INDEX
-
+from vulcanus.database.helper import drop_tables, create_database_engine
+from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.database.table import Base, User, Host, HostGroup, create_utils_tables
 
 __all__ = ["setup_mysql_db", "tear_down_mysql_db", "setup_es_db", "tear_down_es_db",
            "SESSION", "ENGINE"]
@@ -62,8 +62,8 @@ class TestMysqlDb(MysqlProxy):
             "host_group_name": "group1",
             "host_group_id": 1,
             "user": "admin",
-            "host_id": "id1",
-            "public_ip": "127.0.0.1",
+            "host_id": 1,
+            "host_ip": "127.0.0.1",
             "management": False,
             "status": "done",
             "repo_name": "repo1",
@@ -77,14 +77,28 @@ class TestMysqlDb(MysqlProxy):
             "host_group_name": "group1",
             "host_group_id": 1,
             "user": "admin",
-            "host_id": "id2",
-            "public_ip": "127.0.0.2",
+            "host_id": 2,
+            "host_ip": "127.0.0.2",
             "management": False,
             "status": "scanning",
             "repo_name": "repo1",
             "last_scan": 123836152
         }
         host = Host(**host_data_2)
+        self.session.add(host)
+        host_data_3 = {
+            "host_name": "host3",
+            "host_group_name": "group1",
+            "host_group_id": 1,
+            "user": "admin",
+            "host_id": 3,
+            "host_ip": "127.0.0.2",
+            "management": False,
+            "status": "scanning",
+            "repo_name": "repo1",
+            "last_scan": 123837152
+        }
+        host = Host(**host_data_3)
         self.session.add(host)
         self.session.commit()
 
@@ -199,7 +213,7 @@ class TestMysqlDb(MysqlProxy):
     def add_task(self):
         task_data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "task_type": "cve",
+            "task_type": "cve fix",
             "description": "cve task 1",
             "task_name": "fix cve",
             "latest_execute_time": 128467234,
@@ -214,7 +228,7 @@ class TestMysqlDb(MysqlProxy):
 
         task_data = {
             "task_id": "2222222222poiuytrewqasdfghjklmnb",
-            "task_type": "cve",
+            "task_type": "cve fix",
             "description": "cve task 2",
             "task_name": "fix cve",
             "latest_execute_time": 128467235,
@@ -229,7 +243,7 @@ class TestMysqlDb(MysqlProxy):
 
         task_data = {
             "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
-            "task_type": "repo",
+            "task_type": "repo set",
             "description": "abcd",
             "task_name": "set repo",
             "latest_execute_time": 128467236,
@@ -275,38 +289,53 @@ class TestMysqlDb(MysqlProxy):
         self.session.add(cve_task)
         self.session.commit()
 
-    def add_cve_host(self):
+    def add_cve_host_match(self):
         cve_host_data = {
             "cve_id": "qwfqwff3",
-            "host_id": "id2"
+            "host_id": 3,
+            "affected": 0,
+            "fixed": 1,
+            "hotpatch": 1
         }
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
         cve_host_data = {
             "cve_id": "qwfqwff4",
-            "host_id": "id2"
+            "host_id": 2,
+            "affected": 1,
+            "fixed": 1,
+            "hotpatch": 0
         }
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
         cve_host_data = {
             "cve_id": "qwfqwff5",
-            "host_id": "id2"
+            "host_id": 2,
+            "affected": 1,
+            "fixed": 0,
+            "hotpatch": 1
         }
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
         cve_host_data = {
             "cve_id": "qwfqwff3",
-            "host_id": "id1"
+            "host_id": 1,
+            "affected": 0,
+            "fixed": 1,
+            "hotpatch": 0
         }
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
         cve_host_data = {
             "cve_id": "qwfqwff4",
-            "host_id": "id1"
+            "host_id": 1,
+            "affected": 1,
+            "fixed": 1,
+            "hotpatch": 1
         }
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
@@ -317,10 +346,10 @@ class TestMysqlDb(MysqlProxy):
         task_cve_host_data = {
             "cve_id": "qwfqwff3",
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "host_id": "id2",
+            "host_id": 2,
             "host_name": "host2",
-            "public_ip": "127.0.0.2",
-            "status": "unfixed"
+            "host_ip": "127.0.0.2",
+            "status": "unknown"
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -328,9 +357,9 @@ class TestMysqlDb(MysqlProxy):
         task_cve_host_data = {
             "cve_id": "qwfqwff3",
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "host_id": "id1",
+            "host_id": 1,
             "host_name": "host1",
-            "public_ip": "127.0.0.1",
+            "host_ip": "127.0.0.1",
             "status": "running"
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
@@ -339,10 +368,10 @@ class TestMysqlDb(MysqlProxy):
         task_cve_host_data = {
             "cve_id": "qwfqwff4",
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "host_id": "id1",
+            "host_id": 3,
             "host_name": "host1",
-            "public_ip": "127.0.0.1",
-            "status": "fixed"
+            "host_ip": "127.0.0.1",
+            "status": "succeed"
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -351,10 +380,10 @@ class TestMysqlDb(MysqlProxy):
         task_cve_host_data = {
             "cve_id": "qwfqwff5",
             "task_id": "2222222222poiuytrewqasdfghjklmnb",
-            "host_id": "id2",
+            "host_id": 2,
             "host_name": "host2",
-            "public_ip": "127.0.0.2",
-            "status": "unfixed"
+            "host_ip": "127.0.0.2",
+            "status": "fail"
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -364,10 +393,10 @@ class TestMysqlDb(MysqlProxy):
         task_repo_host_data = {
             "repo_name": "repo1",
             "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
-            "host_id": "id1",
+            "host_id": 1,
             "host_name": "host1",
-            "public_ip": "127.0.0.1",
-            "status": "set"
+            "host_ip": "127.0.0.1",
+            "status": "running"
         }
         task_repo_host = TaskHostRepoAssociation(**task_repo_host_data)
         self.session.add(task_repo_host)
@@ -375,10 +404,10 @@ class TestMysqlDb(MysqlProxy):
         task_repo_host_data = {
             "repo_name": "repo2",
             "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
-            "host_id": "id2",
+            "host_id": 2,
             "host_name": "host2",
-            "public_ip": "127.0.0.2",
-            "status": "unset"
+            "host_ip": "127.0.0.2",
+            "status": "fail"
         }
         task_repo_host = TaskHostRepoAssociation(**task_repo_host_data)
         self.session.add(task_repo_host)
@@ -387,42 +416,60 @@ class TestMysqlDb(MysqlProxy):
     def add_cve_pkgs(self):
         cve_pkg_data = {
             "cve_id": "qwfqwff3",
-            "package": "ansible"
+            "package": "ansible",
+            "package_version": "1.2.3",
+            "os_version": "",
+            "affected": 0
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
 
         cve_pkg_data = {
             "cve_id": "qwfqwff3",
-            "package": "tensorflow"
+            "package": "tensorflow",
+            "package_version": "1.2.3",
+            "os_version": "openEuler-20.03-LTS-SP3",
+            "affected": 0
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
 
         cve_pkg_data = {
             "cve_id": "qwfqwff4",
-            "package": "ansible"
+            "package": "ansible",
+            "package_version": "0.2.3",
+            "os_version": "openEuler-20.03-LTS-SP3",
+            "affected": 1
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
 
         cve_pkg_data = {
             "cve_id": "qwfqwff4",
-            "package": "redis"
+            "package": "redis",
+            "package_version": "1.3",
+            "os_version": "openEuler-20.03-LTS-SP3",
+            "affected": 1
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
 
         cve_pkg_data = {
             "cve_id": "qwfqwff5",
-            "package": ""
+            "package": "",
+            "package_version": "1.6.3",
+            "os_version": "openEuler-20.03-LTS-SP3",
+            "affected": 1
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
 
         cve_pkg_data = {
             "cve_id": "qwfqwff6",
-            "package": "redis"
+            "package": "redis",
+            "package_version": "0.6.3",
+            "os_version": "openEuler-20.03-LTS-SP3",
+            "affected": 1
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -438,7 +485,7 @@ class TestEsDb(ElasticsearchProxy):
             "latest_execute_time": 128467234,
             "task_result": [
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "running",
@@ -462,7 +509,7 @@ class TestEsDb(ElasticsearchProxy):
                     ]
                 },
                 {
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
                     "status": "fail",
@@ -496,7 +543,7 @@ class TestEsDb(ElasticsearchProxy):
             "latest_execute_time": 123836141,
             "task_result": [
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "succeed",
@@ -564,7 +611,7 @@ test_mysql_db = TestMysqlDb()
 # create engine to database
 mysql_host = "127.0.0.1"
 mysql_port = 3306
-mysql_url_format = "mysql+pymysql://@%s:%s/%s"
+mysql_url_format = "mysql+pymysql://root@%s:%s/%s"
 mysql_database_name = "aops_test"
 engine_url = mysql_url_format % (
     mysql_host, mysql_port, mysql_database_name)
@@ -586,7 +633,7 @@ def setup_mysql_db():
     test_mysql_db.add_cve_user_status()
     test_mysql_db.add_task()
     test_mysql_db.add_cve_task_info()
-    test_mysql_db.add_cve_host()
+    test_mysql_db.add_cve_host_match()
     test_mysql_db.add_task_cve_host()
     test_mysql_db.add_task_repo_host()
     test_mysql_db.add_cve_pkgs()

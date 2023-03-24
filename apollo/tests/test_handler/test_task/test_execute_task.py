@@ -19,8 +19,8 @@ import unittest
 from unittest import mock
 from flask import Flask
 
-from vulcanus.restful.response import MyResponse
-from vulcanus.restful.status import DATABASE_CONNECT_ERROR, NO_DATA, PARAM_ERROR, StatusCode, SUCCEED, REPEAT_TASK_EXECUTION
+from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, NO_DATA, PARAM_ERROR, StatusCode, SUCCEED, REPEAT_TASK_EXECUTION
 from apollo import BLUE_POINT
 from apollo.conf import *
 from apollo.conf.constant import VUL_TASk_EXECUTE
@@ -44,7 +44,7 @@ class TestExecuteTaskView(unittest.TestCase):
         self.headers = {"access_token": "123456"}
 
     @mock.patch.object(VulExecuteTask, '_handle')
-    @mock.patch.object(MyResponse, 'verify_token')
+    @mock.patch.object(BaseResponse, 'verify_token')
     def test_schema(self, mock_verify_token, mock_handle):
         mock_verify_token.return_value = SUCCEED
         mock_handle.return_value = SUCCEED

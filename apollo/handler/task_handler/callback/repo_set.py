@@ -17,7 +17,7 @@ Description: callback function of the repo setting task.
 """
 from apollo.handler.task_handler.callback import TaskCallback
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class RepoSetCallback(TaskCallback):

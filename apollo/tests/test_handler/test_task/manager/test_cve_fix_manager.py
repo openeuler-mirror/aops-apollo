@@ -23,7 +23,7 @@ from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SUCCEED, PARAM_ERROR, SERVER_ERROR
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, SERVER_ERROR
 
 
 class CveFixManagerTestCase(unittest.TestCase):
@@ -117,7 +117,7 @@ class CveFixManagerTestCase(unittest.TestCase):
             self, mock_fault_handle, mock_save_result):
         manager = CveFixManager(Mock(), Mock())
         fake_result = [{
-            "host_id": "id1",
+            "host_id": 1,
             "check_items": [
                 {
                     "item": "net",
@@ -133,7 +133,7 @@ class CveFixManagerTestCase(unittest.TestCase):
             ]
         },
             {
-                "host_id": "id2",
+                "host_id": 2,
                 "check_items": [],
                 "cves": [
                     {
@@ -149,7 +149,7 @@ class CveFixManagerTestCase(unittest.TestCase):
                 ]
         },
             {
-                "host_id": "id2",
+                "host_id": 2,
                 "check_items": [
                     {
                         "item": "net",

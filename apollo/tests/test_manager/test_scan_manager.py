@@ -22,7 +22,7 @@ from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from apollo.conf import configuration
 from apollo.database.proxy.task import TaskProxy, TaskMysqlProxy
 
-from vulcanus.restful.status import SUCCEED
+from vulcanus.restful.resp.state import SUCCEED
 
 
 class TestScanManager(unittest.TestCase):
@@ -31,12 +31,12 @@ class TestScanManager(unittest.TestCase):
         self.host_info = [
             {
                 "host_name": "name1",
-                "host_id": "id1",
+                "host_id": 1,
                 "host_ip": "ip1"
             },
             {
                 "host_name": "name2",
-                "host_id": "id2",
+                "host_id": 2,
                 "host_ip": "ip2"
             }
         ]

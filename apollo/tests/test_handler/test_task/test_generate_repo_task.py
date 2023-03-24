@@ -19,12 +19,12 @@ import unittest
 from unittest import mock
 from flask import Flask
 
-from vulcanus.restful.status import DATABASE_CONNECT_ERROR, PARAM_ERROR, StatusCode, SUCCEED
+from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, PARAM_ERROR, StatusCode, SUCCEED
 from apollo import BLUE_POINT
 from apollo.conf import *
 from apollo.conf.constant import VUL_TASK_REPO_GENERATE
 from apollo.database.proxy.task import TaskProxy
-from apollo.handler.task_handler.manager.playbook_manager import RepoPlaybook
+# from apollo.handler.task_handler.manager.playbook_manager import RepoPlaybook
 from apollo.handler.task_handler.view import VulGenerateRepoTask
 
 
@@ -51,7 +51,7 @@ class TestGenerateRepoTaskView(unittest.TestCase):
             "repo_name": "r",
             "info": [
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "name1",
                     "host_ip": "1.1.1.1"
                 }
@@ -70,7 +70,6 @@ class TestGenerateRepoTaskView(unittest.TestCase):
             "repo_name": "r",
             "info": [
                 {
-                    "host_id": 1,
                     "host_name": "name1",
                     "host_ip": "1.1.1.1"
                 }

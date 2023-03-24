@@ -28,7 +28,7 @@ from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
+from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
     SUCCEED, DATABASE_UPDATE_ERROR
 
 
