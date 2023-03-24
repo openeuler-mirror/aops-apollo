@@ -22,7 +22,7 @@ from apollo.conf import configuration
 from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
 from apollo.cron import TimedTaskBase
 from apollo.cron.manager import get_timed_task_config_info
-from apollo.database import SESSION
+from apollo.database import session_maker
 from apollo.database.proxy.task import TaskProxy
 from vulcanus.log.log import LOGGER
 
@@ -39,10 +39,9 @@ class TimedCorrectTask(TimedTaskBase):
         """
         Start the correct after the specified time of day.
         """
-        LOGGER.info("Begin to correct the whole host in %s.",
-                    str(datetime.datetime.now()))
+        LOGGER.info("Begin to correct the whole host in %s.", str(datetime.datetime.now()))
         proxy = TaskProxy(configuration)
-        if not proxy.connect(SESSION):
+        if not proxy.connect(session_maker()):
             LOGGER.error("Connect to database fail, return.")
 
         abnormal_task_list = TimedCorrectTask.get_abnormal_task(proxy)

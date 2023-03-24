@@ -15,25 +15,27 @@ Time:
 Author:
 Description:
 """
-from time import sleep
-from copy import deepcopy
 import unittest
+from copy import deepcopy
+from time import sleep
 from unittest import mock
+
+from flask import g
 from sqlalchemy.exc import SQLAlchemyError
 
-from vulcanus.restful.status import SUCCEED, NO_DATA, DATABASE_INSERT_ERROR, PARTIAL_SUCCEED, \
-    DATABASE_UPDATE_ERROR, SERVER_ERROR, DATABASE_QUERY_ERROR
-from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, setup_es_db, \
-    tear_down_es_db, SESSION
 from apollo.conf import configuration
-from apollo.database.proxy.task import TaskEsProxy, TaskProxy
-from apollo.database.proxy.host import HostProxy
 from apollo.conf.constant import ES_TEST_FLAG
+from apollo.database import session_maker
+from apollo.database.proxy.host import HostProxy
+from apollo.database.proxy.task import TaskProxy
+from apollo.tests.test_database.helper import  setup_mysql_db, tear_down_mysql_db, setup_es_db, tear_down_es_db
+from vulcanus.restful.resp.state import SUCCEED, NO_DATA, DATABASE_INSERT_ERROR, PARTIAL_SUCCEED, \
+    SERVER_ERROR
 
 
 class TestTaskMysqlFirst(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(SESSION)
+    task_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):
@@ -47,17 +49,24 @@ class TestTaskMysqlFirst(unittest.TestCase):
         # query all host's info
         expected_result = [
             {
-                "host_id": "id1",
+                "host_id": 1,
                 "host_name": "host1",
                 "host_ip": "127.0.0.1",
                 "status": "done"
             },
             {
-                "host_id": "id2",
+                "host_id": 2,
                 "host_name": "host2",
                 "host_ip": "127.0.0.2",
                 "status": "scanning"
+            },
+            {
+                "host_id": 3,
+                "host_name": "host3",
+                "host_ip": "127.0.0.2",
+                "status": "scanning"
             }
+
         ]
         self.assertEqual(self.task_database.get_scan_host_info(
             "admin", []), expected_result)
@@ -65,52 +74,47 @@ class TestTaskMysqlFirst(unittest.TestCase):
         # query one host's info
         expected_result = [
             {
-                "host_id": "id2",
+                "host_id": 2,
                 "host_name": "host2",
                 "host_ip": "127.0.0.2",
                 "status": "scanning"
             }
         ]
         self.assertEqual(self.task_database.get_scan_host_info(
-            "admin", ["id2"]), expected_result)
+            "admin", [2]), expected_result)
 
-    def test_init_host_scan_status(self):
+    def test_update_host_scan(self):
         # update not exist host
-        self.assertEqual(self.task_database.init_host_scan(
-            "admin", ["not_exist_id1", "id1"]), NO_DATA)
+        self.assertEqual(self.task_database.update_host_scan(
+            "init", [4, 1]), NO_DATA)
+
+        self.assertEqual(self.task_database.update_host_scan(
+            "finish", [4, 2]), SUCCEED)
 
         # update exist host
-        self.assertEqual(self.task_database.init_host_scan(
-            "admin", ["id1", "id2"]), SUCCEED)
+        self.assertEqual(self.task_database.update_host_scan(
+            "init", [1, 2]), SUCCEED)
 
         host_database = HostProxy(configuration)
-        host_database.connect(SESSION)
-        self.assertEqual(host_database.get_hosts_status({"host_list": ["id1", "id2"], "username": "admin"}),
-                         (SUCCEED, {"result": {"id1": "scanning", "id2": "scanning"}}))
+        host_database.connect(session_maker())
+        self.assertEqual(host_database.get_hosts_status({"host_list": [1, 2], "username": "admin"}),
+                         (SUCCEED, {"result": {1: "scanning", 2: "scanning"}}))
+        self.assertEqual(self.task_database.update_host_scan(
+            "finish", [1, 2]), SUCCEED)
+
+        host_database = HostProxy(configuration)
+        host_database.connect(session_maker())
+        self.assertEqual(host_database.get_hosts_status({"host_list": [1, 2], "username": "admin"}),
+                         (SUCCEED, {"result": {1: "done", 2: "done"}}))
 
         # update all host
-        # revert hosts' status
-        self.task_database.update_scan_status(["id1", "id2"])
-        self.assertEqual(host_database.get_hosts_status({"host_list": ["id1", "id2"], "username": "admin"}),
-                         (SUCCEED, {"result": {"id1": "done", "id2": "done"}}))
-        self.assertEqual(self.task_database.init_host_scan(
-            "admin", ["id1", "id2"]), SUCCEED)
-        self.assertEqual(host_database.get_hosts_status({"host_list": ["id1", "id2"], "username": "admin"}),
-                         (SUCCEED, {"result": {"id1": "scanning", "id2": "scanning"}}))
+        self.task_database.update_host_scan("init", [])
+        self.assertEqual(host_database.get_hosts_status({"host_list": [], "username": "admin"}),
+                         (SUCCEED, {"result": {1: "scanning", 2: "scanning", 3: "scanning"}}))
 
-    def test_update_host_scan_status(self):
-        # update not exist host
-        self.assertEqual(self.task_database.update_scan_status(
-            ["not_exist_id1", "id1"]), NO_DATA)
-
-        # update exist host
-        self.assertEqual(self.task_database.update_scan_status(
-            ["id1", "id2"]), SUCCEED)
-
-        host_database = HostProxy(configuration)
-        host_database.connect(SESSION)
-        self.assertEqual(host_database.get_hosts_status({"host_list": ["id1", "id2"], "username": "admin"}),
-                         (SUCCEED, {"result": {"id1": "done", "id2": "done"}}))
+        self.task_database.update_host_scan("finish", [])
+        self.assertEqual(host_database.get_hosts_status({"host_list": [], "username": "admin"}),
+                         (SUCCEED, {"result": {1: "done", 2: "done", 3: "done"}}))
 
     def test_get_task_list(self):
         data = {
@@ -127,17 +131,17 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "result": [
                 {
                     "task_id": '1111111111poiuytrewqasdfghjklmnb',
-                    "task_name": "fix cve", "task_type": "cve",
+                    "task_name": "fix cve", "task_type": "cve fix",
                     "description": "cve task 1", "host_num": 2, "create_time": 123836139
                 },
                 {
                     "task_id": '2222222222poiuytrewqasdfghjklmnb',
-                    "task_name": "fix cve", "task_type": "cve",
+                    "task_name": "fix cve", "task_type": "cve fix",
                     "description": "cve task 2", "host_num": 1, "create_time": 123836140
                 },
                 {
                     "task_id": 'aaaaaaaaaapoiuytrewqasdfghjklmnb',
-                    "task_name": "set repo", "task_type": "repo",
+                    "task_name": "set repo", "task_type": "repo set",
                     "description": "abcd", "host_num": 1, "create_time": 123836141
                 }
             ]
@@ -159,17 +163,17 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "result": [
                 {
                     "task_id": 'aaaaaaaaaapoiuytrewqasdfghjklmnb',
-                    "task_name": "set repo", "task_type": "repo",
+                    "task_name": "set repo", "task_type": "repo set",
                     "description": "abcd", "host_num": 1, "create_time": 123836141
                 },
                 {
                     "task_id": '2222222222poiuytrewqasdfghjklmnb',
-                    "task_name": "fix cve", "task_type": "cve",
+                    "task_name": "fix cve", "task_type": "cve fix",
                     "description": "cve task 2", "host_num": 1, "create_time": 123836140
                 },
                 {
                     "task_id": '1111111111poiuytrewqasdfghjklmnb',
-                    "task_name": "fix cve", "task_type": "cve",
+                    "task_name": "fix cve", "task_type": "cve fix",
                     "description": "cve task 1", "host_num": 2, "create_time": 123836139
                 }
             ]
@@ -184,7 +188,7 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "page": 1,
             "per_page": 10,
             "username": "admin",
-            "filter": {"task_type": ["repo"]}
+            "filter": {"task_type": ["repo set"]}
         }
         expected_query_result = {
             "total_count": 1,
@@ -192,7 +196,7 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "result": [
                 {
                     "task_id": 'aaaaaaaaaapoiuytrewqasdfghjklmnb',
-                    "task_name": "set repo", "task_type": "repo",
+                    "task_name": "set repo", "task_type": "repo set",
                     "description": "abcd", "host_num": 1, "create_time": 123836141
                 }
             ]
@@ -208,10 +212,10 @@ class TestTaskMysqlFirst(unittest.TestCase):
         expected_query_result = {
             "result": {
                 "1111111111poiuytrewqasdfghjklmnb": {
-                    "succeed": 0,
-                    "fail": 1,
+                    "succeed": 1,
+                    "fail": 0,
                     "running": 1,
-                    "unknown": 0
+                    "unknown": 1
                 },
                 "2222222222poiuytrewqasdfghjklmnb": {
                     "succeed": 0,
@@ -220,9 +224,9 @@ class TestTaskMysqlFirst(unittest.TestCase):
                     "unknown": 0
                 },
                 "aaaaaaaaaapoiuytrewqasdfghjklmnb": {
-                    "succeed": 1,
+                    "succeed": 0,
                     "fail": 1,
-                    "running": 0,
+                    "running": 1,
                     "unknown": 0
                 }
             }
@@ -317,16 +321,16 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "result": {
                 "qwfqwff3": [
                     {
-                        "host_id": "id1",
+                        "host_id": 1,
                         "host_name": "host1",
                         "host_ip": "127.0.0.1",
                         "status": "running"
                     },
                     {
-                        "host_id": "id2",
+                        "host_id": 2,
                         "host_name": "host2",
                         "host_ip": "127.0.0.2",
-                        "status": "unfixed"
+                        "status": "unknown"
                     }
                 ]
             }
@@ -345,24 +349,24 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "result": {
                 "qwfqwff3": [
                     {
-                        "host_id": "id1",
+                        "host_id": 1,
                         "host_name": "host1",
                         "host_ip": "127.0.0.1",
                         "status": "running"
                     },
                     {
-                        "host_id": "id2",
+                        "host_id": 2,
                         "host_name": "host2",
                         "host_ip": "127.0.0.2",
-                        "status": "unfixed"
+                        "status": "unknown"
                     }
                 ],
                 "qwfqwff4": [
                     {
-                        "host_id": "id1",
+                        "host_id": 3,
                         "host_name": "host1",
                         "host_ip": "127.0.0.1",
-                        "status": "fixed"
+                        "status": "succeed"
                     }
                 ]
             }
@@ -445,24 +449,19 @@ class TestTaskMysqlFirst(unittest.TestCase):
 
     def test_get_cve_basic_info(self):
         task_id = "1111111111poiuytrewqasdfghjklmnb"
-        expected_result = [
-            {
-                "cve_id": "qwfqwff3",
-                "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
-                              {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
-                "reboot": False
-            },
-            {
-                "cve_id": "qwfqwff4",
-                "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"}],
-                "reboot": True
-            }
-        ]
+        expected_result = {'check_items': [],
+                           'task_id': '1111111111poiuytrewqasdfghjklmnb',
+                           'task_name': 'fix cve',
+                           'task_type': 'cve fix',
+                           'tasks': [{'check': False, 'cves': ['qwfqwff3'], 'host_id': 1},
+                                     {'check': False, 'cves': ['qwfqwff3'], 'host_id': 2},
+                                     {'check': False, 'cves': ['qwfqwff4'], 'host_id': 3}],
+                           'total_hosts': [1, 2, 3]}
         self.assertEqual(self.task_database.get_cve_basic_info(
             task_id), (SUCCEED, expected_result))
 
         task_id = "not_exist_id"
-        expected_result = []
+        expected_result = {}
         self.assertEqual(self.task_database.get_cve_basic_info(
             task_id), (NO_DATA, expected_result))
 
@@ -470,7 +469,7 @@ class TestTaskMysqlFirst(unittest.TestCase):
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "cve_id": "qwfqwff3",
-            "host_id": "id1",
+            "host_id": 1,
             "status": "fixed"
         }
         self.assertEqual(self.task_database.update_cve_status(**data), SUCCEED)
@@ -478,21 +477,41 @@ class TestTaskMysqlFirst(unittest.TestCase):
         data = {
             "task_id": "not_exist_id",
             "cve_id": "qwfqwff3",
-            "host_id": "id1",
+            "host_id": 1,
             "status": "fixed"
         }
         self.assertEqual(self.task_database.update_cve_status(
-            **data), DATABASE_UPDATE_ERROR)
+            **data), NO_DATA)
+
+    def test_get_running_task_form_task_cve_host(self):
+        self.assertEqual(self.task_database.get_running_task_form_task_cve_host(),
+                         ['1111111111poiuytrewqasdfghjklmnb'])
+
+    def test_get_running_task_form_task_host_repo(self):
+        self.assertEqual(self.task_database.get_running_task_form_task_host_repo(),
+                         ["aaaaaaaaaapoiuytrewqasdfghjklmnb"])
+
+    def test_get_task_create_time(self):
+        self.assertEqual(self.task_database.get_task_create_time(),
+                         [("1111111111poiuytrewqasdfghjklmnb", "cve fix", 123836139),
+                          ("aaaaaaaaaapoiuytrewqasdfghjklmnb", "repo set", 123836141)])
+
+    def test_update_task_status(self):
+        data = ["2ab6d20a67a311edb556c85acf0079ce", "2d987ccd67a311eda545c85acf0179ce"]
+        self.assertEqual(self.task_database.update_task_status(data), SUCCEED)
+
+        data = ["not_exist_id"]
+        self.assertEqual(self.task_database.update_task_status(data), SUCCEED)
 
 
 class TestTaskMysqlSecond(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(SESSION)
+    task_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):
         setup_mysql_db()
-
+    #
     @classmethod
     def tearDownClass(cls):
         tear_down_mysql_db()
@@ -589,17 +608,17 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "result": [
                 {
                     "repo_name": "repo1",
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
-                    "status": "set"
+                    "status": "running"
                 },
                 {
                     "repo_name": "repo2",
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
-                    "status": "unset"
+                    "status": "fail"
                 }
             ],
             "total_count": 2,
@@ -618,7 +637,7 @@ class TestTaskMysqlSecond(unittest.TestCase):
         expected_result_3 = deepcopy(expected_result)
         expected_result_3["result"] = [expected_result["result"][1]]
         expected_result_3["total_count"] = 1
-        data["filter"] = {"host_name": "", "status": ["unset"]}
+        data["filter"] = {"host_name": "host2", "status": ["fail"]}
         self.assertEqual(self.task_database.get_repo_task_info(
             data), (SUCCEED, expected_result_3))
 
@@ -626,7 +645,6 @@ class TestTaskMysqlSecond(unittest.TestCase):
         expected_result_4 = deepcopy(expected_result)
         expected_result_4["result"] = [expected_result["result"][0]]
         expected_result_4["total_page"] = 2
-        print(self.task_database.get_repo_task_info(data2))
         self.assertEqual(self.task_database.get_repo_task_info(
             data2), (SUCCEED, expected_result_4))
 
@@ -641,14 +659,14 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "result": [
                 {
                     "repo_name": "repo1",
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "running"
                 },
                 {
                     "repo_name": "repo2",
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
                     "status": "running"
@@ -663,7 +681,7 @@ class TestTaskMysqlSecond(unittest.TestCase):
 
         data = {
             "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
-            "host_list": ["id1"],
+            "host_list": [1],
             "status": "set"
         }
         self.assertEqual(self.task_database.set_repo_status(**data), SUCCEED)
@@ -671,14 +689,14 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "result": [
                 {
                     "repo_name": "repo1",
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "set"
                 },
                 {
                     "repo_name": "repo2",
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
                     "status": "running"
@@ -702,13 +720,13 @@ class TestTaskMysqlSecond(unittest.TestCase):
             "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
             "username": "admin"
         }
-        self.assertEqual(self.task_database.get_task_type(**data), "repo")
+        self.assertEqual(self.task_database.get_task_type(**data), "repo set")
 
         data = {
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "username": "admin"
         }
-        self.assertEqual(self.task_database.get_task_type(**data), "cve")
+        self.assertEqual(self.task_database.get_task_type(**data), "cve fix")
 
     def test_update_execute_time(self):
         data = {
@@ -723,7 +741,7 @@ class TestTaskMysqlSecond(unittest.TestCase):
 
     def test_save_cve_scan_result(self):
         host_database = HostProxy(configuration)
-        host_database.connect(SESSION)
+        host_database.connect(session_maker())
         host_data = {
             "sort": "cve_num",
             "direction": "desc",
@@ -804,22 +822,22 @@ class TestTaskMysqlSecond(unittest.TestCase):
 
     def test_check_task_status(self):
         result = self.task_database.check_task_status(
-            "1111111111poiuytrewqasdfghjklmnb", 'cve')
+            "1111111111poiuytrewqasdfghjklmnb", 'cve fix')
         self.assertEqual(result, False)
 
         result = self.task_database.check_task_status(
-            "2222222222poiuytrewqasdfghjklmnb", 'cve')
+            "2222222222poiuytrewqasdfghjklmnb", 'cve fix')
         self.assertEqual(result, True)
 
         result = self.task_database.check_task_status(
-            "aaaaaaaaaapoiuytrewqasdfghjklmnb", 'repo')
-        self.assertEqual(result, True)
+            "aaaaaaaaaapoiuytrewqasdfghjklmnb", 'repo set')
+        self.assertEqual(result, False)
 
 
 @unittest.skipUnless(ES_TEST_FLAG, "The test cases will remove all the data on es, never run on real environment.")
 class TestTaskEsProxy(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(SESSION)
+    task_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):
@@ -840,7 +858,7 @@ class TestTaskEsProxy(unittest.TestCase):
         result["hits"]["hits"][0]["_source"].pop("log")
         self.assertEqual(result["hits"]["hits"][0]["_source"],
                          {"task_id": "1111111111poiuytrewqasdfghjklmnb", "playbook": "changed_playbook",
-                                     "inventory": "test_inventory", "username": "admin"})
+                          "inventory": "test_inventory", "username": "admin"})
 
         status_code = self.task_database.save_task_info(
             "1111111111poiuytrewqasdfghjklmnb", inventory="changed_inventory")
@@ -851,7 +869,7 @@ class TestTaskEsProxy(unittest.TestCase):
         result["hits"]["hits"][0]["_source"].pop("log")
         self.assertEqual(result["hits"]["hits"][0]["_source"],
                          {"task_id": "1111111111poiuytrewqasdfghjklmnb", "playbook": "changed_playbook",
-                                     "inventory": "changed_inventory", "username": "admin"})
+                          "inventory": "changed_inventory", "username": "admin"})
 
         status_code = self.task_database.save_task_info(
             "new_task", "new_playbook")
@@ -869,7 +887,7 @@ class TestTaskEsProxy(unittest.TestCase):
             "latest_execute_time": 128467234,
             "task_result": [
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "running",
@@ -888,7 +906,7 @@ class TestTaskEsProxy(unittest.TestCase):
                     ]
                 },
                 {
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
                     "status": "fail",
@@ -923,7 +941,7 @@ class TestTaskEsProxy(unittest.TestCase):
             "latest_execute_time": 123836141,
             "task_result": [
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "succeed",
@@ -944,7 +962,7 @@ class TestTaskEsProxy(unittest.TestCase):
 @unittest.skipUnless(ES_TEST_FLAG, "The test cases will remove all the data on es, never run on real environment.")
 class TestTaskProxy(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(SESSION)
+    task_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):
@@ -963,18 +981,18 @@ class TestTaskProxy(unittest.TestCase):
             "info": [
                 {
                     "cve_id": "qwfqwff3",
-                    "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
-                                  {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
+                    "host_info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"},
+                                  {"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}],
                     "reboot": False
                 },
                 {
                     "cve_id": "qwfqwff4",
-                    "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"}],
+                    "host_info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"}],
                     "reboot": True
                 },
                 {
                     "cve_id": "qwfqwff5",
-                    "host_info": [{"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
+                    "host_info": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}],
                     "reboot": False
                 }
             ]
@@ -983,30 +1001,30 @@ class TestTaskProxy(unittest.TestCase):
         expected_query_result = [
             {
                 "cve_id": "qwfqwff3",
-                "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
-                              {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
+                "host_info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"},
+                              {"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}],
                 "reboot": False
             },
             {
                 "cve_id": "qwfqwff4",
-                "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"}],
+                "host_info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"}],
                 "reboot": True
             },
             {
                 "cve_id": "qwfqwff5",
-                "host_info": [{"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
+                "host_info": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}],
                 "reboot": False
             }
         ]
         self.assertEqual(self.task_database.generate_cve_task(
-            data), (SUCCEED, expected_query_result))
+            data), (SUCCEED))
 
         new_data["task_id"] = "4444444444poiuytrewqasdfghjklmnb"
         new_data["create_time"] = 123836145
         new_data["auto_reboot"] = False
         expected_query_result[1]["reboot"] = False
         self.assertEqual(self.task_database.generate_cve_task(
-            new_data), (SUCCEED, expected_query_result))
+            new_data), (SUCCEED))
 
     @mock.patch.object(TaskProxy, "_insert_cve_task_tables")
     def test_generate_cve_task_error(self, mock_insert):
@@ -1017,24 +1035,24 @@ class TestTaskProxy(unittest.TestCase):
             "info": [
                 {
                     "cve_id": "qwfqwff3",
-                    "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
-                                  {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
+                    "host_info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"},
+                                  {"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}],
                     "reboot": False
                 },
                 {
                     "cve_id": "qwfqwff4",
-                    "host_info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"}],
+                    "host_info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"}],
                     "reboot": True
                 },
                 {
                     "cve_id": "qwfqwff5",
-                    "host_info": [{"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}],
+                    "host_info": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}],
                     "reboot": False
                 }
             ]
         }
         self.assertEqual(self.task_database.generate_cve_task(
-            data), (DATABASE_INSERT_ERROR, []))
+            data), (DATABASE_INSERT_ERROR))
 
     def test_gen_repo_task(self):
         data = {
@@ -1045,8 +1063,8 @@ class TestTaskProxy(unittest.TestCase):
             "description": "added repo task desc",
             "repo_name": "aaa repo",
             "create_time": 123836146,
-            "info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
-                     {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}]
+            "info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"},
+                     {"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}]
         }
         self.assertEqual(self.task_database.generate_repo_task(data), SUCCEED)
         expected_task_info = {
@@ -1066,17 +1084,17 @@ class TestTaskProxy(unittest.TestCase):
             "result": [
                 {
                     "repo_name": "aaa repo",
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
-                    "status": "unset"
+                    "status": "fail"
                 },
                 {
                     "repo_name": "aaa repo",
-                    "host_id": "id2",
+                    "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
-                    "status": "unset"
+                    "status": "fail"
                 }
             ],
             "total_count": 2,
@@ -1097,8 +1115,8 @@ class TestTaskProxy(unittest.TestCase):
             "description": "added repo task desc",
             "repo_name": "aaa repo",
             "create_time": 123836146,
-            "info": [{"host_id": "id1", "host_name": "host1", "host_ip": "127.0.0.1"},
-                     {"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}]
+            "info": [{"host_id": 1, "host_name": "host1", "host_ip": "127.0.0.1"},
+                     {"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}]
         }
         self.assertEqual(self.task_database.generate_repo_task(
             data), DATABASE_INSERT_ERROR)

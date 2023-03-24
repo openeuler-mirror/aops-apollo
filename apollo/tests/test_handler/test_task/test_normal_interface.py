@@ -19,9 +19,9 @@ import unittest
 from unittest import mock
 from flask import Flask
 
-from vulcanus.restful.response import SUCCEED, PARAM_ERROR
+from vulcanus.restful.resp import make_response
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import StatusCode
 from apollo import BLUE_POINT
 from apollo.conf import *
 from apollo.conf.constant import VUL_TASK_CVE_INFO_GET, VUL_TASK_CVE_PROGRESS_GET, VUL_TASK_CVE_RESULT_GET, VUL_TASK_CVE_STATUS_GET, VUL_TASK_DELETE, VUL_TASK_INFO_GET, VUL_TASK_LIST_GET, VUL_TASK_PROGRESS_GET, VUL_TASK_REPO_INFO_GET, VUL_TASK_REPO_RESULT_GET
@@ -36,8 +36,8 @@ app.testing = True
 client = app.test_client()
 headers = {"access_token": "123456"}
 
-succeed_response = StatusCode.make_response(SUCCEED)
-param_error_response = StatusCode.make_response(PARAM_ERROR)
+succeed_response = make_response(SUCCEED)
+param_error_response = make_response(PARAM_ERROR)
 
 class TestGetTaskListView(unittest.TestCase):
     @mock.patch("vulcanus.restful.response.operate")
@@ -47,7 +47,7 @@ class TestGetTaskListView(unittest.TestCase):
         args = {
             "filter": {
                 "task_name": "a",
-                "task_type": ["cve"]
+                "task_type": ["cve fix"]
             }
         }
 
@@ -222,7 +222,7 @@ class TestGetRepoTaskResultView(unittest.TestCase):
         mock_verify_token.return_value = SUCCEED
         args = {
             "task_id": "s",
-            "host_list": ["a"]
+            "host_list": [1]
         }
         mock_operate.return_value = SUCCEED
         res = client.post(VUL_TASK_REPO_RESULT_GET, json=args, headers=headers).json
@@ -230,7 +230,7 @@ class TestGetRepoTaskResultView(unittest.TestCase):
 
         args = {
             "task_id": "s",
-            "host_list": ["a", 2]
+            "host_list": []
         }
         res = client.post(VUL_TASK_REPO_RESULT_GET, json=args, headers=headers).json
         self.assertEqual(res, param_error_response)

@@ -16,17 +16,20 @@ Author:
 Description:
 """
 import unittest
+
+from flask import g
 from sqlalchemy import func
 
-from vulcanus.restful.status import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATA_DEPENDENCY_ERROR
-from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, SESSION
+from apollo.database import session_maker
+from vulcanus.restful.resp.state import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATA_DEPENDENCY_ERROR
+from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db
 from apollo.database.proxy.repo import RepoProxy
 from apollo.database.table import Repo
 
 
 class TestRepoDatabase(unittest.TestCase):
     repo_database = RepoProxy()
-    repo_database.connect(SESSION)
+    repo_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):

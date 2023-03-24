@@ -17,7 +17,7 @@ Description: Task manager for repo setting
 """
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_REPO_SET
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED, PARAM_ERROR
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
@@ -95,13 +95,13 @@ class RepoManager(Manager):
         response = BaseResponse.get_response(
             'POST', manager_url, self.task, header)
 
-        if response.get('code') != SUCCEED:
+        if response.get('label') != SUCCEED:
             LOGGER.error("Set repo task %s execute failed.", self.task_id)
             return
 
         LOGGER.info(
             "Set repo task %s end, begin to handle result.", self.task_id)
-        self.result = response["result"]
+        self.result = response.get("data", dict()).get("result")
 
     def post_handle(self):
         """

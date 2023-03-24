@@ -22,7 +22,7 @@ from unittest import mock
 from apollo.cron.timed_scan_task import TimedScanTask
 from apollo.database.proxy.task import TaskMysqlProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
-from vulcanus.restful.status import DATABASE_QUERY_ERROR, SUCCEED, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import DATABASE_QUERY_ERROR, SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class TestTimedScanTask(unittest.TestCase):

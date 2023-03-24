@@ -14,7 +14,7 @@ import copy
 import unittest
 from unittest import mock
 
-from vulcanus.restful.status import DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR
 from apollo.conf import configuration
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.database.proxy.task import TaskProxy
@@ -26,7 +26,7 @@ class TestCveRollbackCallback(unittest.TestCase):
         self.task_info = {
             "status": "set",
             "repo_name": "repo name",
-            "host_id": "host id"
+            "host_id": 1
         }
         self.call = RepoSetCallback(TaskProxy(configuration))
 

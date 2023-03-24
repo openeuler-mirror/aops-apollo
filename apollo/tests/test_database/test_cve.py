@@ -17,18 +17,21 @@ Description:
 """
 import unittest
 
-from vulcanus.restful.status import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATABASE_INSERT_ERROR
+from flask import g
+
+from apollo.conf import configuration
+from apollo.conf.constant import ES_TEST_FLAG
+from apollo.database import session_maker
 from apollo.database.proxy.cve import CveProxy
 from apollo.database.table import CveUserAssociation
 from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, setup_es_db, \
-    tear_down_es_db, SESSION
-from apollo.conf import configuration
-from apollo.conf.constant import ES_TEST_FLAG
+    tear_down_es_db
+from vulcanus.restful.resp.state import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATABASE_INSERT_ERROR
 
 
 class TestCveMysqlProxy(unittest.TestCase):
     cve_database = CveProxy(configuration)
-    cve_database.connect(SESSION)
+    cve_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):
@@ -52,11 +55,11 @@ class TestCveMysqlProxy(unittest.TestCase):
         expected_query_result = {
             "total_count": 2, "total_page": 1,
             "result": [
-                {"host_id": "id1", "host_name": "host1",
+                {"host_id": 1, "host_name": "host1",
                  "host_ip": "127.0.0.1",
                  "host_group": "group1", "repo": "repo1", "last_scan": 123836100
                  },
-                {"host_id": "id2", "host_name": "host2",
+                {"host_id": 2, "host_name": "host2",
                  "host_ip": "127.0.0.2",
                  "host_group": "group1", "repo": "repo1", "last_scan": 123836152
                  }
@@ -76,7 +79,7 @@ class TestCveMysqlProxy(unittest.TestCase):
         data = {"cve_list": ["qwfqwff5"], "username": "admin"}
         expected_query_result = {
             "result": {
-                "qwfqwff5": [{"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}]
+                "qwfqwff5": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}]
             }
         }
         self.assertEqual(self.cve_database.get_cve_task_hosts(data), (SUCCEED, expected_query_result))
@@ -84,7 +87,7 @@ class TestCveMysqlProxy(unittest.TestCase):
         data = {"cve_list": ["qwfqwff5", "qwfqwff6", "not_exist_id"], "username": "admin"}
         expected_query_result = {
             "result": {
-                "qwfqwff5": [{"host_id": "id2", "host_name": "host2", "host_ip": "127.0.0.2"}]
+                "qwfqwff5": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}]
             }
         }
         self.assertEqual(self.cve_database.get_cve_task_hosts(data), (PARTIAL_SUCCEED, expected_query_result))
@@ -134,7 +137,7 @@ class TestCveMysqlProxy(unittest.TestCase):
 @unittest.skipUnless(ES_TEST_FLAG, "The test cases will remove all the data on es, never run on real environment.")
 class TestCveProxy(unittest.TestCase):
     cve_database = CveProxy(configuration)
-    cve_database.connect(SESSION)
+    cve_database.connect(session_maker())
 
     @classmethod
     def setUpClass(cls):
@@ -171,8 +174,8 @@ class TestCveProxy(unittest.TestCase):
                 },
                 {
                     "cve_id": 'qwfqwff4', "publish_time": "asyubdqsd", "severity": "Medium",
-                    "description": "sef", "cvss_score": "3", "status": "not reviewed",
-                    "host_num": 2
+                    "description": "sef", "cvss_score": "3", "status": "on-hold",
+                    "host_num": 1
                 }
             ]
         }
@@ -203,8 +206,8 @@ class TestCveProxy(unittest.TestCase):
                 },
                 {
                     "cve_id": 'qwfqwff4', "publish_time": "asyubdqsd", "severity": "Medium",
-                    "description": "sef", "cvss_score": "3", "status": "not reviewed",
-                    "host_num": 2
+                    "description": "sef", "cvss_score": "3", "status": "on-hold",
+                    "host_num": 1
                 },
                 {
                     "cve_id": 'qwfqwff5', "publish_time": "111", "severity": "Low",
@@ -250,7 +253,7 @@ class TestCveProxy(unittest.TestCase):
                 "cve_id": "qwfqwff4", "publish_time": "asyubdqsd",
                 "severity": "Medium", "description": "sef", "cvss_score": "3",
                 "status": "not reviewed", "package": "ansible,redis",
-                "related_cve": ["qwfqwff3", "qwfqwff6"]
+                "related_cve": ["qwfqwff3"]
             }
         }
         query_result = self.cve_database.get_cve_info(data)
@@ -292,10 +295,12 @@ class TestCveProxy(unittest.TestCase):
         ]
         cve_pkg_rows = [
             {
-                "cve_id": "cve-2021-1001", "package": "redis"
+                "cve_id": "cve-2021-1001", "package": "redis", "package_version": "1.2",
+                "os_version": "openEuler-22.03-LTS-SP3", "affected": True
             },
             {
-                "cve_id": "cve-2021-1002", "package": "mysql"
+                "cve_id": "cve-2021-1002", "package": "mysql", "package_version": "3.2",
+                "os_version": "openEuler-22.03-LTS-SP3", "affected": False
             }
         ]
         cve_pkg_docs = [
@@ -314,8 +319,11 @@ class TestCveProxy(unittest.TestCase):
 
         cve_rows = [
             {
-                "host_id": "127.0.0.0",
-                "os_version": "openEuler 22.03"
+                "cve_id": None,
+                "publish_time": "2021-1-2",
+                "severity": "low",
+                "cvss_score": "1.1",
+                "reboot": False
             }
         ]
         self.assertEqual(self.cve_database.save_security_advisory(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
@@ -341,10 +349,10 @@ class TestCveProxy(unittest.TestCase):
         ]
         cve_pkg_rows = [
             {
-                "cve_id": "CVE-2022-1001", "package": "redis,mongo"
+                "cve_id": "CVE-2022-1001", "package": "redis,mongo", "package_version": "1.2", "os_version": "22.02"
             },
             {
-                "cve_id": "CVE-2022-1002", "package": "mysql,mongo"
+                "cve_id": "CVE-2022-1002", "package": "mysql,mongo", "package_version": "9.1.2", "os_version": "22.02"
             }
         ]
         cve_pkg_docs = [
@@ -363,30 +371,20 @@ class TestCveProxy(unittest.TestCase):
 
         cve_rows = [
             {
-                "host_id": "127.0.0.0",
-                "os_version": "openEuler 22.03"
+                "cve_id": None,
+                "publish_time": "2021-1-2",
+                "severity": "low",
+                "cvss_score": "1.1",
+                "reboot": False
             }
         ]
         self.assertEqual(self.cve_database.save_unaffected_cve(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
                          DATABASE_INSERT_ERROR)
 
     def test_query_host_name_and_related_cves(self):
-        host_id = "127.0.0.0"
+        host_id = 1
         username = "admin"
-        expected_host_name = "hostname1"
-        expected_query_result = [
-            ["CVE-2022-1001", "affected"],
-            ["CVE-2022-1002", "affected"],
-            ["CVE-2022-1003", "unaffected"]
-        ]
+        expected_host_name = "host1"
+        expected_query_result = [['qwfqwff3', 'unaffected', 'fixed'], ['qwfqwff4', 'affected', 'fixed']]
         self.assertEqual(self.cve_database.query_host_name_and_related_cves(host_id, username),
-                         (SUCCEED, expected_host_name, expected_query_result))
-
-        expected_host_name = ""
-        expected_query_result = [
-            ["CVE-2022-1001", "affected"],
-            ["CVE-2022-1002", "affected"],
-            ["CVE-2022-1003", "unaffected"]
-        ]
-        self.assertEqual(self.cve_database.query_host_name_and_related_cves(host_id, username),
-                         (SUCCEED, expected_host_name, expected_query_result))
+                         (expected_host_name, expected_query_result))

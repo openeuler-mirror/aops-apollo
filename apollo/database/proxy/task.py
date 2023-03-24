@@ -26,7 +26,7 @@ from elasticsearch import ElasticsearchException
 from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import REPO_FILE, TASK_INDEX
+from apollo.conf.constant import REPO_FILE, TASK_INDEX, HOST_STATUS
 from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
     CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
 from apollo.function.customize_exception import EsOperationError
@@ -34,7 +34,7 @@ from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host, User
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
+from vulcanus.restful.resp.state import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
     DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, SUCCEED, SERVER_ERROR, PARTIAL_SUCCEED, WRONG_DATA
 
 task_types = ["cve fix", "repo set"]
@@ -309,11 +309,11 @@ class TaskMysqlProxy(MysqlProxy):
         """
         if update_type == "init":
             update_dict = {
-                Host.status: "scanning",
+                Host.status: HOST_STATUS.SCANNING,
                 Host.last_scan: int(
                     time())}
         elif update_type == "finish":
-            update_dict = {Host.status: "done"}
+            update_dict = {Host.status: HOST_STATUS.DONE}
         else:
             LOGGER.error("Given host scan update type '%s' is not in default type list "
                          "['init', 'finish']." % update_type)

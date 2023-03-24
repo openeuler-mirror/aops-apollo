@@ -21,7 +21,7 @@ from sqlalchemy import func
 from vulcanus.log.log import LOGGER
 from vulcanus.database.helper import judge_return_code
 from vulcanus.database.proxy import MysqlProxy
-from vulcanus.restful.status import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
+from vulcanus.restful.resp.state import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
     DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, DATA_EXIST, SUCCEED, DATA_DEPENDENCY_ERROR
 from vulcanus.database.table import Host
 from apollo.database.table import Repo

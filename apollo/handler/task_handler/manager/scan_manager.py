@@ -21,8 +21,8 @@ from apollo.conf import configuration
 from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
 from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import SUCCEED
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SUCCEED
 
 
 class ScanManager(Manager):
@@ -94,10 +94,10 @@ class ScanManager(Manager):
         }
         response = BaseResponse.get_response(
             'POST', manager_url, self.task, header)
-        if response.get('code') != SUCCEED:
+        if response.get('label') != SUCCEED:
             LOGGER.error("Cve scan task %s execute failed.", self.task_id)
             return
-        self.result = response.get("task_result")
+        self.result = response.get("data", dict()).get("task_result")
         LOGGER.info(
             "Cve scan task %s end, begin to handle result.", self.task_id)
 

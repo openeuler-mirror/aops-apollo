@@ -33,10 +33,10 @@ class TestCveRollbackCallback(unittest.TestCase):
             },
             "host": {
                 "name1": {
-                    "host_id": "id1"
+                    "host_id": 1
                 },
                 "name2": {
-                    "host_id": "id2"
+                    "host_id": 2
                 }
             }
         }

@@ -19,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, case, or_
 
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
+from vulcanus.restful.resp.state import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy
 from vulcanus.database.table import Host

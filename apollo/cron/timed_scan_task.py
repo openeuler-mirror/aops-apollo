@@ -18,13 +18,13 @@ Description:
 import datetime
 import uuid
 
-from apollo.conf.constant import CVE_SCAN_STATUS
+from apollo.conf.constant import HOST_STATUS
 from apollo.cron import TimedTaskBase
-from apollo.database import SESSION
+from apollo.database import session_maker
 from apollo.database.proxy.task import TaskMysqlProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import SUCCEED
 
 
 class TimedScanTask(TimedTaskBase):
@@ -51,7 +51,7 @@ class TimedScanTask(TimedTaskBase):
             return False
 
         for host in host_info:
-            if host["status"] == CVE_SCAN_STATUS.SCANNING:
+            if host["status"] == HOST_STATUS.SCANNING:
                 LOGGER.info(
                     "There are some hosts under scanning about user %s, ignore.", username)
                 return False
@@ -68,7 +68,7 @@ class TimedScanTask(TimedTaskBase):
 
         # get the total host info first.
         proxy = TaskMysqlProxy()
-        if not proxy.connect(SESSION):
+        if not proxy.connect(session_maker()):
             LOGGER.error("Connect to database fail, return.")
             return
 
