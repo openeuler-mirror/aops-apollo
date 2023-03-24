@@ -29,7 +29,7 @@ from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
-    SUCCEED, DATABASE_UPDATE_ERROR
+    SUCCEED, DATABASE_UPDATE_ERROR, DATABASE_DELETE_ERROR
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -147,7 +147,8 @@ class CveMysqlProxy(MysqlProxy):
                             "host_ip": "1.1.1.1",
                             "host_group": "group1",
                             "repo": "20.03-update",
-                            "last_scan": 1111111111
+                            "last_scan": 11,
+                            "hotpatch": true
                         }
                     ]
                 }
@@ -242,7 +243,7 @@ class CveMysqlProxy(MysqlProxy):
             sqlalchemy.orm.query.Query
         """
         cve_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
-                                       Host.host_group_name, Host.repo_name, Host.last_scan) \
+                                       Host.host_group_name, Host.repo_name, Host.last_scan, CveHostAssociation.hotpatch) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.cve_id == cve_id) \
             .filter(*filters)
@@ -260,6 +261,7 @@ class CveMysqlProxy(MysqlProxy):
                 "host_group": row.host_group_name,
                 "repo": row.repo_name,
                 "last_scan": row.last_scan,
+                "hotpatch": False if row.hotpatch is None else row.hotpatch
             }
             result.append(host_info)
         return result
@@ -353,7 +355,7 @@ class CveMysqlProxy(MysqlProxy):
             sqlalchemy.orm.query.Query
         """
         cve_query = self.session.query(CveHostAssociation.cve_id, Host.host_id,
-                                       Host.host_name, Host.host_ip) \
+                                       Host.host_name, Host.host_ip, CveHostAssociation.hotpatch) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.cve_id.in_(cve_list))
         return cve_query
@@ -363,7 +365,8 @@ class CveMysqlProxy(MysqlProxy):
         host_info = {
             "host_id": row.host_id,
             "host_name": row.host_name,
-            "host_ip": row.host_ip
+            "host_ip": row.host_ip,
+            "hotpatch": False if row.hotpatch is None else row.hotpatch
         }
         return host_info
 
@@ -1007,13 +1010,15 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             int: status code
         """
         try:
-            self.session.bulk_insert_mappings(AdvisoryDownloadRecord, sa_record_rows)
+            self.session.bulk_insert_mappings(
+                AdvisoryDownloadRecord, sa_record_rows)
             self.session.commit()
             return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error("Insert sa parsed record failed due to internal error.")
+            LOGGER.error(
+                "Insert sa parsed record failed due to internal error.")
             return DATABASE_INSERT_ERROR
 
     def get_advisory_download_record(self):
@@ -1034,7 +1039,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             return download_succeed_record, download_failed_advisory
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("Query AdvisoryDownloadRecord failed due to internal error.")
+            LOGGER.error(
+                "Query AdvisoryDownloadRecord failed due to internal error.")
             return [], []
 
     def delete_advisory_download_failed_record(self, id_list: list):
@@ -1045,7 +1051,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             id_list: Need to delete the record the id of the list
         """
         try:
-            self.session.query(AdvisoryDownloadRecord).filter(AdvisoryDownloadRecord.id.in_(id_list)).delete()
+            self.session.query(AdvisoryDownloadRecord).filter(
+                AdvisoryDownloadRecord.id.in_(id_list)).delete()
             self.session.commit()
         except SQLAlchemyError as error:
             LOGGER.error(error)
@@ -1067,7 +1074,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             int: status code
         """
         try:
-            self._save_security_advisory(cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
+            self._save_security_advisory(
+                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
             self.session.commit()
             LOGGER.debug("Finished saving security advisory '%s'." % file_name)
             return SUCCEED

@@ -463,7 +463,8 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                             "severity"; "high",
                             "description": "a long description",
                             "cvss_score": "7.2",
-                            "status": "in review"
+                            "status": "in review",
+                            "hotpatch": true/false
                         }
                     ]
                 }
@@ -562,7 +563,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             sqlalchemy.orm.query.Query
         """
         host_cve_query = self.session.query(Cve.cve_id, Cve.publish_time, Cve.severity,
-                                            Cve.cvss_score, CveUserAssociation.status) \
+                                            Cve.cvss_score, CveUserAssociation.status, CveHostAssociation.hotpatch) \
             .join(CveHostAssociation, CveHostAssociation.cve_id == Cve.cve_id) \
             .join(CveUserAssociation) \
             .filter(CveUserAssociation.username == username,
@@ -592,6 +593,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
                 "cvss_score": row.cvss_score,
                 "status": row.status,
+                "hotpatch": False if row.hotpatch is None else row.hotpatch
             }
             result.append(cve_info)
         return result

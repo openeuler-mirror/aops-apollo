@@ -30,7 +30,8 @@ class CveHostAssociation(Base, MyBase):
     __tablename__ = "cve_host_match"
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    host_id = Column(Integer, ForeignKey('host.host_id', ondelete="CASCADE"), primary_key=True)
+    host_id = Column(Integer, ForeignKey(
+        'host.host_id', ondelete="CASCADE"), primary_key=True)
     affected = Column(Boolean)
     fixed = Column(Boolean)
     hotpatch = Column(Boolean)
@@ -43,7 +44,8 @@ class CveUserAssociation(Base, MyBase):
     __tablename__ = "cve_user_status"
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    username = Column(String(40), ForeignKey('user.username'), primary_key=True)
+    username = Column(String(40), ForeignKey(
+        'user.username'), primary_key=True)
     # default status is "not reviewed"
     status = Column(String(20))
 
@@ -56,8 +58,8 @@ class CveAffectedPkgs(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     package = Column(String(40), primary_key=True)
-    package_version = Column(String(40), primary_key=True)
-    os_version = Column(String(40), primary_key=True)
+    package_version = Column(String(20), primary_key=True)
+    os_version = Column(String(20), primary_key=True)
     affected = Column(Integer)
 
 
@@ -68,7 +70,8 @@ class CveTaskAssociation(Base, MyBase):
     __tablename__ = "cve_task"
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    task_id = Column(String(32), ForeignKey(
+        'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     reboot = Column(Boolean)
     progress = Column(Integer, default=0)
     host_num = Column(Integer, nullable=False)
@@ -81,13 +84,15 @@ class TaskCveHostAssociation(Base, MyBase):
     """
     __tablename__ = "task_cve_host"
 
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    task_id = Column(String(32), ForeignKey(
+        'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
     host_ip = Column(String(16), nullable=False)
     # status can be "unfixed", "fixed" and "running"
     status = Column(String(20), nullable=False)
+    hotpatch = Column(Boolean)
 
 
 class TaskHostRepoAssociation(Base, MyBase):
@@ -97,7 +102,8 @@ class TaskHostRepoAssociation(Base, MyBase):
     """
     __tablename__ = "task_host_repo"
 
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    task_id = Column(String(32), ForeignKey(
+        'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
     host_ip = Column(String(16), nullable=False)
@@ -176,5 +182,6 @@ def create_vul_tables(engine=ENGINE):
     # pay attention, the sequence of list is important. Base table need to be listed first.
     tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo, AdvisoryDownloadRecord,
               CveTaskAssociation, TaskHostRepoAssociation, TaskCveHostAssociation, CveAffectedPkgs]
-    tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]
+    tables_objects = [Base.metadata.tables[table.__tablename__]
+                      for table in tables]
     create_tables(Base, engine, tables=tables_objects)

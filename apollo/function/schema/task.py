@@ -58,7 +58,7 @@ class GetTaskInfoSchema(Schema):
 
 class CveHostInfoDictSchema(Schema):
     """
-    single host's info of a cve from /vulnerability/task/cve/generate
+    single host's info of a cve from
     """
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     host_name = fields.String(
@@ -66,12 +66,19 @@ class CveHostInfoDictSchema(Schema):
     host_ip = fields.IP(required=True)
 
 
+class CveHostInfoHotpathSchema(CveHostInfoDictSchema):
+    """
+    single host's info of a cve from /vulnerability/task/cve/generate
+    """
+    hotpatch = fields.Boolean(required=True)
+
+
 class CveInfoDictSchema(Schema):
     """
     single cve's info of cve task from /vulnerability/task/cve/generate
     """
     cve_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_info = fields.List(fields.Nested(CveHostInfoDictSchema), required=True,
+    host_info = fields.List(fields.Nested(CveHostInfoHotpathSchema), required=True,
                             validate=lambda s: len(s) > 0)
     reboot = fields.Boolean(required=True)
 
@@ -186,7 +193,8 @@ class GetRepoTaskResultSchema(Schema):
     validators for parameter of /vulnerability/task/repo/result/get
     """
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
+    host_list = fields.List(fields.Integer(
+        required=True, validate=lambda s: s > 0), required=True)
 
 
 class ExecuteTaskSchema(Schema):
@@ -217,13 +225,25 @@ class RepoSetCallbackSchema(Schema):
     repo_name = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
+class CveHostPatchInfoSchema(Schema):
+    cve_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    hotpatch = fields.Boolean()
+
+
+class InstallPcakageInfoSchema(Schema):
+    name = fields.String(required=True, validate=lambda s: len(s) != 0)
+    version = fields.String(required=True, validate=lambda s: len(s) != 0)
+
+
 class CveScanCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
-    installed_packages = fields.List(fields.String(), required=True)
+    installed_packages = fields.List(fields.Nested(
+        InstallPcakageInfoSchema(), required=True), required=True)
     os_version = fields.String(required=True)
-    cves = fields.List(fields.String(), required=True)
+    cves = fields.List(fields.Nested(
+        CveHostPatchInfoSchema(), required=True), required=True)
 
 
 __all__ = [
