@@ -1,0 +1,192 @@
+class Hotpatch(object):
+    __slots__ = ['_name', '_version', '_cves',
+                 '_advisory', '_arch', '_filename', '_state']
+
+    def __init__(self,
+                 name,
+                 version,
+                 arch,
+                 filename,
+                 release=''):
+        """
+        name: str
+        version: str
+        arch: str
+        filename: str
+        release: str
+        """
+        self._name = name
+        self._version = version
+        self._arch = arch
+        self._filename = filename
+        self._cves = []
+        self._advisory = None
+        self._state = ''
+
+    @property
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, value):
+        self._state = value
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def version(self):
+        return self._version
+
+    @property
+    def src_pkg_nevre(self):
+        src_pkg = self.name[self.name.index('-')+1:self.name.rindex('-')]
+        release_pos = src_pkg.rindex('-')
+        version_pos = src_pkg.rindex('-', 0, release_pos)
+        src_pkg_name, src_pkg_version, src_pkg_release = src_pkg[
+            0:version_pos], src_pkg[version_pos+1:release_pos], src_pkg[release_pos+1:]
+        return src_pkg_name, src_pkg_version, src_pkg_release
+
+    @property
+    def nevra(self):
+        """
+        nevra: name-version-release.arch
+        """
+        return self.filename[0:self.filename.rindex('.')]
+
+    @property
+    def hotpatch_name(self):
+        hotpatch_name = self.name[self.name.rindex('-')+1:]
+        return hotpatch_name
+
+    @property
+    def syscare_name(self):
+        src_pkg = '%s-%s-%s' % (self.src_pkg_nevre)
+        return '%s/%s' % (src_pkg, self.hotpatch_name)
+
+    @property
+    def cves(self):
+        return self._cves
+
+    @cves.setter
+    def cves(self, cves):
+        self._cves = cves
+
+    @property
+    def advisory(self):
+        return self._advisory
+
+    @advisory.setter
+    def advisory(self, advisory):
+        self._advisory = advisory
+
+    @property
+    def arch(self):
+        return self._arch
+
+    @property
+    def filename(self):
+        return self._filename
+
+
+class Cve(object):
+    __slots__ = ['_cve_id', '_hotpatch']
+
+    def __init__(self,
+                 id,
+                 href='',
+                 title='',
+                 type='cve'):
+        """
+        id: str
+        href: str
+        title: str
+        type: str
+        """
+        self._cve_id = id
+        self._hotpatch = None
+
+    @property
+    def hotpatch(self):
+        return self._hotpatch
+
+    @hotpatch.setter
+    def hotpatch(self, hotpatch: Hotpatch):
+        self._hotpatch = hotpatch
+
+    @property
+    def cve_id(self):
+        return self._cve_id
+
+
+class Advisory(object):
+    __slots__ = ['_id', '_type', '_title', '_severity',
+                 '_description', '_updated', '_hotpatches', '_cves']
+
+    def __init__(self,
+                 id,
+                 type,
+                 title,
+                 severity,
+                 description,
+                 updated="1970-01-01 08:00:00",
+                 release="",
+                 issued=""):
+        """
+        id: str
+        type: str
+        title: str
+        severity: str
+        description: str
+        updated: str
+        release: str
+        issued: str
+        """
+        self._id = id
+        self._type = type
+        self._title = title
+        self._severity = severity
+        self._description = description
+        self._updated = updated
+        self._cves = {}
+        self._hotpatches = []
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def type(self):
+        return self._type
+
+    @property
+    def title(self):
+        return self._title
+
+    @property
+    def severity(self):
+        return self._severity
+
+    @property
+    def description(self):
+        return self._description
+
+    @property
+    def updated(self):
+        return self._updated
+
+    @property
+    def cves(self):
+        return self._cves
+
+    @cves.setter
+    def cves(self, advisory_cves):
+        self._cves = advisory_cves
+
+    @property
+    def hotpatches(self):
+        return self._hotpatches
+
+    def add_hotpatch(self, hotpatch: Hotpatch):
+        self._hotpatches.append(hotpatch)
