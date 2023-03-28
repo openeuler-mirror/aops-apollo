@@ -92,16 +92,20 @@ class CveFixManager(Manager):
             'POST', manager_url, pyload, header)
         if response.get('label') != SUCCEED or not response.get("data", dict()):
             LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
-        else:
-            LOGGER.info(
-                "Cve fixing task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("data",dict()).get("result", {}).get("task_result") or []
+            return
+
+        LOGGER.info(
+            "Cve fixing task %s end, begin to handle result.", self.task_id)
+        self.result = response.get("data", dict()).get(
+            "result", {}).get("task_result") or []
 
     def post_handle(self):
         """
         After executing the task, parse the checking and executing result, then
         save to database.
         """
+        if not self.result:
+            return
         LOGGER.debug("Cve fixing task %s result: %s",
                      self.task_id, self.result)
 

@@ -21,7 +21,7 @@ REQUIRES = [
     'setuptools',
     'SQLAlchemy',
     'PyYAML',
-    'retrying'
+    "retrying"
 ]
 
 setup(
@@ -35,9 +35,6 @@ setup(
         ('/etc/aops', ['conf/apollo_crontab.ini']),
         ('/usr/lib/systemd/system', ['aops-apollo.service'])
     ],
-    # scripts=['aops-apollo'],
-    entry_points={
-        "console_scripts": ['aops-apollo=apollo.manage:main']
-    },
+    scripts=['aops-apollo'],
     zip_safe=False
 )

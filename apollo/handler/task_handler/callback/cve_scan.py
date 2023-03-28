@@ -34,13 +34,15 @@ class CveScanCallback(TaskCallback):
                 {
                     "status":succeed,
                     "host_id":1,
-                    "installed_packages":{
-                                            "pkg1":"1.2.3",
-                                            "pkg2":"0.2.3",
-                                            "pkg3":"1.8.9",
-                                         },
+                    "installed_packages":[{
+                                            "name":"kernel",
+                                            "version":"0.2.3"
+                                         }],
                     "os_version":"string",
-                    "cves":["string"]
+                    "cves":[{
+                            "cve_id": "CVE-1-1",
+                            "hotpatch": true
+                    }]
                 }
 
         Returns:
