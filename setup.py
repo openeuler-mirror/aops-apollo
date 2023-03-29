@@ -21,7 +21,8 @@ REQUIRES = [
     'setuptools',
     'SQLAlchemy',
     'PyYAML',
-    "retrying"
+    'retrying',
+    'lxml'
 ]
 
 setup(

@@ -19,11 +19,8 @@ import glob
 import os
 import shutil
 
-from flask import jsonify
-
 from apollo.conf import configuration
 from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
-from apollo.database import SESSION
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \
@@ -35,9 +32,9 @@ from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected
 from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SUCCEED, DATABASE_CONNECT_ERROR, DATABASE_INSERT_ERROR, \
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_INSERT_ERROR, \
     WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
+from vulcanus.restful.response import BaseResponse
 
 
 class VulGetCveOverview(BaseResponse):
@@ -45,7 +42,8 @@ class VulGetCveOverview(BaseResponse):
     Restful interface for getting CVE's overview info
     """
 
-    def get(self):
+    @BaseResponse.handle(proxy=CveMysqlProxy())
+    def get(self, callback: CveMysqlProxy, **params):
         """
         Get overview of cve severity
 
@@ -55,7 +53,8 @@ class VulGetCveOverview(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(None, CveMysqlProxy(), "get_cve_overview", SESSION))
+        status_code, result = callback.get_cve_overview(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetCveList(BaseResponse):
@@ -63,7 +62,8 @@ class VulGetCveList(BaseResponse):
     Restful interface for getting cve list of all hosts
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveListSchema, proxy=CveProxy(configuration))
+    def post(self, callback: CveProxy, **params):
         """
         Get cve list of all hosts
 
@@ -78,8 +78,8 @@ class VulGetCveList(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetCveListSchema, CveProxy(configuration),
-                                              "get_cve_list", SESSION))
+        status_code, result = callback.get_cve_list(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetCveInfo(BaseResponse):
@@ -87,7 +87,8 @@ class VulGetCveInfo(BaseResponse):
     Restful interface for getting detailed info of a cve
     """
 
-    def get(self):
+    @BaseResponse.handle(schema=GetCveInfoSchema, proxy=CveProxy(configuration))
+    def get(self, callback: CveProxy, **params):
         """
         Get detailed info of a cve
 
@@ -98,8 +99,8 @@ class VulGetCveInfo(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetCveInfoSchema, CveProxy(configuration),
-                                              "get_cve_info", SESSION))
+        status_code, result = callback.get_cve_info(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetCveHosts(BaseResponse):
@@ -107,7 +108,8 @@ class VulGetCveHosts(BaseResponse):
     Restful interface for getting hosts info of a cve
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveHostsSchema, proxy=CveMysqlProxy())
+    def post(self, callback: CveMysqlProxy, **params):
         """
         Get hosts info of a cve
 
@@ -123,8 +125,8 @@ class VulGetCveHosts(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetCveHostsSchema, CveMysqlProxy(), "get_cve_host",
-                                              SESSION))
+        status_code, result = callback.get_cve_host(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetCveTaskHost(BaseResponse):
@@ -132,7 +134,8 @@ class VulGetCveTaskHost(BaseResponse):
     Restful interface for getting each CVE's hosts' basic info (id, ip, name)
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveTaskHostSchema, proxy=CveMysqlProxy())
+    def post(self, callback: CveMysqlProxy, **params):
         """
         Get basic info of hosts which have specific cve
 
@@ -143,8 +146,8 @@ class VulGetCveTaskHost(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetCveTaskHostSchema, CveMysqlProxy(),
-                                              "get_cve_task_hosts", SESSION))
+        status_code, result = callback.get_cve_task_hosts(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulSetCveStatus(BaseResponse):
@@ -152,7 +155,8 @@ class VulSetCveStatus(BaseResponse):
     Restful interface for setting status of cve
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=SetCveStatusSchema, proxy=CveMysqlProxy())
+    def post(self, callback: CveMysqlProxy, **params):
         """
         Set status of cve
 
@@ -164,8 +168,8 @@ class VulSetCveStatus(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(SetCveStatusSchema, CveMysqlProxy(),
-                                              "set_cve_status", SESSION))
+        status_code = callback.set_cve_status(params)
+        return self.response(code=status_code)
 
 
 class VulGetCveAction(BaseResponse):
@@ -173,7 +177,8 @@ class VulGetCveAction(BaseResponse):
     Restful interface for getting action after cve fixed
     """
 
-    def post(self):
+    @BaseResponse.handle(GetCveActionSchema, proxy=CveMysqlProxy())
+    def post(self, callback: CveMysqlProxy, **params):
         """
         Get action after fixing cve
 
@@ -184,8 +189,8 @@ class VulGetCveAction(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetCveActionSchema, CveMysqlProxy(),
-                                              "get_cve_action", SESSION))
+        status_code, result = callback.get_cve_action(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulUploadAdvisory(BaseResponse):
@@ -193,7 +198,7 @@ class VulUploadAdvisory(BaseResponse):
     Restful interface for importing security advisory xml (compressed files or single file)
     """
 
-    def _handle(self):
+    def _handle(self, proxy):
         """
         Handle uploading security advisory xml files
         Returns:
@@ -206,11 +211,6 @@ class VulUploadAdvisory(BaseResponse):
             return status
 
         file_path = os.path.join(save_path, username, file_name)
-        # connect to database
-        proxy = CveProxy(configuration)
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail.")
-            return DATABASE_CONNECT_ERROR
 
         suffix = file_name.split('.')[-1]
         if suffix == "xml":
@@ -302,7 +302,8 @@ class VulUploadAdvisory(BaseResponse):
         status_code = judge_return_code(status_dict, DATABASE_INSERT_ERROR)
         return status_code
 
-    def post(self):
+    @BaseResponse.handle(proxy=CveProxy(configuration))
+    def post(self, callback: CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data
         into database
@@ -310,7 +311,7 @@ class VulUploadAdvisory(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.make_response(self._handle()))
+        return self.response(code=self._handle(callback))
 
 
 class VulUploadUnaffected(BaseResponse):
@@ -318,7 +319,7 @@ class VulUploadUnaffected(BaseResponse):
     Restful interface for importing unaffected cve xml (compressed files or single file)
     """
 
-    def _handle(self):
+    def _handle(self, proxy):
         """
         Handle uploading unaffected cve xml files
         Returns:
@@ -331,11 +332,6 @@ class VulUploadUnaffected(BaseResponse):
             return status
 
         file_path = os.path.join(save_path, username, file_name)
-        # connect to database
-        proxy = CveProxy(configuration)
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail.")
-            return DATABASE_CONNECT_ERROR
 
         suffix = file_name.split('.')[-1]
         if suffix == "xml":
@@ -429,7 +425,8 @@ class VulUploadUnaffected(BaseResponse):
         status_code = judge_return_code(status_dict, DATABASE_INSERT_ERROR)
         return status_code
 
-    def post(self):
+    @BaseResponse.handle(proxy=CveProxy(configuration))
+    def post(self, callback=CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data
         into database
@@ -437,7 +434,7 @@ class VulUploadUnaffected(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.make_response(self._handle()))
+        return self.response(self._handle(callback))
 
 
 class VulExportExcel(BaseResponse):
@@ -445,7 +442,7 @@ class VulExportExcel(BaseResponse):
     Restful interface for export cve to excel
     """
 
-    def _handle(self, args):
+    def _handle(self, proxy, args):
         """
             Handle export csv
             Returns:
@@ -460,12 +457,6 @@ class VulExportExcel(BaseResponse):
         if os.path.exists(self.filepath):
             shutil.rmtree(self.filepath)
         os.mkdir(self.filepath)
-
-        # connect to database
-        proxy = CveProxy(configuration)
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail.")
-            return DATABASE_CONNECT_ERROR
 
         for host_id in host_id_list:
             host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
@@ -487,15 +478,15 @@ class VulExportExcel(BaseResponse):
                 return SERVER_ERROR
         return SUCCEED
 
-    def post(self):
+    @BaseResponse.handle(proxy=CveProxy(configuration))
+    def post(self, callback: CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data into database
 
         Returns:
             dict: response body
         """
-        response = self.handle_request(None, self)
-        if response["code"] == SUCCEED:
-            return make_download_response(os.path.join(self.filepath, self.filename),
-                                          self.filename)
-        return jsonify(response)
+        result = self._handle(callback, params)
+        if result == SUCCEED:
+            return make_download_response(os.path.join(self.filepath, self.filename), self.filename)
+        return self.response(code=result)

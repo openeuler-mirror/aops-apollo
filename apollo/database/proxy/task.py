@@ -195,7 +195,8 @@ class TaskMysqlProxy(MysqlProxy):
                 LOGGER.info(f"scan result failed with status {status}.")
                 return WRONG_DATA
 
-            status_code = self._save_cve_scan_result(task_info, username)
+            status_code, unfixed_cve = self._save_cve_scan_result(task_info)
+            self.update_user_cve_status(username, unfixed_cve)
             self.session.commit()
             LOGGER.debug("Finish saving scan result.")
             return status_code
@@ -205,7 +206,7 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Save cve scan result failed.")
             return DATABASE_INSERT_ERROR
 
-    def _save_cve_scan_result(self, task_info: dict, username: str) -> int:
+    def _save_cve_scan_result(self, task_info: dict):
         """
         Save cve scan result to database.
         Args:
@@ -225,7 +226,9 @@ class TaskMysqlProxy(MysqlProxy):
                 }
         Returns:
             int: status code
+            list: list of unfixed cve
         """
+
         host_id = task_info["host_id"]
         installed_packages = [package["name"]
                               for package in task_info["installed_packages"]]
@@ -234,10 +237,14 @@ class TaskMysqlProxy(MysqlProxy):
                          for cve in task_info["cves"]}
         cve_list = []
         unfixed_cve = []
+        cves = set()
 
         installed_packages_cve = self._get_installed_packages_cve(
             os_version, installed_packages)
         for cve in installed_packages_cve:
+            if cve.cve_id in cves:
+                continue
+            cves.add(cve.cve_id)
             if cve.cve_id in affected_cves:
                 unfixed_cve.append(cve.cve_id)
                 cve_list.append({
@@ -247,6 +254,7 @@ class TaskMysqlProxy(MysqlProxy):
                     "fixed": False,
                     "hotpatch": affected_cves[cve.cve_id]
                 })
+                affected_cves.pop(cve.cve_id)
             else:
                 cve_list.append({
                     "cve_id": cve.cve_id,
@@ -254,6 +262,14 @@ class TaskMysqlProxy(MysqlProxy):
                     "affected": cve.affected,
                     "fixed": True
                 })
+        for cve in affected_cves.keys():
+            unfixed_cve.append(cve)
+            cve_list.append({
+                "cve_id": cve,
+                "host_id": host_id,
+                "affected": True,
+                "fixed": False
+            })
 
         self.session.query(CveHostAssociation) \
             .filter(CveHostAssociation.host_id == host_id) \
@@ -261,8 +277,7 @@ class TaskMysqlProxy(MysqlProxy):
 
         self.session.bulk_insert_mappings(
             CveHostAssociation, cve_list)
-        self.update_user_cve_status(username, unfixed_cve)
-        return SUCCEED
+        return SUCCEED, unfixed_cve
 
     def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
         """
@@ -374,6 +389,9 @@ class TaskMysqlProxy(MysqlProxy):
         exist_cve = [row.cve_id for row in exist_cve_query]
 
         new_cve_list = list(set(cve_list) - set(exist_cve))
+        del_cve_list = list(set(exist_cve) - set(new_cve_list))
+        self.session.query(CveUserAssociation).filter(
+            CveUserAssociation.cve_id.in_(del_cve_list)).delete(synchronize_session=False)
         user_cve_rows = []
         for cve_id in new_cve_list:
             user_cve_rows.append({"cve_id": cve_id, "username": username,
