@@ -15,21 +15,21 @@ Time:
 Author:
 Description: Handle about host related operation
 """
-from flask import jsonify
 
-from vulcanus.restful.response import BaseResponse
+from apollo.conf import configuration
+from apollo.database.proxy.host import HostProxy, HostMysqlProxy
 from apollo.function.schema.host import GetHostStatusSchema, GetHostListSchema, \
     GetHostInfoSchema, GetHostCvesSchema
-from apollo.database.proxy.host import HostProxy, HostMysqlProxy
-from apollo.database import SESSION
-from apollo.conf import configuration
+from vulcanus.restful.response import BaseResponse
 
 
 class VulGetHostStatus(BaseResponse):
     """
     Restful interface for getting hosts status
     """
-    def post(self):
+
+    @BaseResponse.handle(schema=GetHostStatusSchema, proxy=HostMysqlProxy())
+    def post(self, callback: HostMysqlProxy, **params):
         """
         Get hosts status
 
@@ -40,15 +40,17 @@ class VulGetHostStatus(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetHostStatusSchema, HostMysqlProxy(),
-                                              "get_hosts_status", SESSION))
+        status_code, result = callback.get_hosts_status(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetHostList(BaseResponse):
     """
     Restful interface for getting host list
     """
-    def post(self):
+
+    @BaseResponse.handle(schema=GetHostListSchema, proxy=HostMysqlProxy())
+    def post(self, callback: HostMysqlProxy, **params):
         """
         Get host list
 
@@ -63,15 +65,17 @@ class VulGetHostList(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetHostListSchema, HostMysqlProxy(),
-                                              "get_host_list", SESSION))
+        status_code, result = callback.get_host_list(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetHostInfo(BaseResponse):
     """
     Restful interface for getting detailed info of a host
     """
-    def get(self):
+
+    @BaseResponse.handle(schema=GetHostInfoSchema, proxy=HostMysqlProxy())
+    def get(self, callback: HostMysqlProxy, **params):
         """
         Get detailed info of a cve
 
@@ -82,15 +86,17 @@ class VulGetHostInfo(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetHostInfoSchema, HostMysqlProxy(),
-                                              "get_host_info", SESSION))
+        status_code, result = callback.get_host_info(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetHostCves(BaseResponse):
     """
     Restful interface for getting CVEs info of a host
     """
-    def post(self):
+
+    @BaseResponse.handle(schema=GetHostCvesSchema, proxy=HostProxy(configuration))
+    def post(self, callback: HostProxy, **params):
         """
         Get hosts info of a cve
 
@@ -106,5 +112,5 @@ class VulGetHostCves(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetHostCvesSchema, HostProxy(configuration),
-                                              "get_host_cve", SESSION))
+        status_code, result = callback.get_host_cve(params)
+        return self.response(code=status_code, data=result)
