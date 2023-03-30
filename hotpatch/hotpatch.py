@@ -127,15 +127,15 @@ class HotpatchCommand(dnf.cli.Command):
                 fixed_pkg_name, fixed_pkg_evr, _ = fixed_coldpatch
                 if pkg_name != fixed_pkg_name:
                     continue
-                version = Versions()
                 if version.lgt(fixed_pkg_evr, pkg_evr):
                     return True
             return False
 
         idw = tiw = ciw = 0
         format_lines = set()
+        version = Versions()
         for echo_line in echo_lines:
-            cve_id, type, coldpatch, hotpatch = echo_line[0], echo_line[1], echo_line[2], echo_line[3]
+            cve_id, adv_type, coldpatch, hotpatch = echo_line[0], echo_line[1], echo_line[2], echo_line[3]
             if self.filter_cves is not None and cve_id not in self.filter_cves:
                 continue
             if cve_id in fixed_cve_id:
@@ -148,9 +148,9 @@ class HotpatchCommand(dnf.cli.Command):
                     coldpatch = '%s-%s.%s' % (pkg_name, pkg_evr, pkg_arch)
 
             idw = max(idw, len(cve_id))
-            tiw = max(tiw, len(type))
+            tiw = max(tiw, len(adv_type))
             ciw = max(ciw, len(coldpatch))
-            format_lines.add((cve_id, type, coldpatch, hotpatch))
+            format_lines.add((cve_id, adv_type, coldpatch, hotpatch))
         for format_line in sorted(format_lines, key=lambda x: x[2]):
             print('%-*s %-*s %-*s %s' %
                   (idw, format_line[0], tiw, format_line[1], ciw, format_line[2], format_line[3]))
@@ -161,7 +161,7 @@ class HotpatchCommand(dnf.cli.Command):
 
         echo lines:
             [
-                [cve_id, type, coldpatch, hotpatch]
+                [cve_id, adv_type, coldpatch, hotpatch]
             ]
         """
 
@@ -182,20 +182,21 @@ class HotpatchCommand(dnf.cli.Command):
                 iterated_cve_id.add(cve_id)
                 label = type2label(self.updateinfo, *atypesev)
                 echo_line = [cve_id, label, nevra, '-']
-                if cve_id in self.hp_hawkey.hotpatch_cves:
-                    hotpatch = self.hp_hawkey.hotpatch_cves[cve_id].hotpatch
-                    if hotpatch is not None and hotpatch.src_pkg_nevre[0] == pkg_name:
-                        if hotpatch.state == self.hp_hawkey.INSTALLED:
-                            # record the fixed cves
-                            for cve_id in hotpatch.cves:
-                                fixed_cve_id.add(cve_id)
-                            # record the fixed coldpatch to filter the cves of the corresponding coldpatch with the lower version
-                            fixed_coldpatches.add((nevra))
-                            continue
-                        elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
-                            echo_line[3] = hotpatch.nevra
-
                 echo_lines.append(echo_line)
-
+                if cve_id not in self.hp_hawkey.hotpatch_cves:
+                    continue
+                hotpatch = self.hp_hawkey.hotpatch_cves[cve_id].hotpatch
+                if hotpatch is None or hotpatch.src_pkg_nevre[0] != pkg_name:
+                    continue
+                if hotpatch.state == self.hp_hawkey.INSTALLED:
+                    # record the fixed cves
+                    for cve_id in hotpatch.cves:
+                        fixed_cve_id.add(cve_id)
+                    # record the fixed coldpatch to filter the cves of the corresponding coldpatch with the lower version
+                    fixed_coldpatches.add((nevra))
+                    echo_lines.pop()
+                elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
+                    echo_lines[-1][3] = hotpatch.nevra
+        
         self._filter_and_format_list_output(
             echo_lines, fixed_cve_id, fixed_coldpatches)

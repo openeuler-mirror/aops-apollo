@@ -153,7 +153,7 @@ class HotpatchUpdateInfo(object):
                 advisory['hotpatches'] = self._parse_pkglist(node)
             else:
                 advisory[node.tag] = update.find(node.tag).text
-        advisory['type'] = update.get('type')
+        advisory['adv_type'] = update.get('type')
         return advisory
 
     def _store_advisory_info(self, advisory_kwargs: dict()):
@@ -272,7 +272,7 @@ class HotpatchUpdateInfo(object):
             return ''
         return self._hotpatch_state[hotpatch.syscare_name]
 
-    def get_hotpatches_from_cve(self, cves: Optional[list[str]] = []) -> dict():
+    def get_hotpatches_from_cve(self, cves: list[str]) -> dict():
         """
         Get hotpatches from specified cve
 
@@ -295,7 +295,7 @@ class HotpatchUpdateInfo(object):
                 mapping_cve_hotpatches[cve_id].append(hotpatch.nevra)
         return mapping_cve_hotpatches
 
-    def get_hotpatches_from_advisories(self, advisories: Optional[list[str]] = []) -> dict():
+    def get_hotpatches_from_advisories(self, advisories: list[str]) -> dict():
         """
         Get hotpatches from specified advisories
 
