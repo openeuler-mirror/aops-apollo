@@ -1,6 +1,6 @@
 Name:		aops-apollo
 Version:	v1.2.0
-Release:	2
+Release:	1
 Summary:	Cve management service, monitor machine vulnerabilities and provide fix functions.
 License:	MulanPSL2
 URL:		https://gitee.com/openeuler/%{name}
@@ -52,7 +52,7 @@ cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %{python3_sitelib}/dnf-plugins/*
 
 %changelog
-* Mon Mar 27 2023 wangguangge<wangguangge@huawei.com> - v1.2.1-2
+* Mon Mar 27 2023 wangguangge<wangguangge@huawei.com> - v1.2.0-1
 - add dnf hotpatch list plugin
 
 * Fri Mar 24 2022 yangpengtao<1475324955@qq.com> - v1.2.0-1

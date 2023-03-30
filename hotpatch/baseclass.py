@@ -33,6 +33,9 @@ class Hotpatch(object):
 
     @property
     def name(self):
+        """
+        name: patch-src_pkg-HPxxx
+        """
         return self._name
 
     @property
@@ -40,8 +43,24 @@ class Hotpatch(object):
         return self._version
 
     @property
-    def src_pkg_nevre(self):
+    def src_pkg(self):
+        """
+        If the hotpatch need to be installed, the source package must be installed
+        
+        src_pkg: name-version-release
+        """
         src_pkg = self.name[self.name.index('-')+1:self.name.rindex('-')]
+        return src_pkg
+
+    @property
+    def src_pkg_nevre(self):
+        """
+        Parse the source package to get the source package name, the source package version and the source package release
+
+        Returns:
+            src_pkg_name, src_pkg_version, src_pkg_release
+        """
+        src_pkg = self.src_pkg
         release_pos = src_pkg.rindex('-')
         version_pos = src_pkg.rindex('-', 0, release_pos)
         src_pkg_name, src_pkg_version, src_pkg_release = src_pkg[
@@ -51,12 +70,17 @@ class Hotpatch(object):
     @property
     def nevra(self):
         """
+        Format the filename as 'name-versioin-release.arch' for display, which is defined as nevra
+
         nevra: name-version-release.arch
         """
         return self.filename[0:self.filename.rindex('.')]
 
     @property
     def hotpatch_name(self):
+        """
+        The 'hotpatch_name' is defined as HPxxx, which is used for hotpatch status querying in syscare
+        """
         hotpatch_name = self.name[self.name.rindex('-')+1:]
         return hotpatch_name
 
@@ -95,14 +119,9 @@ class Cve(object):
 
     def __init__(self,
                  id,
-                 href='',
-                 title='',
-                 type='cve'):
+                 **kwargs):
         """
         id: str
-        href: str
-        title: str
-        type: str
         """
         self._cve_id = id
         self._hotpatch = None
@@ -121,30 +140,27 @@ class Cve(object):
 
 
 class Advisory(object):
-    __slots__ = ['_id', '_type', '_title', '_severity',
+    __slots__ = ['_id', '_adv_type', '_title', '_severity',
                  '_description', '_updated', '_hotpatches', '_cves']
 
     def __init__(self,
                  id,
-                 type,
+                 adv_type,
                  title,
                  severity,
                  description,
                  updated="1970-01-01 08:00:00",
-                 release="",
-                 issued=""):
+                 **kwargs):
         """
         id: str
-        type: str
+        adv_type: str
         title: str
         severity: str
         description: str
         updated: str
-        release: str
-        issued: str
         """
         self._id = id
-        self._type = type
+        self._adv_type = adv_type
         self._title = title
         self._severity = severity
         self._description = description
@@ -157,8 +173,8 @@ class Advisory(object):
         return self._id
 
     @property
-    def type(self):
-        return self._type
+    def adv_type(self):
+        return self._adv_type
 
     @property
     def title(self):
