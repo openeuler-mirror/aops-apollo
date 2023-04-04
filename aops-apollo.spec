@@ -42,7 +42,7 @@ Cve management service, monitor machine vulnerabilities and provide fix function
 
 
 %changelog
-* Fri Mar 24 2022 yangpengtao<1475324955@qq.com> - v1.2.0-1
+* Fri Mar 24 2023 yangpengtao<1475324955@qq.com> - v1.2.0-1
 - add updated security advisory at regular time
 - add execute the CVE scan command at regular time
 - add correct abnormal data at regular time

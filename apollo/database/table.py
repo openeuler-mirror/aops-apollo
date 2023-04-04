@@ -29,7 +29,7 @@ class CveHostAssociation(Base, MyBase):
     """
     __tablename__ = "cve_host_match"
 
-    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
+    cve_id = Column(String(20), primary_key=True)
     host_id = Column(Integer, ForeignKey(
         'host.host_id', ondelete="CASCADE"), primary_key=True)
     affected = Column(Boolean)
@@ -43,7 +43,7 @@ class CveUserAssociation(Base, MyBase):
     """
     __tablename__ = "cve_user_status"
 
-    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
+    cve_id = Column(String(20), primary_key=True)
     username = Column(String(40), ForeignKey(
         'user.username'), primary_key=True)
     # default status is "not reviewed"
@@ -58,8 +58,8 @@ class CveAffectedPkgs(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     package = Column(String(40), primary_key=True)
-    package_version = Column(String(20), primary_key=True)
-    os_version = Column(String(20), primary_key=True)
+    package_version = Column(String(40), primary_key=True)
+    os_version = Column(String(40), primary_key=True)
     affected = Column(Integer)
 
 
@@ -69,7 +69,7 @@ class CveTaskAssociation(Base, MyBase):
     """
     __tablename__ = "cve_task"
 
-    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
+    cve_id = Column(String(20), primary_key=True)
     task_id = Column(String(32), ForeignKey(
         'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     reboot = Column(Boolean)
@@ -86,7 +86,7 @@ class TaskCveHostAssociation(Base, MyBase):
 
     task_id = Column(String(32), ForeignKey(
         'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
-    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
+    cve_id = Column(String(20), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
     host_ip = Column(String(16), nullable=False)

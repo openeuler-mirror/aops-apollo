@@ -148,12 +148,12 @@ class TimedDownloadSATask(TimedTaskBase):
                     with open(os.path.join(ADVISORY_SAVED_PATH, sa_name), "wb")as w:
                         w.write(response.content)
                 else:
-                    LOGGER.error(f"Download failed: {sa_name}")
+                    LOGGER.error(f"Download failed request timeout: {sa_name}")
                     TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
                                                                "advisory_serial_number": advisory_serial_number,
                                                                "download_status": False})
             except retrying.RetryError:
-                LOGGER.error(f"Download failed: {sa_name}")
+                LOGGER.error(f"Download failed max retries: {sa_name}")
                 TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
                                                            "advisory_serial_number": advisory_serial_number,
                                                            "download_status": False})
