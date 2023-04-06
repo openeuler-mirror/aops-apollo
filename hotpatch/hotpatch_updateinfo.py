@@ -180,8 +180,7 @@ class HotpatchUpdateInfo(object):
             for cve in advisory_cves.values():
                 cve.hotpatch = hotpatch
 
-        self._hotpatch_advisories.setdefault(
-            advisory_kwargs['id'], list()).append(advisory)
+        self._hotpatch_advisories[advisory_kwargs['id']] = advisory
 
     def _init_hotpatch_state(self):
         """
@@ -193,26 +192,25 @@ class HotpatchUpdateInfo(object):
         3. INSTALLABLE: can be installed
 
         """
-        for advisories in self._hotpatch_advisories.values():
-            for advisory in advisories:
-                for hotpatch in advisory.hotpatches:
-                    src_pkg_name, src_pkg_version, src_pkg_release = hotpatch.src_pkg_nevre
-                    inst_pkgs = self._inst_pkgs_query.filter(name=src_pkg_name)
-                    hotpatch.state = self.UNINSTALLABLE
-                    # check whether the relevant source package is installed on this machine
-                    if not inst_pkgs:
+        for advisory in self._hotpatch_advisories.values():
+            for hotpatch in advisory.hotpatches:
+                src_pkg_name, src_pkg_version, src_pkg_release = hotpatch.src_pkg_nevre
+                inst_pkgs = self._inst_pkgs_query.filter(name=src_pkg_name)
+                hotpatch.state = self.UNINSTALLABLE
+                # check whether the relevant source package is installed on this machine
+                if not inst_pkgs:
+                    continue
+                for inst_pkg in inst_pkgs:
+                    inst_pkg_vere = '%s-%s' % (inst_pkg.version,
+                                                inst_pkg.release)
+                    hp_vere = '%s-%s' % (src_pkg_version, src_pkg_release)
+                    if hp_vere != inst_pkg_vere:
                         continue
-                    for inst_pkg in inst_pkgs:
-                        inst_pkg_vere = '%s-%s' % (inst_pkg.version,
-                                                   inst_pkg.release)
-                        hp_vere = '%s-%s' % (src_pkg_version, src_pkg_release)
-                        if hp_vere != inst_pkg_vere:
-                            continue
-                        elif self._get_hotpatch_status_in_syscare(hotpatch) == 'ACTIVED':
-                            hotpatch.state = self.INSTALLED
-                        else:
-                            hotpatch.state = self.INSTALLABLE
-
+                    elif self._get_hotpatch_status_in_syscare(hotpatch) == 'ACTIVED':
+                        hotpatch.state = self.INSTALLED
+                    else:
+                        hotpatch.state = self.INSTALLABLE
+    
     def _parse_and_store_from_xml(self, updateinfoxml):
         """
         Parse and store hotpatch update information from xxx-hotpatch.xml.gz
@@ -313,9 +311,9 @@ class HotpatchUpdateInfo(object):
             mapping_advisory_hotpatches[advisory_id] = []
             if advisory_id not in self._hotpatch_advisories:
                 continue
-            for advisory in self._hotpatch_advisories[advisory_id]:
-                for hotpatch in advisory.hotpatches:
-                    if hotpatch.state == self.INSTALLABLE:
-                        mapping_advisory_hotpatches[advisory_id].append(
+            advisory = self._hotpatch_advisories[advisory_id]
+            for hotpatch in advisory.hotpatches:
+                if hotpatch.state == self.INSTALLABLE:
+                    mapping_advisory_hotpatches[advisory_id].append(
                             hotpatch.nevra)
         return mapping_advisory_hotpatches
