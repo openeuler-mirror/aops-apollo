@@ -148,7 +148,7 @@ class HostMysqlProxy(MysqlProxy):
         """
         cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
             CveHostAssociation.host_id).label("cve_num"))\
-            .filter(CveHostAssociation.affected == True)\
+            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed != True)\
             .group_by(CveHostAssociation.host_id).subquery()
 
         host_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
@@ -369,11 +369,11 @@ class HostMysqlProxy(MysqlProxy):
         """
         affected_cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
             CveHostAssociation.host_id).label("affected_cve_num"))\
-            .filter(CveHostAssociation.affected == True)\
+            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed != True)\
             .group_by(CveHostAssociation.host_id).subquery()
         unaffected_cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
             CveHostAssociation.host_id).label("unaffected_cve_num"))\
-            .filter(CveHostAssociation.affected == False)\
+            .filter(CveHostAssociation.affected == False, CveHostAssociation.fixed != True)\
             .group_by(CveHostAssociation.host_id).subquery()
 
         host_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
@@ -565,7 +565,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         host_cve_query = self.session.query(Cve.cve_id, Cve.publish_time, Cve.severity,
                                             Cve.cvss_score, CveUserAssociation.status, CveHostAssociation.hotpatch) \
             .join(CveHostAssociation, CveHostAssociation.cve_id == Cve.cve_id) \
-            .join(CveUserAssociation) \
+            .join(CveUserAssociation,CveUserAssociation.cve_id==Cve.cve_id) \
             .filter(CveUserAssociation.username == username,
                     CveHostAssociation.host_id == host_id) \
             .filter(*filters)

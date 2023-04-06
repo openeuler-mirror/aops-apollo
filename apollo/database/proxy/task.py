@@ -260,7 +260,8 @@ class TaskMysqlProxy(MysqlProxy):
                     "cve_id": cve.cve_id,
                     "host_id": host_id,
                     "affected": cve.affected,
-                    "fixed": True
+                    "fixed": True,
+                    "hotpatch": affected_cves[cve.cve_id]
                 })
         for cve in affected_cves.keys():
             unfixed_cve.append(cve)
@@ -268,7 +269,8 @@ class TaskMysqlProxy(MysqlProxy):
                 "cve_id": cve,
                 "host_id": host_id,
                 "affected": True,
-                "fixed": False
+                "fixed": False,
+                "hotpatch": affected_cves[cve]
             })
 
         self.session.query(CveHostAssociation) \
@@ -389,9 +391,6 @@ class TaskMysqlProxy(MysqlProxy):
         exist_cve = [row.cve_id for row in exist_cve_query]
 
         new_cve_list = list(set(cve_list) - set(exist_cve))
-        del_cve_list = list(set(exist_cve) - set(new_cve_list))
-        self.session.query(CveUserAssociation).filter(
-            CveUserAssociation.cve_id.in_(del_cve_list)).delete(synchronize_session=False)
         user_cve_rows = []
         for cve_id in new_cve_list:
             user_cve_rows.append({"cve_id": cve_id, "username": username,
@@ -2964,19 +2963,44 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         try:
             host_query.update(
                 {Host.status: HOST_STATUS.UNKNOWN}, synchronize_session=False)
+            self.session.commit()
+
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("update host table status failed.")
             return DATABASE_UPDATE_ERROR
 
-        self.session.commit()
+        return SUCCEED
+
+    def update_repo_task_status(self, task_id_list: list):
+        """
+        Change the status of the exception service to unknown
+
+        Args:
+            task_id_list: A list of IDs for the exception task
+
+        Returns:
+            int: status_code
+        """
+
+        repo_task_query = self.session.query(TaskHostRepoAssociation).filter(
+            TaskHostRepoAssociation.task_id.in_(task_id_list))
+        try:
+            repo_task_query.update(
+                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
+            self.session.commit()
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("update task_host_repo table status failed.")
+            return DATABASE_UPDATE_ERROR
 
         return SUCCEED
 
-    def update_task_status(self, task_id_list: list):
+    def update_cve_host_task_status(self, task_id_list: list):
         """
-        Change the status of the exception service to succeed
+        Change the status of the exception service to unknown
 
         Args:
             task_id_list: A list of IDs for the exception task
@@ -2989,23 +3013,11 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         try:
             cve_task_query.update(
                 {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
+            self.session.commit()
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("update task_cve_host table status failed.")
             return DATABASE_UPDATE_ERROR
-
-        repo_task_query = self.session.query(TaskHostRepoAssociation).filter(
-            TaskHostRepoAssociation.task_id.in_(task_id_list))
-        try:
-            repo_task_query.update(
-                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("update task_host_repo table status failed.")
-            return DATABASE_UPDATE_ERROR
-
-        self.session.commit()
 
         return SUCCEED

@@ -18,7 +18,7 @@ Description: Host table operation
 from collections import defaultdict
 
 from elasticsearch import ElasticsearchException
-from sqlalchemy import func, tuple_
+from sqlalchemy import func, tuple_, case
 from sqlalchemy.exc import SQLAlchemyError
 
 from apollo.database.mapping import CVE_INDEX
@@ -29,7 +29,7 @@ from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, \
-    SUCCEED, DATABASE_UPDATE_ERROR, DATABASE_DELETE_ERROR
+    SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -107,8 +107,10 @@ class CveMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        cve_overview_query = self.session.query(Cve.severity, func.count(Cve.cve_id)) \
-            .join(CveUserAssociation, Cve.cve_id == CveUserAssociation.cve_id) \
+        cve_overview_query = self.session.query(
+            case([(Cve.severity == None, "Unknown")], else_=Cve.severity).label("severity"),
+            func.count(CveUserAssociation.cve_id)) \
+            .outerjoin(Cve, CveUserAssociation.cve_id == Cve.cve_id) \
             .filter(CveUserAssociation.username == username) \
             .group_by(Cve.severity)
 
@@ -499,16 +501,19 @@ class CveMysqlProxy(MysqlProxy):
                     "reboot": row.reboot, "package": row.package}
             else:
                 result[row.cve_id]["package"] += "," + row.package
+            package_list = list(set(result[row.cve_id]["package"].split(",")))
+            result[row.cve_id]["package"] = ",".join(package_list)
 
         succeed_list = [row.cve_id for row in cve_action_query]
         fail_list = list(set(cve_list) - set(succeed_list))
         if fail_list:
+            for cve_id in fail_list:
+                result[cve_id] = {
+                    "reboot": False, "package": ""}
             LOGGER.debug(
                 "No data found when getting the action of cve: %s." % fail_list)
 
-        status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
-        status_code = judge_return_code(status_dict, NO_DATA)
-        return status_code, {"result": result}
+        return SUCCEED, {"result": result}
 
     def _query_cve_action(self, cve_list):
         """
@@ -521,7 +526,7 @@ class CveMysqlProxy(MysqlProxy):
 
         """
         cve_action_query = self.session.query(Cve.cve_id, CveAffectedPkgs.package, Cve.reboot) \
-            .join(CveAffectedPkgs) \
+            .join(CveAffectedPkgs, Cve.cve_id == CveAffectedPkgs.cve_id) \
             .filter(Cve.cve_id.in_(cve_list))
         return cve_action_query
 
@@ -656,10 +661,11 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             "result": []
         }
 
-        filters = self._get_cve_list_filters(data.get("filter"))
-        cve_query = self._query_cve_list(data["username"], filters)
+        filters = self._get_cve_list_filters(
+            data.get("filter"), data["username"])
+        cve_query = self._query_cve_list(filters)
 
-        total_count = len(cve_query.all())
+        total_count = cve_query.count()
         if not total_count:
             return result
 
@@ -695,25 +701,27 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             return func.count(CveHostAssociation.host_id)
         return getattr(Cve, column_name)
 
-    def _query_cve_list(self, username, filters):
+    def _query_cve_list(self, filters):
         """
         query needed cve info
         Args:
-            username (str): user name of the request
             filters (set): filter given by user
 
         Returns:
             sqlalchemy.orm.query.Query
         """
-        cve_query = self.session.query(Cve.cve_id, Cve.publish_time, Cve.severity,
-                                       Cve.cvss_score, CveUserAssociation.status,
+        cve_query = self.session.query(CveHostAssociation.cve_id,
+                                       case([(Cve.publish_time == None, "")], else_=Cve.publish_time).label(
+                                           "publish_time"),
+                                       case([(Cve.severity == None, "")], else_=Cve.severity).label("severity"),
+                                       case([(Cve.cvss_score == None, "")], else_=Cve.cvss_score).label(
+                                           "cvss_score"),
+                                       CveUserAssociation.status,
                                        func.count(CveHostAssociation.host_id).label("host_num")) \
-            .join(CveHostAssociation, Cve.cve_id == CveHostAssociation.cve_id) \
-            .join(CveUserAssociation) \
-            .filter(CveUserAssociation.username == username) \
+            .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id) \
+            .outerjoin(CveUserAssociation, CveHostAssociation.cve_id == CveUserAssociation.cve_id) \
             .filter(*filters) \
-            .group_by(Cve.cve_id)
-
+            .group_by(CveHostAssociation.cve_id)
         return cve_query
 
     @staticmethod
@@ -743,7 +751,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         return result
 
     @staticmethod
-    def _get_cve_list_filters(filter_dict):
+    def _get_cve_list_filters(filter_dict, username):
         """
         Generate filters
 
@@ -754,16 +762,17 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     "severity": ["high"],
                     "status": ["in review", "not reviewed"]
                 }
+            username(str): admin
 
         Returns:
             set
         """
-        filters = set()
+        filters = {CveUserAssociation.username == username}
         if not filter_dict:
             return filters
 
         if filter_dict.get("cve_id"):
-            filters.add(Cve.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
         if filter_dict.get("status"):
@@ -794,7 +803,9 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                         "description": "a long description",
                         "cvss_score": "7.2",
                         "status": "in review",
-                        "package": "tensorflow,redis",
+                        "package": [{
+                                        "package":"apr",
+                                        "os_version":"openEuler-22.03-LTS"}]
                         "related_cve": [
                             "cve-2021-11112", "cve-2021-11113"
                         ]
@@ -855,25 +866,30 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        cve_info_query = self.session.query(Cve.cve_id, Cve.publish_time, Cve.severity,
-                                            Cve.cvss_score, CveUserAssociation.status) \
-            .join(CveUserAssociation) \
+        cve_info_query = self.session.query(case([(Cve.cve_id == None, "")], else_=Cve.cve_id).label("cve_id"),
+                                            case([(Cve.publish_time == None, "")], else_=Cve.publish_time).label(
+                                                "publish_time"),
+                                            case([(Cve.severity == None, "")], else_=Cve.severity).label("severity"),
+                                            case([(Cve.cvss_score == None, "")], else_=Cve.cvss_score).label(
+                                                "cvss_score"),
+                                            CveUserAssociation.status) \
+            .outerjoin(Cve, CveUserAssociation.cve_id == Cve.cve_id) \
             .filter(Cve.cve_id == cve_id, CveUserAssociation.username == username)
 
         return cve_info_query
 
     def _get_affected_pkgs(self, cve_id):
         """
-        get cve's affected packages
+        get cve's affected packages and os version
         Args:
             cve_id (str): cve id
 
         Returns:
             list
         """
-        pkg_query = self.session.query(CveAffectedPkgs.package) \
+        pkg_query = self.session.query(CveAffectedPkgs) \
             .filter(CveAffectedPkgs.cve_id == cve_id, CveAffectedPkgs.affected == 1)
-        pkg_list = [row.package for row in pkg_query]
+        pkg_list = [{"package": row.package, "os_version": row.os_version} for row in pkg_query]
         return pkg_list
 
     def _get_related_cve(self, username, cve_id, pkg_list):
@@ -891,9 +907,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         # not record, return empty list
         if not pkg_list:
             return []
+        pkg_list = [pkg["package"] for pkg in pkg_list]
 
         exist_cve_query = self.session.query(CveHostAssociation.cve_id) \
-            .join(Host) \
+            .join(Host, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username)
         # get first column value from tuple to list
         exist_cve_list = list(zip(*exist_cve_query))[0]
@@ -913,7 +930,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             row:
             description_dict (dict): key is cve's id, value is cve's description
-            pkg_list (list): cve's affected packages
+            pkg_list (list): cve's affected packages and os version
 
         Returns:
             dict
@@ -926,7 +943,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
             "cvss_score": row.cvss_score,
             "status": row.status,
-            "package": ','.join(pkg_list),
+            "package": pkg_list,
             "related_cve": []
         }
         return cve_info
@@ -1009,9 +1026,17 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Returns:
             int: status code
         """
+        sa_query = self.session.query(AdvisoryDownloadRecord.advisory_year,
+                                      AdvisoryDownloadRecord.advisory_serial_number,
+                                      AdvisoryDownloadRecord.download_status).all()
+        insert_sa_list = []
+        for sa in sa_record_rows:
+            if (sa["advisory_year"], sa["advisory_serial_number"], sa["download_status"]) not in sa_query:
+                insert_sa_list.append(sa)
+
         try:
             self.session.bulk_insert_mappings(
-                AdvisoryDownloadRecord, sa_record_rows)
+                AdvisoryDownloadRecord, insert_sa_list)
             self.session.commit()
             return SUCCEED
         except SQLAlchemyError as error:
@@ -1052,7 +1077,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         """
         try:
             self.session.query(AdvisoryDownloadRecord).filter(
-                AdvisoryDownloadRecord.id.in_(id_list)).delete()
+                AdvisoryDownloadRecord.id.in_(id_list)).delete(synchronize_session=False)
             self.session.commit()
         except SQLAlchemyError as error:
             LOGGER.error(error)
