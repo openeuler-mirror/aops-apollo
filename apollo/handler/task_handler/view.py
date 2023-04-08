@@ -663,7 +663,8 @@ class VulDeleteTask(BaseResponse):
         Returns:
             dict: response body
         """
-        return self.response(self._handle(callback, params))
+        status_code, data = self._handle(callback, params)
+        return self.response(code=status_code, data=data)
 
 
 class VulCveFixTaskCallback(BaseResponse):

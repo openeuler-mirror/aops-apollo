@@ -28,7 +28,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from apollo.conf.constant import REPO_FILE, TASK_INDEX, HOST_STATUS
 from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
-    CveTaskAssociation, CveHostAssociation, CveAffectedPkgs, CveUserAssociation
+    CveTaskAssociation, CveHostAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
@@ -195,8 +195,7 @@ class TaskMysqlProxy(MysqlProxy):
                 LOGGER.info(f"scan result failed with status {status}.")
                 return WRONG_DATA
 
-            status_code, unfixed_cve = self._save_cve_scan_result(task_info)
-            self.update_user_cve_status(username, unfixed_cve)
+            status_code = self._save_cve_scan_result(task_info)
             self.session.commit()
             LOGGER.debug("Finish saving scan result.")
             return status_code
@@ -235,8 +234,8 @@ class TaskMysqlProxy(MysqlProxy):
         os_version = task_info["os_version"]
         affected_cves = {cve["cve_id"]: cve["hotpatch"]
                          for cve in task_info["cves"]}
+
         cve_list = []
-        unfixed_cve = []
         cves = set()
 
         installed_packages_cve = self._get_installed_packages_cve(
@@ -246,7 +245,6 @@ class TaskMysqlProxy(MysqlProxy):
                 continue
             cves.add(cve.cve_id)
             if cve.cve_id in affected_cves:
-                unfixed_cve.append(cve.cve_id)
                 cve_list.append({
                     "cve_id": cve.cve_id,
                     "host_id": host_id,
@@ -261,10 +259,9 @@ class TaskMysqlProxy(MysqlProxy):
                     "host_id": host_id,
                     "affected": cve.affected,
                     "fixed": True,
-                    "hotpatch": affected_cves[cve.cve_id]
+                    "hotpatch": False
                 })
         for cve in affected_cves.keys():
-            unfixed_cve.append(cve)
             cve_list.append({
                 "cve_id": cve,
                 "host_id": host_id,
@@ -279,7 +276,7 @@ class TaskMysqlProxy(MysqlProxy):
 
         self.session.bulk_insert_mappings(
             CveHostAssociation, cve_list)
-        return SUCCEED, unfixed_cve
+        return SUCCEED
 
     def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
         """
@@ -374,28 +371,6 @@ class TaskMysqlProxy(MysqlProxy):
 
         hosts_status_query = self.session.query(Host).filter(*filters)
         return hosts_status_query
-
-    def update_user_cve_status(self, username, cve_list):
-        """
-        update CveUserAssociation table, add new cve's record. If a cve doesn't exist in all
-        hosts, still preserve it in the table
-        Args:
-            username (str): user name
-            cve_list (list): the cve set to be added into CveUserAssociation table
-
-        Returns:
-            None
-        """
-        exist_cve_query = self.session.query(CveUserAssociation.cve_id) \
-            .filter(CveUserAssociation.username == username)
-        exist_cve = [row.cve_id for row in exist_cve_query]
-
-        new_cve_list = list(set(cve_list) - set(exist_cve))
-        user_cve_rows = []
-        for cve_id in new_cve_list:
-            user_cve_rows.append({"cve_id": cve_id, "username": username,
-                                  "status": "not reviewed"})
-        self.session.bulk_insert_mappings(CveUserAssociation, user_cve_rows)
 
     def get_task_list(self, data):
         """
@@ -975,12 +950,14 @@ class TaskMysqlProxy(MysqlProxy):
                     "status": "fixed"
                 }
         """
-        task_cve_query = self.session.query(Cve.cve_id, Cve.reboot, CveAffectedPkgs.package,
+        task_cve_query = self.session.query(TaskCveHostAssociation.cve_id,
+                                            Cve.reboot,
+                                            CveAffectedPkgs.package,
                                             TaskCveHostAssociation.host_id,
                                             TaskCveHostAssociation.status) \
-            .join(TaskCveHostAssociation, TaskCveHostAssociation.cve_id == Cve.cve_id) \
-            .join(CveAffectedPkgs, CveAffectedPkgs.cve_id == Cve.cve_id) \
-            .join(Task, Task.task_id == TaskCveHostAssociation.task_id) \
+            .outerjoin(Cve, Cve.cve_id == TaskCveHostAssociation.cve_id) \
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == Cve.cve_id) \
+            .outerjoin(Task, Task.task_id == TaskCveHostAssociation.task_id) \
             .filter(Task.task_id == task_id, Task.username == username) \
             .filter(*filters)
 
@@ -1032,14 +1009,18 @@ class TaskMysqlProxy(MysqlProxy):
                     cve_info.pop("status_set"))
                 if cve_status in need_status:
                     cve_info["cve_id"] = cve_id
-                    cve_info["package"] = ','.join(list(cve_info["package"]))
+                    cve_info["package"] = ','.join(list(filter(
+                        None, cve_info["package"]))) if filter(
+                        None, cve_info["package"]) else None
                     cve_info["host_num"] = len(cve_info.pop("host_set"))
                     cve_info["status"] = cve_status
                     cve_info_list.append(cve_info)
         else:
             for cve_id, cve_info in cve_dict.items():
                 cve_info["cve_id"] = cve_id
-                cve_info["package"] = ','.join(list(cve_info["package"]))
+                cve_info["package"] = ','.join(list(filter(
+                    None, cve_info["package"]))) if filter(
+                    None, cve_info["package"]) else None
                 cve_info["host_num"] = len(cve_info.pop("host_set"))
                 cve_info["status"] = self._get_cve_task_status(
                     cve_info.pop("status_set"))
@@ -2963,13 +2944,49 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         try:
             host_query.update(
                 {Host.status: HOST_STATUS.UNKNOWN}, synchronize_session=False)
-            self.session.commit()
-
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("update host table status failed.")
             return DATABASE_UPDATE_ERROR
+
+        self.session.commit()
+
+        return SUCCEED
+
+    def update_task_status(self, task_id_list: list):
+        """
+        Change the status of the exception service to succeed
+
+        Args:
+            task_id_list: A list of IDs for the exception task
+
+        Returns:
+            int: status_code
+        """
+        cve_task_query = self.session.query(TaskCveHostAssociation).filter(
+            TaskCveHostAssociation.task_id.in_(task_id_list))
+        try:
+            cve_task_query.update(
+                {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("update task_cve_host table status failed.")
+            return DATABASE_UPDATE_ERROR
+
+        repo_task_query = self.session.query(TaskHostRepoAssociation).filter(
+            TaskHostRepoAssociation.task_id.in_(task_id_list))
+        try:
+            repo_task_query.update(
+                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
+        except SQLAlchemyError as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("update task_host_repo table status failed.")
+            return DATABASE_UPDATE_ERROR
+
+        self.session.commit()
 
         return SUCCEED
 

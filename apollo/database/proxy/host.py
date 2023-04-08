@@ -23,7 +23,7 @@ from vulcanus.restful.resp.state import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy
 from vulcanus.database.table import Host
-from apollo.database.table import Cve, CveHostAssociation, CveUserAssociation
+from apollo.database.table import Cve, CveHostAssociation
 from apollo.database.proxy.cve import CveEsProxy
 
 
@@ -148,7 +148,7 @@ class HostMysqlProxy(MysqlProxy):
         """
         cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
             CveHostAssociation.host_id).label("cve_num"))\
-            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed != True)\
+            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed == False)\
             .group_by(CveHostAssociation.host_id).subquery()
 
         host_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
@@ -369,11 +369,11 @@ class HostMysqlProxy(MysqlProxy):
         """
         affected_cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
             CveHostAssociation.host_id).label("affected_cve_num"))\
-            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed != True)\
+            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed == False)\
             .group_by(CveHostAssociation.host_id).subquery()
         unaffected_cve_host_subquery = self.session.query(CveHostAssociation.host_id, func.count(
             CveHostAssociation.host_id).label("unaffected_cve_num"))\
-            .filter(CveHostAssociation.affected == False, CveHostAssociation.fixed != True)\
+            .filter(CveHostAssociation.affected == False, CveHostAssociation.fixed == False)\
             .group_by(CveHostAssociation.host_id).subquery()
 
         host_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip,
@@ -445,7 +445,6 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                     "filter": {
                         "cve_id": "",
                         "severity": ["high"],
-                        "status": ["in review", "on hold"],
                         "affected": True
                     }
                 }
@@ -463,7 +462,6 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                             "severity"; "high",
                             "description": "a long description",
                             "cvss_score": "7.2",
-                            "status": "in review",
                             "hotpatch": true/false
                         }
                     ]
@@ -530,23 +528,24 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 {
                     "cve_id": "",
                     "severity": ["high", "unknown"],
-                    "status": ["in review", "on hold"],
                     "affected": True
                 }
 
         Returns:
             set
         """
-        filters = set()
+        filters = {CveHostAssociation.fixed == 0}
         if not filter_dict:
             return filters
 
         if filter_dict.get("cve_id"):
-            filters.add(Cve.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+            filters.add(CveHostAssociation.cve_id.like(
+                "%" + filter_dict["cve_id"] + "%"))
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
-        if filter_dict.get("status"):
-            filters.add(CveUserAssociation.status.in_(filter_dict["status"]))
+        if filter_dict.get("hotpatch"):
+            filters.add(CveHostAssociation.hotpatch.in_(
+                filter_dict["hotpatch"]))
         if "affected" in filter_dict:
             filters.add(CveHostAssociation.affected == filter_dict["affected"])
         return filters
@@ -562,12 +561,11 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        host_cve_query = self.session.query(Cve.cve_id, Cve.publish_time, Cve.severity,
-                                            Cve.cvss_score, CveUserAssociation.status, CveHostAssociation.hotpatch) \
-            .join(CveHostAssociation, CveHostAssociation.cve_id == Cve.cve_id) \
-            .join(CveUserAssociation,CveUserAssociation.cve_id==Cve.cve_id) \
-            .filter(CveUserAssociation.username == username,
-                    CveHostAssociation.host_id == host_id) \
+        host_cve_query = self.session.query(CveHostAssociation.cve_id, Cve.publish_time, Cve.severity,
+                                            Cve.cvss_score, CveHostAssociation.hotpatch).select_from(CveHostAssociation) \
+            .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id) \
+            .outerjoin(Host, Host.host_id == CveHostAssociation.host_id) \
+            .filter(CveHostAssociation.host_id == host_id, Host.user == username) \
             .filter(*filters)
 
         return host_cve_query
@@ -592,7 +590,6 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 "severity": row.severity,
                 "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
                 "cvss_score": row.cvss_score,
-                "status": row.status,
                 "hotpatch": False if row.hotpatch is None else row.hotpatch
             }
             result.append(cve_info)
