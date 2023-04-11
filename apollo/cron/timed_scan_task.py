@@ -72,19 +72,22 @@ class TimedScanTask(TimedTaskBase):
             LOGGER.error("Connect to database fail, return.")
             return
 
-        res = proxy.get_total_host_info()
-        if res[0] != SUCCEED:
+        status, host_info_dict = proxy.get_total_host_info()
+        if status != SUCCEED:
             LOGGER.error("Query for host info failed, stop scanning.")
             return
 
         # create works
-        for username, host_info in res[1]['host_infos'].items():
-            if TimedScanTask._check_host_info(username, host_info):
-                task_id = str(uuid.uuid1()).replace('-', '')
-                # init status
-                cve_scan_manager = ScanManager(task_id, proxy, host_info, username)
-                cve_scan_manager.create_task()
-                if not cve_scan_manager.pre_handle():
-                    continue
-                # run the tas in a thread
-                cve_scan_manager.execute_task()
+        for username, host_info in host_info_dict['host_infos'].items():
+            if not TimedScanTask._check_host_info(username, host_info):
+                continue
+
+            task_id = str(uuid.uuid1()).replace('-', '')
+            # init status
+            cve_scan_manager = ScanManager(
+                task_id, proxy, host_info, username)
+            cve_scan_manager.create_task()
+            if not cve_scan_manager.pre_handle():
+                continue
+            # run the tas in a thread
+            cve_scan_manager.execute_task()
