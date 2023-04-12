@@ -27,9 +27,6 @@ class CveListFilterSchema(Schema):
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
     severity = fields.List(fields.String(
         validate=validate.OneOf(["Critical", "High", "Medium", "Low", "Unknown"])), required=False)
-    status = fields.List(fields.String(
-        validate=validate.OneOf(["not reviewed", "in review", "on-hold", "resolved",
-                                 "no action"])), required=False)
     affected = fields.Boolean(required=False, default=True)
 
 
@@ -84,16 +81,6 @@ class GetCveTaskHostSchema(Schema):
     """
     cve_list = fields.List(fields.String(), required=True,
                            validate=lambda s: len(s) != 0)
-
-
-class SetCveStatusSchema(Schema):
-    """
-    validators for parameter of /vulnerability/cve/status/set
-    """
-    cve_list = fields.List(fields.String(), required=True,
-                           validate=lambda s: len(s) != 0)
-    status = fields.String(required=True, validate=validate.OneOf(
-        ["not reviewed", "in review", "on-hold", "resolved", "no action"]))
 
 
 class GetCveActionSchema(Schema):

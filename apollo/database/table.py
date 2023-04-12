@@ -37,19 +37,6 @@ class CveHostAssociation(Base, MyBase):
     hotpatch = Column(Boolean)
 
 
-class CveUserAssociation(Base, MyBase):
-    """
-    cve and user tables' association table, record CVEs status of users
-    """
-    __tablename__ = "cve_user_status"
-
-    cve_id = Column(String(20), primary_key=True)
-    username = Column(String(40), ForeignKey(
-        'user.username'), primary_key=True)
-    # default status is "not reviewed"
-    status = Column(String(20))
-
-
 class CveAffectedPkgs(Base, MyBase):
     """
     record the affected packages of cves. A cve may affect multiple packages.
@@ -58,8 +45,8 @@ class CveAffectedPkgs(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     package = Column(String(40), primary_key=True)
-    package_version = Column(String(40), primary_key=True)
-    os_version = Column(String(40), primary_key=True)
+    package_version = Column(String(20), primary_key=True)
+    os_version = Column(String(20), primary_key=True)
     affected = Column(Integer)
 
 
@@ -180,7 +167,7 @@ def create_vul_tables(engine=ENGINE):
 
     """
     # pay attention, the sequence of list is important. Base table need to be listed first.
-    tables = [Cve, CveHostAssociation, CveUserAssociation, Task, Repo, AdvisoryDownloadRecord,
+    tables = [Cve, CveHostAssociation, Task, Repo, AdvisoryDownloadRecord,
               CveTaskAssociation, TaskHostRepoAssociation, TaskCveHostAssociation, CveAffectedPkgs]
     tables_objects = [Base.metadata.tables[table.__tablename__]
                       for table in tables]

@@ -36,7 +36,8 @@ class ScanHostSchema(Schema):
     """
     validators for parameter of /vulnerability/host/scan
     """
-    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
+    host_list = fields.List(fields.Integer(
+        required=True, validate=lambda s: s > 0), required=True)
     filter = fields.Nested(ScanHostFilterSchema, required=False)
 
 
@@ -44,7 +45,8 @@ class GetHostStatusSchema(Schema):
     """
     validators for parameter of /vulnerability/host/status/get
     """
-    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
+    host_list = fields.List(fields.Integer(
+        required=True, validate=lambda s: s > 0), required=True)
 
 
 class GetHostListFilterSchema(Schema):
@@ -86,10 +88,10 @@ class HostCvesFilterSchema(Schema):
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
     severity = fields.List(fields.String(
         validate=validate.OneOf(["Critical", "High", "Medium", "Low", "Unknown"])), required=False)
-    status = fields.List(fields.String(
-        validate=validate.OneOf(["not reviewed", "in review", "on-hold", "resolved",
-                                 "no action"])), required=False)
     affected = fields.Boolean(required=False, default=True)
+
+    hotpatch = fields.List(fields.Boolean(
+        validate=validate.OneOf([True, False])), required=False)
 
 
 class GetHostCvesSchema(Schema):
