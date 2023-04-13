@@ -30,7 +30,7 @@ class ScanManager(Manager):
     Manager for scanning task
     """
 
-    def __init__(self, task_id, proxy, host_info, username):
+    def __init__(self, task_id, proxy, host_info, username, timed=False):
         """
         Args:
             task_id (str)
@@ -41,6 +41,7 @@ class ScanManager(Manager):
         self.host_list = [host['host_id'] for host in host_info]
         self.username = username
         self.pattern = re.compile(r'CVE-\d+-\d+')
+        self._timed = timed
         super().__init__(proxy, task_id)
 
     def create_task(self):
@@ -92,6 +93,13 @@ class ScanManager(Manager):
             "access_token": self.token,
             "Content-Type": "application/json; charset=UTF-8"
         }
+        if self._timed:
+            header.update({
+                "exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
+                "local_account": self.username})
+
+        print(self.task)
+
         response = BaseResponse.get_response(
             'POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:

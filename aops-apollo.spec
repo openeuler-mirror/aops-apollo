@@ -1,6 +1,6 @@
 Name:		aops-apollo
 Version:	v1.2.0
-Release:	1
+Release:	2
 Summary:	Cve management service, monitor machine vulnerabilities and provide fix functions.
 License:	MulanPSL2
 URL:		https://gitee.com/openeuler/%{name}
@@ -11,7 +11,7 @@ Requires:   aops-vulcanus >= v1.2.0
 Requires:   python3-elasticsearch python3-flask-restful python3-marshmallow >= 3.13.0
 Requires:   python3-sqlalchemy python3-PyMySQL python3-Flask-APScheduler >= 1.11.0
 Requires:   python3-PyYAML python3-flask
-Requires:   python3-retrying
+Requires:   python3-retrying python3-lxml
 Provides:   aops-apollo
 
 
@@ -52,10 +52,10 @@ cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %{python3_sitelib}/dnf-plugins/*
 
 %changelog
-* Mon Mar 27 2023 wangguangge<wangguangge@huawei.com> - v1.2.0-1
+* Mon Mar 27 2023 wangguangge<wangguangge@huawei.com> - v1.2.0-2
 - add dnf hotpatch list plugin
 
-* Fri Mar 24 2022 yangpengtao<1475324955@qq.com> - v1.2.0-1
+* Fri Mar 24 2023 yangpengtao<1475324955@qq.com> - v1.2.0-1
 - add updated security advisory at regular time
 - add execute the CVE scan command at regular time
 - add correct abnormal data at regular time
