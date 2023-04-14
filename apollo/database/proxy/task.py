@@ -2156,6 +2156,52 @@ class TaskMysqlProxy(MysqlProxy):
                 "Setting cve fixing progress failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
+    def query_user_email(self, username: str) -> tuple:
+        """
+        query user email from database by username
+
+        Args:
+            username(str)
+
+        Returns:
+            str: status_code
+            str: email address
+        """
+        try:
+            user = self.session.query(User).filter(
+                User.username == username).one()
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("update task_cve_host table status failed.")
+            return DATABASE_QUERY_ERROR
+
+        return SUCCEED, user.email
+
+    def query_host_cve_info(self, username: str) -> tuple:
+        """
+        query cve info with host info from database
+
+        Args:
+            username (str)
+
+        Returns:
+            str: status code
+            rows: query rows
+        """
+        try:
+            rows = self.session.query(CveHostAssociation.cve_id, Host.host_ip, Host.host_name,
+                                      case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
+                                      case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity")) \
+                .join(Host, Host.host_id == CveHostAssociation.host_id) \
+                .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id) \
+                .filter(Host.user == username, CveHostAssociation.affected == 1, CveHostAssociation.fixed == 0).all()
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("update task_cve_host table status failed.")
+            return DATABASE_QUERY_ERROR, []
+
+        return SUCCEED, rows
+
 
 class TaskEsProxy(ElasticsearchProxy):
     def get_package_info(self, data):

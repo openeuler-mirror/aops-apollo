@@ -16,6 +16,11 @@ Author:
 Description: Task manager for cve scanning.
 """
 import re
+import time
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from io import BytesIO
 
 from apollo.conf import configuration
 from apollo.handler.task_handler.manager import Manager
@@ -23,6 +28,7 @@ from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
 from vulcanus.restful.response import BaseResponse
+from vulcanus.send_email import Email
 
 
 class ScanManager(Manager):
@@ -98,8 +104,6 @@ class ScanManager(Manager):
                 "exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
                 "local_account": self.username})
 
-        print(self.task)
-
         response = BaseResponse.get_response(
             'POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:
@@ -125,5 +129,94 @@ class ScanManager(Manager):
     def fault_handle(self):
         """
             When the task is completed or execute fail, set the host status to 'done'.
+            then send a email to notify the user.
         """
         self.proxy.update_host_scan("finish", self.host_list)
+        self.send_email_to_user()
+
+    def send_email_to_user(self) -> None:
+        """
+            send email to user with cve scan result
+        """
+        # Get config info
+        server = configuration.email.get("SERVER")
+        port = configuration.email.get("PORT")
+        authorization_code = configuration.email.get("AUTHORIZATION_CODE")
+        sender = configuration.email.get("SENDER")
+
+        # Get user email address
+        status, receiver = self.proxy.query_user_email(self.username)
+        if status != SUCCEED:
+            LOGGER.warning("Query user email address failed!Can't send email")
+            return
+
+        # Generate email body
+        message = self._generate_email_body(sender, receiver)
+
+        # send email
+        email_obj = Email(server, port, sender, authorization_code)
+        email_obj.send(receiver, message)
+
+    def _generate_email_body(self, sender: str, receivers: str) -> MIMEMultipart:
+        message = MIMEMultipart('mixed')
+        status, rows = self.proxy.query_host_cve_info(self.username)
+        if status != SUCCEED:
+            return message
+
+        # set email subject
+        message['Subject'] = f'{time.strftime("【%Y-%m-%d", time.localtime())}' \
+                             f' A-OPS】CVE扫描结果'
+        message['From'] = f'A-OPS<{sender}>'
+        message['To'] = receivers
+
+        # set email text content and file content
+        file, table_data = self._generate_cve_info_file(rows)
+
+        body_head = "<p>下表为各主机CVE扫描结果简略统计表：</p>"
+        body_tail = "<p>详细CVE信息请查看附件。</p>"
+        table_title = ["序号", "主机名", "主机IP", "CVE个数"]
+        html = f"{body_head}{Email.turn_data_to_table_html(table_title, table_data)}{body_tail}"
+        text_content = MIMEText(html, "html", "utf-8")
+        message.attach(text_content)
+
+        file_content = MIMEApplication(file.read())
+        file_content.add_header(
+            'Content-Disposition', 'attachment',
+            filename=f"CVE_{time.strftime('%Y_%m_%d', time.localtime())}.csv")
+        message.attach(file_content)
+
+        return message
+
+    def _generate_cve_info_file(self, rows) -> tuple:
+        tmp = {}
+        chart_data = []
+        file_content = "序号,CVE_ID,主机IP,主机名称,CVSS评分,评分级别\n"
+        for num, row in enumerate(rows):
+            file_content += f"{num + 1},{row.cve_id},{row.host_ip}," \
+                            f"{row.host_name},{row.cvss_score},{row.severity}\n"
+            if row.host_ip in tmp:
+                tmp[row.host_ip]["count"] += 1
+            else:
+                tmp[row.host_ip] = {"count": 1, "host_name": row.host_name}
+
+        for num, info in enumerate(tmp.items()):
+            chart_data.append(
+                [num, info[1].get("host_name"), info[0], info[1].get("count")])
+
+        return self._generate_file_object(file_content), chart_data
+
+    @staticmethod
+    def _generate_file_object(content: str) -> BytesIO:
+        """
+        Generate BytesIO object
+
+        Args:
+            content(str): text content
+
+        Returns:
+            BytesIO
+        """
+        file = BytesIO()
+        file.write(content.encode("utf-8"))
+        file.seek(0)
+        return file
