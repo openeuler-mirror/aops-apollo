@@ -1,6 +1,6 @@
 Name:		aops-apollo
 Version:	v1.2.0
-Release:	1
+Release:	2
 Summary:	Cve management service, monitor machine vulnerabilities and provide fix functions.
 License:	MulanPSL2
 URL:		https://gitee.com/openeuler/%{name}
@@ -18,6 +18,12 @@ Provides:   aops-apollo
 %description
 Cve management service, monitor machine vulnerabilities and provide fix functions.
 
+%package -n dnf-hotpatch-plugin
+Summary: dnf hotpatch plugin
+Requires: python3-hawkey python3-dnf syscare
+
+%description -n dnf-hotpatch-plugin
+dnf hotpatch plugin, it's about hotpatch query and fix
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -30,6 +36,8 @@ Cve management service, monitor machine vulnerabilities and provide fix function
 # install for aops-apollo
 %py3_install
 
+#install for aops-dnf-plugin
+cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 
 %files
 %doc README.*
@@ -40,8 +48,13 @@ Cve management service, monitor machine vulnerabilities and provide fix function
 %{python3_sitelib}/aops_apollo*.egg-info
 %{python3_sitelib}/apollo/*
 
+%files -n dnf-hotpatch-plugin
+%{python3_sitelib}/dnf-plugins/*
 
 %changelog
+* Mon Mar 27 2023 wangguangge<wangguangge@huawei.com> - v1.2.0-2
+- add dnf hotpatch list plugin
+
 * Fri Mar 24 2023 yangpengtao<1475324955@qq.com> - v1.2.0-1
 - add updated security advisory at regular time
 - add execute the CVE scan command at regular time
