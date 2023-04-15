@@ -20,7 +20,6 @@ import unittest
 from flask import g
 from sqlalchemy import func
 
-from apollo.database import session_maker
 from vulcanus.restful.resp.state import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATA_DEPENDENCY_ERROR
 from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db
 from apollo.database.proxy.repo import RepoProxy
@@ -29,7 +28,7 @@ from apollo.database.table import Repo
 
 class TestRepoDatabase(unittest.TestCase):
     repo_database = RepoProxy()
-    repo_database.connect(session_maker())
+    repo_database.connect()
 
     @classmethod
     def setUpClass(cls):
@@ -75,7 +74,8 @@ class TestRepoDatabase(unittest.TestCase):
             "username": "admin",
             "repo_name_list": ["repo_not_exist1", "repo_not_exist2"]
         }
-        self.assertEqual(self.repo_database.get_repo(data), (NO_DATA, {"result": []}))
+        self.assertEqual(self.repo_database.get_repo(
+            data), (NO_DATA, {"result": []}))
 
         # query partial exist repo info
         data = {
@@ -92,7 +92,8 @@ class TestRepoDatabase(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.repo_database.get_repo(data), (PARTIAL_SUCCEED, expected_query_result))
+        self.assertEqual(self.repo_database.get_repo(
+            data), (PARTIAL_SUCCEED, expected_query_result))
 
         # query exist repo info.
         data = {
@@ -109,7 +110,8 @@ class TestRepoDatabase(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.repo_database.get_repo(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.repo_database.get_repo(
+            data), (SUCCEED, expected_query_result))
 
         # query all repo. pay attention, a test repo is added in previous test case
         data = {
@@ -142,7 +144,8 @@ class TestRepoDatabase(unittest.TestCase):
             "username": "admin",
             "repo_name_list": ["repo1"]
         }
-        self.assertEqual(self.repo_database.delete_repo(data), DATA_DEPENDENCY_ERROR)
+        self.assertEqual(self.repo_database.delete_repo(
+            data), DATA_DEPENDENCY_ERROR)
 
         # delete partial in used repo. The repos in database are: repo1, repo2, repo3
         data = {
@@ -191,7 +194,8 @@ class TestRepoDatabase(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.repo_database.get_repo(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.repo_database.get_repo(
+            data), (SUCCEED, expected_query_result))
 
         # update doesn't exist repo
         data = {

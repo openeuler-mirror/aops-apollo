@@ -29,9 +29,10 @@ class CveHostAssociation(Base, MyBase):
     """
     __tablename__ = "cve_host_match"
 
-    cve_id = Column(String(20), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cve_id = Column(String(20))
     host_id = Column(Integer, ForeignKey(
-        'host.host_id', ondelete="CASCADE"), primary_key=True)
+        'host.host_id', ondelete="CASCADE"), index=True)
     affected = Column(Boolean)
     fixed = Column(Boolean)
     hotpatch = Column(Boolean)
@@ -45,8 +46,8 @@ class CveAffectedPkgs(Base, MyBase):
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
     package = Column(String(40), primary_key=True)
-    package_version = Column(String(20), primary_key=True)
-    os_version = Column(String(20), primary_key=True)
+    package_version = Column(String(50), primary_key=True)
+    os_version = Column(String(50), primary_key=True, index=True)
     affected = Column(Integer)
 
 

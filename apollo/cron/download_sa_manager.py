@@ -14,23 +14,22 @@ import datetime
 import os
 import re
 import shutil
-
+import sqlalchemy
 import requests
 import retrying
 from lxml import etree
-from requests.exceptions import ConnectTimeout
 from retrying import retry
 
 from apollo.conf import configuration
 from apollo.conf.constant import ADVISORY_SAVED_PATH, TIMED_TASK_CONFIG_PATH
 from apollo.cron import TimedTaskBase
 from apollo.cron.manager import get_timed_task_config_info
-from apollo.database import session_maker
 from apollo.database.proxy.cve import CveProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.database.proxy import ElasticsearchProxy
 
 
 class TimedDownloadSATask(TimedTaskBase):
@@ -38,7 +37,8 @@ class TimedDownloadSATask(TimedTaskBase):
     Timed download sa tasks
     """
     config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
-    security_base_url = config_info.get("download_sa", dict()).get("base_url", "")
+    security_base_url = config_info.get(
+        "download_sa", dict()).get("base_url", "")
     if not security_base_url:
         LOGGER.error("Please add base_url in configuration file")
     advisory_years = config_info.get("download_sa", dict()).get("sa_years", "")
@@ -57,23 +57,30 @@ class TimedDownloadSATask(TimedTaskBase):
         to be downloaded incrementally. Download all the security announcements in the list to the local, parse the
         security announcements and store them in the database, and update the data in the history table.
         """
-        LOGGER.info("Begin to download advisory in %s.", str(datetime.datetime.now()))
-        proxy = CveProxy(configuration)
-        if not proxy.connect(session_maker()):
+        LOGGER.info("Begin to download advisory in %s.",
+                    str(datetime.datetime.now()))
+        try:
+            with CveProxy(configuration) as proxy:
+                ElasticsearchProxy.connect(proxy)
+
+                download_record, download_failed_advisory = proxy.get_advisory_download_record()
+
+                sa_name_list = TimedDownloadSATask.get_incremental_sa_name_list(
+                    download_record)
+
+                TimedDownloadSATask.download_security_advisory(sa_name_list)
+                TimedDownloadSATask.save_security_advisory_to_database(proxy)
+
+                proxy.save_advisory_download_record(
+                    TimedDownloadSATask.save_sa_record)
+
+                if download_failed_advisory:
+                    id_list = [
+                        record.id for record in download_failed_advisory]
+                    proxy.delete_advisory_download_failed_record(id_list)
+        except sqlalchemy.exc.SQLAlchemyError:
             LOGGER.error("Connect to database fail.")
             return
-        download_record, download_failed_advisory = proxy.get_advisory_download_record()
-
-        sa_name_list = TimedDownloadSATask.get_incremental_sa_name_list(download_record)
-
-        TimedDownloadSATask.download_security_advisory(sa_name_list)
-        TimedDownloadSATask.save_security_advisory_to_database(proxy)
-
-        proxy.save_advisory_download_record(TimedDownloadSATask.save_sa_record)
-
-        if download_failed_advisory:
-            id_list = [record.id for record in download_failed_advisory]
-            proxy.delete_advisory_download_failed_record(id_list)
 
     @staticmethod
     def save_security_advisory_to_database(proxy):
@@ -91,17 +98,21 @@ class TimedDownloadSATask(TimedTaskBase):
 
         for file_name in advisory_dir:
             file_path = os.path.join(ADVISORY_SAVED_PATH, file_name)
-            advisory_year, advisory_serial_number = re.findall("\d+", file_name)
+            advisory_year, advisory_serial_number = re.findall(
+                "\d+", file_name)
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
+                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(
+                    file_path)
             except (KeyError, ParseAdvisoryError) as error:
                 LOGGER.error(error)
-                LOGGER.error("Some error occurred when parse advisory '%s'." % file_name)
+                LOGGER.error(
+                    "Some error occurred when parse advisory '%s'." % file_name)
                 TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
                                                            "advisory_serial_number": advisory_serial_number,
                                                            "download_status": False})
                 continue
-            save_status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
+            save_status_code = proxy.save_security_advisory(
+                file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
             TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
                                                        "advisory_serial_number": advisory_serial_number,
                                                        "download_status": True if save_status_code == SUCCEED else False})

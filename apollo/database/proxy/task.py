@@ -2517,19 +2517,16 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             host(str)
             port(int)
         """
-        TaskMysqlProxy.__init__(self)
+        TaskMysqlProxy.__init__(self, configuration)
         TaskEsProxy.__init__(self, configuration, host, port)
 
-    def connect(self, session):
-        return TaskMysqlProxy.connect(
-            self, session) and TaskEsProxy.connect(self)
+    def connect(self):
+        return TaskEsProxy.connect(self)
 
     def close(self):
-        TaskMysqlProxy.close(self)
         TaskEsProxy.close(self)
 
     def __del__(self):
-        TaskMysqlProxy.__del__(self)
         TaskEsProxy.__del__(self)
 
     def generate_cve_task(self, data):

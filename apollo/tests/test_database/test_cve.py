@@ -21,7 +21,6 @@ from flask import g
 
 from apollo.conf import configuration
 from apollo.conf.constant import ES_TEST_FLAG
-from apollo.database import session_maker
 from apollo.database.proxy.cve import CveProxy
 from apollo.database.table import CveUserAssociation
 from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, setup_es_db, \
@@ -31,7 +30,7 @@ from vulcanus.restful.resp.state import PARTIAL_SUCCEED, SUCCEED, NO_DATA, DATAB
 
 class TestCveMysqlProxy(unittest.TestCase):
     cve_database = CveProxy(configuration)
-    cve_database.connect(session_maker())
+    cve_database.connect()
 
     @classmethod
     def setUpClass(cls):
@@ -48,7 +47,8 @@ class TestCveMysqlProxy(unittest.TestCase):
                 "Critical": 0, "High": 1, "Medium": 1, "Low": 1, "Unknown": 1
             }
         }
-        self.assertEqual(self.cve_database.get_cve_overview(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_overview(
+            data), (SUCCEED, expected_query_result))
 
     def test_get_cve_host(self):
         data = {"cve_id": "qwfqwff4", "username": "admin", "sort": "last_scan"}
@@ -65,15 +65,20 @@ class TestCveMysqlProxy(unittest.TestCase):
                  }
             ]
         }
-        self.assertEqual(self.cve_database.get_cve_host(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_host(
+            data), (SUCCEED, expected_query_result))
 
         data = {"cve_id": "qwfqwff6", "username": "admin"}
-        expected_query_result = {"total_count": 0, "total_page": 1, "result": []}
-        self.assertEqual(self.cve_database.get_cve_host(data), (SUCCEED, expected_query_result))
+        expected_query_result = {
+            "total_count": 0, "total_page": 1, "result": []}
+        self.assertEqual(self.cve_database.get_cve_host(
+            data), (SUCCEED, expected_query_result))
 
         data = {"cve_id": "not_exist_id", "username": "admin"}
-        expected_query_result = {"total_count": 0, "total_page": 1, "result": []}
-        self.assertEqual(self.cve_database.get_cve_host(data), (SUCCEED, expected_query_result))
+        expected_query_result = {
+            "total_count": 0, "total_page": 1, "result": []}
+        self.assertEqual(self.cve_database.get_cve_host(
+            data), (SUCCEED, expected_query_result))
 
     def test_get_cve_task_host(self):
         data = {"cve_list": ["qwfqwff5"], "username": "admin"}
@@ -82,27 +87,34 @@ class TestCveMysqlProxy(unittest.TestCase):
                 "qwfqwff5": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}]
             }
         }
-        self.assertEqual(self.cve_database.get_cve_task_hosts(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_task_hosts(
+            data), (SUCCEED, expected_query_result))
 
-        data = {"cve_list": ["qwfqwff5", "qwfqwff6", "not_exist_id"], "username": "admin"}
+        data = {"cve_list": ["qwfqwff5", "qwfqwff6",
+                             "not_exist_id"], "username": "admin"}
         expected_query_result = {
             "result": {
                 "qwfqwff5": [{"host_id": 2, "host_name": "host2", "host_ip": "127.0.0.2"}]
             }
         }
-        self.assertEqual(self.cve_database.get_cve_task_hosts(data), (PARTIAL_SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_task_hosts(
+            data), (PARTIAL_SUCCEED, expected_query_result))
 
         data = {"cve_list": ["not_exist_id"], "username": "admin"}
-        self.assertEqual(self.cve_database.get_cve_task_hosts(data), (NO_DATA, {"result": {}}))
+        self.assertEqual(self.cve_database.get_cve_task_hosts(
+            data), (NO_DATA, {"result": {}}))
 
     def test_set_cve_status(self):
-        data = {"cve_list": ["qwfqwff4", "qwfqwff5", "not_exist_id"], "username": "admin", "status": "on-hold"}
+        data = {"cve_list": ["qwfqwff4", "qwfqwff5", "not_exist_id"],
+                "username": "admin", "status": "on-hold"}
         self.assertEqual(self.cve_database.set_cve_status(data), NO_DATA)
 
-        data = {"cve_list": ["not_exist_id"], "username": "admin", "status": "on-hold"}
+        data = {"cve_list": ["not_exist_id"],
+                "username": "admin", "status": "on-hold"}
         self.assertEqual(self.cve_database.set_cve_status(data), NO_DATA)
 
-        data = {"cve_list": ["qwfqwff4", "qwfqwff5"], "username": "admin", "status": "on-hold"}
+        data = {"cve_list": ["qwfqwff4", "qwfqwff5"],
+                "username": "admin", "status": "on-hold"}
         self.assertEqual(self.cve_database.set_cve_status(data), SUCCEED)
 
         status_1 = self.cve_database.session.query(CveUserAssociation). \
@@ -116,7 +128,8 @@ class TestCveMysqlProxy(unittest.TestCase):
         self.assertEqual("on-hold", status_2)
 
     def test_get_cve_action(self):
-        data = {"cve_list": ["qwfqwff3", "qwfqwff4", "not_exist_id"], "username": "admin"}
+        data = {"cve_list": ["qwfqwff3", "qwfqwff4",
+                             "not_exist_id"], "username": "admin"}
         expected_query_result = {
             "result": {
                 "qwfqwff3": {"reboot": False, "package": "ansible,tensorflow"},
@@ -124,20 +137,24 @@ class TestCveMysqlProxy(unittest.TestCase):
             }
         }
         query_result = self.cve_database.get_cve_action(data)
-        sorted_pkg = sorted(query_result[1]["result"]["qwfqwff3"]["package"].split(','))
+        sorted_pkg = sorted(
+            query_result[1]["result"]["qwfqwff3"]["package"].split(','))
         query_result[1]["result"]["qwfqwff3"]["package"] = ','.join(sorted_pkg)
-        sorted_pkg = sorted(query_result[1]["result"]["qwfqwff4"]["package"].split(','))
+        sorted_pkg = sorted(
+            query_result[1]["result"]["qwfqwff4"]["package"].split(','))
         query_result[1]["result"]["qwfqwff4"]["package"] = ','.join(sorted_pkg)
-        self.assertEqual(self.cve_database.get_cve_action(data), (PARTIAL_SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_action(
+            data), (PARTIAL_SUCCEED, expected_query_result))
 
         data = {"cve_list": ["not_exist_id"], "username": "admin"}
-        self.assertEqual(self.cve_database.get_cve_action(data), (NO_DATA, {"result": {}}))
+        self.assertEqual(self.cve_database.get_cve_action(
+            data), (NO_DATA, {"result": {}}))
 
 
 @unittest.skipUnless(ES_TEST_FLAG, "The test cases will remove all the data on es, never run on real environment.")
 class TestCveProxy(unittest.TestCase):
     cve_database = CveProxy(configuration)
-    cve_database.connect(session_maker())
+    cve_database.connect()
 
     @classmethod
     def setUpClass(cls):
@@ -244,7 +261,8 @@ class TestCveProxy(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(self.cve_database.get_cve_list(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_list(
+            data), (SUCCEED, expected_query_result))
 
     def test_get_cve_info(self):
         data = {"cve_id": "qwfqwff4", "username": "admin"}
@@ -270,10 +288,12 @@ class TestCveProxy(unittest.TestCase):
                 "status": "not reviewed", "package": "", "related_cve": []
             }
         }
-        self.assertEqual(self.cve_database.get_cve_info(data), (SUCCEED, expected_query_result))
+        self.assertEqual(self.cve_database.get_cve_info(
+            data), (SUCCEED, expected_query_result))
 
         data = {"cve_id": "not_exist_id", "username": "admin"}
-        self.assertEqual(self.cve_database.get_cve_info(data), (NO_DATA, {"result": {}}))
+        self.assertEqual(self.cve_database.get_cve_info(
+            data), (NO_DATA, {"result": {}}))
 
     def test_save_security_advisory(self):
         filename = "advisory.xml"
@@ -385,6 +405,7 @@ class TestCveProxy(unittest.TestCase):
         host_id = 1
         username = "admin"
         expected_host_name = "host1"
-        expected_query_result = [['qwfqwff3', 'unaffected', 'fixed'], ['qwfqwff4', 'affected', 'fixed']]
+        expected_query_result = [['qwfqwff3', 'unaffected', 'fixed'], [
+            'qwfqwff4', 'affected', 'fixed']]
         self.assertEqual(self.cve_database.query_host_name_and_related_cves(host_id, username),
                          (expected_host_name, expected_query_result))

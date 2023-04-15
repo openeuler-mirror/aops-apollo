@@ -20,13 +20,6 @@ from vulcanus.database.helper import make_mysql_engine_url
 
 engine_url = make_mysql_engine_url(configuration)
 ENGINE = create_database_engine(engine_url,
-                                configuration.mysql.get("POOL_SIZE"),  # pylint: disable=E1101
+                                configuration.mysql.get(
+                                    "POOL_SIZE"),  # pylint: disable=E1101
                                 configuration.mysql.get("POOL_RECYCLE"))  # pylint: disable=E1101
-SESSION = scoped_session(sessionmaker(bind=ENGINE))
-
-
-def session_maker():
-    """
-    The session object os the database link
-    """
-    return scoped_session(sessionmaker(bind=ENGINE))

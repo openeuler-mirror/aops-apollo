@@ -25,17 +25,16 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from apollo.conf import configuration
 from apollo.conf.constant import ES_TEST_FLAG
-from apollo.database import session_maker
 from apollo.database.proxy.host import HostProxy
 from apollo.database.proxy.task import TaskProxy
-from apollo.tests.test_database.helper import  setup_mysql_db, tear_down_mysql_db, setup_es_db, tear_down_es_db
+from apollo.tests.test_database.helper import setup_mysql_db, tear_down_mysql_db, setup_es_db, tear_down_es_db
 from vulcanus.restful.resp.state import SUCCEED, NO_DATA, DATABASE_INSERT_ERROR, PARTIAL_SUCCEED, \
     SERVER_ERROR
 
 
 class TestTaskMysqlFirst(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(session_maker())
+    task_database.connect()
 
     @classmethod
     def setUpClass(cls):
@@ -96,14 +95,14 @@ class TestTaskMysqlFirst(unittest.TestCase):
             "init", [1, 2]), SUCCEED)
 
         host_database = HostProxy(configuration)
-        host_database.connect(session_maker())
+        host_database.connect()
         self.assertEqual(host_database.get_hosts_status({"host_list": [1, 2], "username": "admin"}),
                          (SUCCEED, {"result": {1: "scanning", 2: "scanning"}}))
         self.assertEqual(self.task_database.update_host_scan(
             "finish", [1, 2]), SUCCEED)
 
         host_database = HostProxy(configuration)
-        host_database.connect(session_maker())
+        host_database.connect()
         self.assertEqual(host_database.get_hosts_status({"host_list": [1, 2], "username": "admin"}),
                          (SUCCEED, {"result": {1: "done", 2: "done"}}))
 
@@ -454,7 +453,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                            'task_name': 'fix cve',
                            'task_type': 'cve fix',
                            'tasks': [{'check': False, 'cves': ['qwfqwff3'], 'host_id': 1},
-                                     {'check': False, 'cves': ['qwfqwff3'], 'host_id': 2},
+                                     {'check': False, 'cves': [
+                                         'qwfqwff3'], 'host_id': 2},
                                      {'check': False, 'cves': ['qwfqwff4'], 'host_id': 3}],
                            'total_hosts': [1, 2, 3]}
         self.assertEqual(self.task_database.get_cve_basic_info(
@@ -497,7 +497,8 @@ class TestTaskMysqlFirst(unittest.TestCase):
                           ("aaaaaaaaaapoiuytrewqasdfghjklmnb", "repo set", 123836141)])
 
     def test_update_task_status(self):
-        data = ["2ab6d20a67a311edb556c85acf0079ce", "2d987ccd67a311eda545c85acf0179ce"]
+        data = ["2ab6d20a67a311edb556c85acf0079ce",
+                "2d987ccd67a311eda545c85acf0179ce"]
         self.assertEqual(self.task_database.update_task_status(data), SUCCEED)
 
         data = ["not_exist_id"]
@@ -506,12 +507,13 @@ class TestTaskMysqlFirst(unittest.TestCase):
 
 class TestTaskMysqlSecond(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(session_maker())
+    task_database.connect()
 
     @classmethod
     def setUpClass(cls):
         setup_mysql_db()
     #
+
     @classmethod
     def tearDownClass(cls):
         tear_down_mysql_db()
@@ -741,7 +743,7 @@ class TestTaskMysqlSecond(unittest.TestCase):
 
     def test_save_cve_scan_result(self):
         host_database = HostProxy(configuration)
-        host_database.connect(session_maker())
+        host_database.connect()
         host_data = {
             "sort": "cve_num",
             "direction": "desc",
@@ -837,7 +839,7 @@ class TestTaskMysqlSecond(unittest.TestCase):
 @unittest.skipUnless(ES_TEST_FLAG, "The test cases will remove all the data on es, never run on real environment.")
 class TestTaskEsProxy(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(session_maker())
+    task_database.connect()
 
     @classmethod
     def setUpClass(cls):
@@ -962,7 +964,7 @@ class TestTaskEsProxy(unittest.TestCase):
 @unittest.skipUnless(ES_TEST_FLAG, "The test cases will remove all the data on es, never run on real environment.")
 class TestTaskProxy(unittest.TestCase):
     task_database = TaskProxy(configuration)
-    task_database.connect(session_maker())
+    task_database.connect()
 
     @classmethod
     def setUpClass(cls):

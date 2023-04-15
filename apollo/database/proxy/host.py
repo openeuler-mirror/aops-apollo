@@ -415,18 +415,16 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             host(str)
             port(int)
         """
-        HostMysqlProxy.__init__(self)
+        HostMysqlProxy.__init__(self, configuration)
         CveEsProxy.__init__(self, configuration, host, port)
 
-    def connect(self, session):
-        return HostMysqlProxy.connect(self, session) and CveEsProxy.connect(self)
+    def connect(self):
+        return CveEsProxy.connect(self)
 
     def close(self):
-        HostMysqlProxy.close(self)
         CveEsProxy.close(self)
 
     def __del__(self):
-        HostMysqlProxy.__del__(self)
         CveEsProxy.__del__(self)
 
     def get_host_cve(self, data):
