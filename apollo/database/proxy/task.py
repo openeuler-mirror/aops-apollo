@@ -2189,12 +2189,17 @@ class TaskMysqlProxy(MysqlProxy):
             rows: query rows
         """
         try:
-            rows = self.session.query(CveHostAssociation.cve_id, Host.host_ip, Host.host_name,
-                                      case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
-                                      case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity")) \
-                .join(Host, Host.host_id == CveHostAssociation.host_id) \
+            subquery = self.session.query(
+                CveHostAssociation.host_id, CveHostAssociation.cve_id,
+                case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
+                case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity")) \
                 .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id) \
-                .filter(Host.user == username, CveHostAssociation.affected == 1, CveHostAssociation.fixed == 0).all()
+                .filter(CveHostAssociation.affected == True,
+                        CveHostAssociation.fixed == False).subquery()
+
+            rows = self.session.query(Host.host_ip, Host.host_name, subquery) \
+                .outerjoin(subquery, Host.host_id == subquery.c.host_id) \
+                .filter(Host.user == username)
         except SQLAlchemyError as error:
             LOGGER.error(error)
             LOGGER.error("update task_cve_host table status failed.")

@@ -132,7 +132,8 @@ class ScanManager(Manager):
             then send a email to notify the user.
         """
         self.proxy.update_host_scan("finish", self.host_list)
-        self.send_email_to_user()
+        if configuration.email.get("ENABLED"):
+            self.send_email_to_user()
 
     def send_email_to_user(self) -> None:
         """
@@ -173,7 +174,10 @@ class ScanManager(Manager):
         file, table_data = self._generate_cve_info_file(rows)
 
         body_head = "<p>下表为各主机CVE扫描结果简略统计表：</p>"
-        body_tail = "<p>详细CVE信息请查看附件。</p>"
+        body_tail = f'<p>详细CVE信息请查看附件。</p>' \
+                    f'<a href="http://{configuration.hermes.get("IP")}:' \
+                    f'{configuration.hermes.get("PORT")}/' \
+                    f'leaks/host-leak-list">点击跳转AOPS</a>'
         table_title = ["序号", "主机名", "主机IP", "CVE个数"]
         html = f"{body_head}{Email.turn_data_to_table_html(table_title, table_data)}{body_tail}"
         text_content = MIMEText(html, "html", "utf-8")
@@ -191,17 +195,22 @@ class ScanManager(Manager):
         tmp = {}
         chart_data = []
         file_content = "序号,CVE_ID,主机IP,主机名称,CVSS评分,评分级别\n"
-        for num, row in enumerate(rows):
-            file_content += f"{num + 1},{row.cve_id},{row.host_ip}," \
-                            f"{row.host_name},{row.cvss_score},{row.severity}\n"
+        for num, row in enumerate(rows, 1):
             if row.host_ip in tmp:
                 tmp[row.host_ip]["count"] += 1
+                file_content += f"{num},{row.cve_id},{row.host_ip}," \
+                                f"{row.host_name},{row.cvss_score},{row.severity}\n"
             else:
-                tmp[row.host_ip] = {"count": 1, "host_name": row.host_name}
+                if row.cve_id is not None:
+                    tmp[row.host_ip] = {"count": 1, "host_name": row.host_name}
+                    file_content += f"{num},{row.cve_id},{row.host_ip}," \
+                                    f"{row.host_name},{row.cvss_score},{row.severity}\n"
+                else:
+                    tmp[row.host_ip] = {"count": 0, "host_name": row.host_name}
 
-        for num, info in enumerate(tmp.items()):
+        for num, host_ip in enumerate(tmp.keys(), 1):
             chart_data.append(
-                [num, info[1].get("host_name"), info[0], info[1].get("count")])
+                [num, tmp[host_ip].get("host_name"), host_ip, tmp[host_ip].get("count")])
 
         return self._generate_file_object(file_content), chart_data
 
