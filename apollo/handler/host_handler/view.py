@@ -28,7 +28,7 @@ class VulGetHostStatus(BaseResponse):
     Restful interface for getting hosts status
     """
 
-    @BaseResponse.handle(schema=GetHostStatusSchema, proxy=HostMysqlProxy())
+    @BaseResponse.handle(schema=GetHostStatusSchema, proxy=HostMysqlProxy, config=configuration)
     def post(self, callback: HostMysqlProxy, **params):
         """
         Get hosts status
@@ -49,7 +49,7 @@ class VulGetHostList(BaseResponse):
     Restful interface for getting host list
     """
 
-    @BaseResponse.handle(schema=GetHostListSchema, proxy=HostMysqlProxy())
+    @BaseResponse.handle(schema=GetHostListSchema, proxy=HostMysqlProxy, config=configuration)
     def post(self, callback: HostMysqlProxy, **params):
         """
         Get host list
@@ -74,7 +74,7 @@ class VulGetHostInfo(BaseResponse):
     Restful interface for getting detailed info of a host
     """
 
-    @BaseResponse.handle(schema=GetHostInfoSchema, proxy=HostMysqlProxy())
+    @BaseResponse.handle(schema=GetHostInfoSchema, proxy=HostMysqlProxy, config=configuration)
     def get(self, callback: HostMysqlProxy, **params):
         """
         Get detailed info of a cve
@@ -95,7 +95,7 @@ class VulGetHostCves(BaseResponse):
     Restful interface for getting CVEs info of a host
     """
 
-    @BaseResponse.handle(schema=GetHostCvesSchema, proxy=HostProxy(configuration))
+    @BaseResponse.handle(schema=GetHostCvesSchema, proxy=HostProxy, config=configuration)
     def post(self, callback: HostProxy, **params):
         """
         Get hosts info of a cve

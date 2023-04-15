@@ -98,8 +98,6 @@ class ScanManager(Manager):
                 "exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
                 "local_account": self.username})
 
-        print(self.task)
-
         response = BaseResponse.get_response(
             'POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:

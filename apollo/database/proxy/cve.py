@@ -224,7 +224,7 @@ class CveMysqlProxy(MysqlProxy):
         Returns:
             set
         """
-        filters = set()
+        filters = {CveHostAssociation.fixed==False}
         if not filter_dict:
             return filters
 
@@ -363,7 +363,7 @@ class CveMysqlProxy(MysqlProxy):
         cve_query = self.session.query(CveHostAssociation.cve_id, Host.host_id,
                                        Host.host_name, Host.host_ip, CveHostAssociation.hotpatch) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
-            .filter(Host.user == username, CveHostAssociation.cve_id.in_(cve_list))
+            .filter(Host.user == username, CveHostAssociation.fixed == False, CveHostAssociation.cve_id.in_(cve_list))
         return cve_query
 
     @staticmethod
@@ -512,20 +512,18 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             host(str)
             port(int)
         """
-        CveMysqlProxy.__init__(self)
+        CveMysqlProxy.__init__(self, configuration)
         CveEsProxy.__init__(self, configuration, host, port)
 
-    def connect(self, session):
+    def connect(self):
         """ connect database"""
-        return CveMysqlProxy.connect(self, session) and ElasticsearchProxy.connect(self)
+        return ElasticsearchProxy.connect(self)
 
     def close(self):
         """ close connection """
-        CveMysqlProxy.close(self)
         ElasticsearchProxy.close(self)
 
     def __del__(self):
-        CveMysqlProxy.__del__(self)
         ElasticsearchProxy.__del__(self)
 
     def get_cve_list(self, data):
@@ -843,7 +841,6 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         # not record, return empty list
         if not pkg_list:
             return []
-        # TODO
         pkg_list = [pkg["package"] for pkg in pkg_list]
 
         exist_cve_query = self.session.query(CveHostAssociation.cve_id) \

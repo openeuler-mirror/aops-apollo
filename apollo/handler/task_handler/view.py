@@ -116,7 +116,7 @@ class VulScanHost(BaseResponse):
 
         return SUCCEED
 
-    @BaseResponse.handle(schema=ScanHostSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=ScanHostSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Scan host's cve
@@ -136,7 +136,7 @@ class VulGetTaskList(BaseResponse):
     Restful interface for getting task(cve fixing or repo setting) list.
     """
 
-    @BaseResponse.handle(schema=GetTaskListSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetTaskListSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -174,7 +174,7 @@ class VulGetTaskProgress(BaseResponse):
     Restful interface for getting task progress.
     """
 
-    @BaseResponse.handle(schema=GetTaskProgressSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetTaskProgressSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -205,7 +205,7 @@ class VulGetTaskInfo(BaseResponse):
     Restful interface for getting basic info of a task.
     """
 
-    @BaseResponse.handle(schema=GetTaskInfoSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetTaskInfoSchema, proxy=TaskMysqlProxy, config=configuration)
     def get(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -264,7 +264,7 @@ class VulGenerateCveTask(BaseResponse):
 
         return SUCCEED, result
 
-    @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -292,7 +292,7 @@ class VulGetCveTaskInfo(BaseResponse):
     Restful interface for getting the info of a task which fixes cve.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskInfoSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetCveTaskInfoSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -327,7 +327,7 @@ class VulGetCveTaskStatus(BaseResponse):
     Restful interface for getting host status in the task which fixes cve.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskStatusSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetCveTaskStatusSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -360,7 +360,7 @@ class VulGetCveTaskProgress(BaseResponse):
     Restful interface for getting progress of the task which fixes cve.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskProgressSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetCveTaskProgressSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -393,7 +393,7 @@ class VulGetCveTaskResult(BaseResponse):
     Restful interface for getting a CVE task's result.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskResultSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=GetCveTaskResultSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -467,7 +467,7 @@ class VulGenerateRepoTask(BaseResponse):
 
         return status_code, dict(task_id=task_id)
 
-    @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -493,7 +493,7 @@ class VulGetRepoTaskInfo(BaseResponse):
     Restful interface for getting the info of a task which sets repo.
     """
 
-    @BaseResponse.handle(schema=GetRepoTaskInfoSchema, proxy=TaskMysqlProxy())
+    @BaseResponse.handle(schema=GetRepoTaskInfoSchema, proxy=TaskMysqlProxy, config=configuration)
     def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
@@ -514,7 +514,7 @@ class VulGetRepoTaskResult(BaseResponse):
     Restful interface for getting the result of a task which sets repo.
     """
 
-    @BaseResponse.handle(schema=GetRepoTaskResultSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=GetRepoTaskResultSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -624,7 +624,7 @@ class VulExecuteTask(BaseResponse):
 
         return func(args, proxy)
 
-    @BaseResponse.handle(schema=ExecuteTaskSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=ExecuteTaskSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -654,7 +654,7 @@ class VulDeleteTask(BaseResponse):
 
         return status_code, dict(running_task=running_tasks)
 
-    @BaseResponse.handle(schema=DeleteTaskSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=DeleteTaskSchema, proxy=TaskProxy, config=configuration)
     def delete(self, callback: TaskProxy, **params):
         """
         Args:
@@ -686,7 +686,7 @@ class VulCveFixTaskCallback(BaseResponse):
 
         return CveFixCallback(proxy).callback(args['task_id'], args['host_id'], args['cves'])
 
-    @BaseResponse.handle(schema=CveFixCallbackSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=CveFixCallbackSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -722,7 +722,7 @@ class VulRepoSetTaskCallback(BaseResponse):
         repo_set_callback = RepoSetCallback(proxy)
         return repo_set_callback.callback(args['task_id'], task_info)
 
-    @BaseResponse.handle(schema=RepoSetCallbackSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=RepoSetCallbackSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -759,7 +759,7 @@ class VulCveScanTaskCallback(BaseResponse):
 
         return CveScanCallback(proxy).callback(args['task_id'], task_info, args["username"])
 
-    @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=TaskProxy(configuration))
+    @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
         Args:

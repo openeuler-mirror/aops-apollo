@@ -17,10 +17,8 @@ Description: Manager that start aops-manager
 """
 import redis
 import sqlalchemy
-from flask import Flask, g
+from flask import Flask
 from redis import RedisError
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.scoping import scoped_session
 
 from apollo import BLUE_POINT
 from apollo.conf import configuration
@@ -123,16 +121,6 @@ def main():
     init_redis_connect()
     init_database()
     app = init_app()
-
-    @app.before_request
-    def create_dbsession():
-        g.session = scoped_session(sessionmaker(bind=ENGINE))
-
-    @app.teardown_request
-    def remove_dbsession(response):
-        g.session.remove()
-        return response
-
     init_timed_task(app)
     return app
 
