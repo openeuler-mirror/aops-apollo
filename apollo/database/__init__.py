@@ -10,17 +10,16 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-
+from flask import g
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
 
-from vulcanus.database.helper import make_mysql_engine_url
-from vulcanus.database.helper import create_database_engine
 from apollo.conf import configuration
-
+from vulcanus.database.helper import create_database_engine
+from vulcanus.database.helper import make_mysql_engine_url
 
 engine_url = make_mysql_engine_url(configuration)
 ENGINE = create_database_engine(engine_url,
-                                configuration.mysql.get("POOL_SIZE"),  # pylint: disable=E1101
+                                configuration.mysql.get(
+                                    "POOL_SIZE"),  # pylint: disable=E1101
                                 configuration.mysql.get("POOL_RECYCLE"))  # pylint: disable=E1101
-SESSION = scoped_session(sessionmaker(bind=ENGINE))

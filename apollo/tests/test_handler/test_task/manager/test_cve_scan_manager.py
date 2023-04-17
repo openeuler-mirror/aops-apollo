@@ -20,13 +20,20 @@ from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SUCCEED, PARAM_ERROR, SERVER_ERROR, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR, PARAM_ERROR, SERVER_ERROR
 
 
 class CveScanManagerTestCase(unittest.TestCase):
     def test_create_task_should_return_PARAM_ERROR_when_proxy_is_none(self):
-        host_info = Mock()
-        manager = ScanManager("id1", None, host_info, "admin")
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "122.5.6.7.",
+                "host_name": "",
+                "status": ""
+            }
+        ]
+        manager = ScanManager("id1", "", host_info, "admin")
         self.assertEqual(manager.create_task(), PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, 'get_scan_host_info')
@@ -34,7 +41,7 @@ class CveScanManagerTestCase(unittest.TestCase):
             self, mock_proxy):
         host_info = [
             {
-                "host_id": "host_id1",
+                "host_id": 1,
                 "host_ip": "127.0.0.1",
                 "host_name": "host_name1",
                 "status": "0"
@@ -48,7 +55,14 @@ class CveScanManagerTestCase(unittest.TestCase):
     @mock.patch.object(TaskProxy, 'get_scan_host_info')
     def test_create_task_should_return_SUCCEED_when_query_from_database_success(
             self, mock_proxy):
-        host_info = Mock()
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "127.0.0.1",
+                "host_name": "host_name1",
+                "status": "0"
+            }
+        ]
         proxy = TaskProxy(configuration)
         manager = ScanManager("id1", proxy, host_info, "admin")
         mock_proxy.return_value = (SUCCEED, Mock())
@@ -58,7 +72,14 @@ class CveScanManagerTestCase(unittest.TestCase):
     def test_pre_handle_should_return_False_when_update_host_scan_fail(
             self, mock_update_host_scan):
         proxy = TaskProxy(configuration)
-        host_info = Mock()
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "127.0.0.1",
+                "host_name": "host_name1",
+                "status": "0"
+            }
+        ]
         manager = ScanManager("id1", proxy, host_info, "admin")
         mock_update_host_scan.return_value = (DATABASE_UPDATE_ERROR)
         self.assertEqual(manager.pre_handle(), False)
@@ -67,7 +88,14 @@ class CveScanManagerTestCase(unittest.TestCase):
     def test_pre_handle_should_return_True_when_update_host_scan_succeed(
             self, mock_update_host_scan):
         proxy = TaskProxy(configuration)
-        host_info = Mock()
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "127.0.0.1",
+                "host_name": "host_name1",
+                "status": "0"
+            }
+        ]
         manager = ScanManager("id1", proxy, host_info, "admin")
         mock_update_host_scan.return_value = SUCCEED
         self.assertEqual(manager.pre_handle(), True)
@@ -84,42 +112,66 @@ class CveScanManagerTestCase(unittest.TestCase):
             "access_token": fake_token,
             "Content-Type": "application/json; charset=UTF-8"
         }
-        manager = ScanManager(Mock(), Mock(), Mock(), Mock())
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "127.0.0.1",
+                "host_name": "host_name1",
+                "status": "0"
+            }
+        ]
+        manager = ScanManager(Mock(), Mock(), host_info, Mock())
         manager.task = fake_task
         manager.token = fake_token
         mock_response.return_value = {"code": Mock()}
         manager.handle()
         mock_response.assert_called_with(
             "POST", manager_url, fake_task, header)
-        self.assertEqual(manager.result, [])
+        self.assertEqual(manager.result, None)
 
     @mock.patch.object(BaseResponse, 'get_response')
     def test_handle_should_assign_result_with_task_when_response_succeed(
             self, mock_response):
-        manager = ScanManager(Mock(), Mock(), Mock(), Mock())
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "127.0.0.1",
+                "host_name": "host_name1",
+                "status": "0"
+            }
+        ]
+        manager = ScanManager(Mock(), Mock(), host_info, Mock())
         fake_result = Mock()
         mock_response.return_value = {
-            "code": SUCCEED, "result": {"task_result": fake_result}}
+            "code": SUCCEED, "task_result": fake_result}
         manager.handle()
         self.assertEqual(manager.result, fake_result)
 
     def test_post_handle_should_be_correct(self):
-        manager = ScanManager(Mock(), Mock(), Mock(), Mock())
+        host_info = [
+            {
+                "host_id": 1,
+                "host_ip": "127.0.0.1",
+                "host_name": "host_name1",
+                "status": "0"
+            }
+        ]
+        manager = ScanManager(Mock(), Mock(), host_info, Mock())
         fake_result = [
             {
-                "host_id": "host_id1",
+                "host_id": 1,
                 "host_ip": "127.0.0.1",
                 "host_name": "host_name1",
                 "log": "restful connection error",
             },
             {
-                "host_id": "host_id2",
+                "host_id": 2,
                 "host_ip": "127.0.0.2",
                 "host_name": "host_name2",
                 "log": "scan finish",
             },
             {
-                "host_id": "host_id3",
+                "host_id": 3,
                 "host_ip": "127.0.0.3",
                 "host_name": "host_name3",
                 "log": "no matching data found in the database",
@@ -135,8 +187,12 @@ class CveScanManagerTestCase(unittest.TestCase):
     @mock.patch.object(TaskProxy, "update_host_scan")
     def test_fault_handle_should_have_correct_step(
             self, mock_update_host_scan):
-        host_list = Mock()
+        host_list = [
+            {
+                "host_id": 1
+            }
+        ]
         proxy = TaskProxy(configuration)
         manager = ScanManager(Mock(), proxy, host_list, Mock())
         manager.fault_handle()
-        mock_update_host_scan.assert_called_with("finish", host_list)
+        mock_update_host_scan.assert_called_with("finish", [1])

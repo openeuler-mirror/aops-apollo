@@ -26,7 +26,7 @@ from apollo.conf.constant import *
 from apollo.database.proxy.cve import CveProxy
 from apollo.url import SPECIFIC_URLS
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import DATABASE_CONNECT_ERROR, PARAM_ERROR, SUCCEED, WRONG_FILE_FORMAT, SERVER_ERROR, \
+from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, PARAM_ERROR, SUCCEED, WRONG_FILE_FORMAT, SERVER_ERROR, \
     DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR
 
 API = Api()
@@ -58,7 +58,7 @@ class VulGetCveOverviewTestCase(unittest.TestCase):
         args = {}
         response = client.post(VUL_CVE_OVERVIEW, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
 
 class VulGetCveListTestCase(unittest.TestCase):
@@ -66,7 +66,7 @@ class VulGetCveListTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_CVE_LIST_GET, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_vulgetcvelist_should_return_param_error_when_input_wrong_param(self):
         args = {
@@ -76,7 +76,7 @@ class VulGetCveListTestCase(unittest.TestCase):
             VUL_CVE_LIST_GET,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(CveProxy, 'connect')
     @mock.patch.object(BaseResponse, 'verify_request')
@@ -89,7 +89,7 @@ class VulGetCveListTestCase(unittest.TestCase):
             VUL_CVE_LIST_GET,
             json={},
             headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_CONNECT_ERROR)
+        self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
 
 class VulGetCveInfoTestCase(unittest.TestCase):
@@ -97,14 +97,14 @@ class VulGetCveInfoTestCase(unittest.TestCase):
         args = {}
         response = client.post(VUL_CVE_INFO_GET, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_vulgetcveinfo_should_return_param_error_when_input_wrong_param(self):
         response = client.get(
             VUL_CVE_INFO_GET,
             json={},
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(CveProxy, 'connect')
     @mock.patch.object(BaseResponse, 'verify_request')
@@ -115,7 +115,7 @@ class VulGetCveInfoTestCase(unittest.TestCase):
         mock_connect.return_value = False
         response = client.get(f'{VUL_CVE_INFO_GET}?cve_id={"1233"}',
                               headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_CONNECT_ERROR)
+        self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
 
 class VulGetCveHostsTestCase(unittest.TestCase):
@@ -123,7 +123,7 @@ class VulGetCveHostsTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_CVE_HOST_GET, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_vulgetcvehosts_should_return_param_error_when_input_wrong_param(self):
         args = {
@@ -133,7 +133,7 @@ class VulGetCveHostsTestCase(unittest.TestCase):
             VUL_CVE_HOST_GET,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(BaseResponse, 'verify_request')
     def test_vulgetcvehosts_should_return_connect_error_when_database_query_error(self,
@@ -144,7 +144,7 @@ class VulGetCveHostsTestCase(unittest.TestCase):
             VUL_CVE_HOST_GET,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_QUERY_ERROR)
+        self.assertEqual(response['label'], DATABASE_QUERY_ERROR)
 
 
 class VulGetCveTaskHostTestCase(unittest.TestCase):
@@ -152,7 +152,7 @@ class VulGetCveTaskHostTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_CVE_TASK_HOST_GET, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_vulgetcvetaskhost_should_return_param_error_when_input_wrong_param(self):
         args = {
@@ -162,7 +162,7 @@ class VulGetCveTaskHostTestCase(unittest.TestCase):
             VUL_CVE_TASK_HOST_GET,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(BaseResponse, 'verify_request')
     def test_vulgetcvetaskhost_should_return_connect_error_when_database_query_error(self,
@@ -176,40 +176,7 @@ class VulGetCveTaskHostTestCase(unittest.TestCase):
             VUL_CVE_TASK_HOST_GET,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_QUERY_ERROR)
-
-
-class VulSetCveStatusTestCase(unittest.TestCase):
-    def test_vulsetcvestatus_should_return_error_when_request_method_is_wrong(self):
-        args = {}
-        response = client.get(VUL_CVE_STATUS_SET, json=args).json
-        self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
-
-    def test_vulsetcvestatus_should_return_param_error_when_input_wrong_param(self):
-        args = {
-            "task_id": 2
-        }
-        response = client.post(
-            VUL_CVE_STATUS_SET,
-            json=args,
-            headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
-
-    @mock.patch.object(BaseResponse, 'verify_request')
-    def test_vulsetcvestatus_should_return_connect_error_when_database_update_error(self,
-                                                                                    mock_verify_request):
-        args = {
-            "cve_list": ["cve1"],
-            "status": "on-hold",
-            "username": "admin"
-        }
-        mock_verify_request.return_value = args, SUCCEED
-        response = client.post(
-            VUL_CVE_STATUS_SET,
-            json=args,
-            headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_UPDATE_ERROR)
+        self.assertEqual(response['label'], DATABASE_QUERY_ERROR)
 
 
 class VulGetCveActionTestCase(unittest.TestCase):
@@ -217,7 +184,7 @@ class VulGetCveActionTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_CVE_ACTION_QUERY, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_vulgetcveaction_should_return_param_error_when_input_wrong_param(
             self):
@@ -228,7 +195,7 @@ class VulGetCveActionTestCase(unittest.TestCase):
             VUL_CVE_ACTION_QUERY,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
 
 class VulUploadAdvisoryTestCase(unittest.TestCase):
@@ -236,7 +203,7 @@ class VulUploadAdvisoryTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_CVE_UPLOAD_ADVISORY, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     def test_vuluploadadvisory_should_return_param_error_when_input_wrong_param(self):
         args = {
@@ -246,7 +213,7 @@ class VulUploadAdvisoryTestCase(unittest.TestCase):
             VUL_CVE_UPLOAD_ADVISORY,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(CveProxy, 'connect')
     @mock.patch.object(BaseResponse, 'verify_request')
@@ -261,7 +228,7 @@ class VulUploadAdvisoryTestCase(unittest.TestCase):
         response = client.post(
             VUL_CVE_UPLOAD_ADVISORY,
             headers=header_with_token).json
-        self.assertEqual(response['code'], WRONG_FILE_FORMAT)
+        self.assertEqual(response['label'], WRONG_FILE_FORMAT)
 
 
 class VulUploadUnaffectedTestCase(unittest.TestCase):
@@ -269,7 +236,7 @@ class VulUploadUnaffectedTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_CVE_UPLOAD_UNAFFECTED, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     @mock.patch.object(CveProxy, 'connect')
     @mock.patch.object(BaseResponse, 'verify_request')
@@ -284,7 +251,7 @@ class VulUploadUnaffectedTestCase(unittest.TestCase):
         response = client.post(
             VUL_CVE_UPLOAD_UNAFFECTED,
             headers=header_with_upload_file_token).json
-        self.assertEqual(response['code'], WRONG_FILE_FORMAT)
+        self.assertEqual(response['label'], WRONG_FILE_FORMAT)
 
     @mock.patch.object(BaseResponse, 'verify_request')
     def test_vuluploadunaffected_should_return_param_error_when_input_wrong_param(self,
@@ -297,7 +264,7 @@ class VulUploadUnaffectedTestCase(unittest.TestCase):
             VUL_CVE_UPLOAD_UNAFFECTED,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['code'], PARAM_ERROR)
+        self.assertEqual(response['label'], PARAM_ERROR)
 
 
 class VulExportExcelTestCase(unittest.TestCase):
@@ -305,7 +272,7 @@ class VulExportExcelTestCase(unittest.TestCase):
         args = {}
         response = client.get(VUL_EXPORT_EXCEL, json=args).json
         self.assertEqual(
-            response['message'], 'The method is not allowed for the requested URL.')
+            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
 
     @mock.patch.object(CveProxy, 'connect')
     @mock.patch.object(os.path, 'join')
@@ -324,7 +291,7 @@ class VulExportExcelTestCase(unittest.TestCase):
             VUL_EXPORT_EXCEL,
             json={"host_list": [1]},
             headers=header_with_token).json
-        self.assertEqual(response['code'], DATABASE_CONNECT_ERROR)
+        self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
     @mock.patch.object(os.path, 'exists')
     @mock.patch.object(os.path, 'join')
@@ -343,11 +310,12 @@ class VulExportExcelTestCase(unittest.TestCase):
                                                                               mock_exists):
         mock_exists.return_value = True
         mock_connect.return_value = True
-        mock_query_host_name_and_related_cves.return_value = "123.8.8.9", ["111", "222"]
+        mock_query_host_name_and_related_cves.return_value = "123.8.8.9", [
+            "111", "222"]
         mock_compress_cve.return_value = "", ""
 
         response = client.post(
             VUL_EXPORT_EXCEL,
             json={"host_list": [1, 2], "username": "admin"},
             headers=header_with_token).json
-        self.assertEqual(response['code'], SERVER_ERROR)
+        self.assertEqual(response['label'], SERVER_ERROR)

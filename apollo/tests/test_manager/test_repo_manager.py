@@ -20,7 +20,7 @@ import unittest
 from unittest import mock
 
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SERVER_ERROR, SUCCEED
+from vulcanus.restful.resp.state import SERVER_ERROR, SUCCEED
 
 from apollo.conf import configuration
 from apollo.database.proxy.task import TaskProxy
@@ -80,7 +80,7 @@ class TestRepoManager(unittest.TestCase):
             "task_name": "repo",
             "task_result": [
                 {
-                    "host_id": "id1",
+                    "host_id": 1,
                     "host_name": "name1",
                     "host_ip": "ip1",
                     "repo": "a",

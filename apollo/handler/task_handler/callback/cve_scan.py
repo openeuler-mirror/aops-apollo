@@ -17,7 +17,7 @@ Description: callback function of the cve scanning task.
 """
 from apollo.handler.task_handler.callback import TaskCallback
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class CveScanCallback(TaskCallback):
@@ -34,9 +34,15 @@ class CveScanCallback(TaskCallback):
                 {
                     "status":succeed,
                     "host_id":1,
-                    "installed_packages":["string"],
+                    "installed_packages":[{
+                                            "name":"kernel",
+                                            "version":"0.2.3"
+                                         }],
                     "os_version":"string",
-                    "cves":["string"]
+                    "cves":[{
+                            "cve_id": "CVE-1-1",
+                            "hotpatch": true
+                    }]
                 }
 
         Returns:

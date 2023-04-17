@@ -17,14 +17,15 @@ Description:
 """
 import datetime
 import uuid
+import sqlalchemy
 
-from apollo.conf.constant import CVE_SCAN_STATUS
+from apollo.conf import configuration
+from apollo.conf.constant import HOST_STATUS
 from apollo.cron import TimedTaskBase
-from apollo.database import SESSION
 from apollo.database.proxy.task import TaskMysqlProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.status import SUCCEED, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import SUCCEED
 
 
 class TimedScanTask(TimedTaskBase):
@@ -51,7 +52,7 @@ class TimedScanTask(TimedTaskBase):
             return False
 
         for host in host_info:
-            if host["status"] == CVE_SCAN_STATUS.SCANNING:
+            if host["status"] == HOST_STATUS.SCANNING:
                 LOGGER.info(
                     "There are some hosts under scanning about user %s, ignore.", username)
                 return False
@@ -67,24 +68,26 @@ class TimedScanTask(TimedTaskBase):
                     str(datetime.datetime.now()))
 
         # get the total host info first.
-        proxy = TaskMysqlProxy()
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail, return.")
-            return
+        try:
+            with TaskMysqlProxy(configuration) as proxy:
+                status, host_info_dict = proxy.get_total_host_info()
+                if status != SUCCEED:
+                    LOGGER.error("Query for host info failed, stop scanning.")
+                    return
 
-        res = proxy.get_total_host_info()
-        if res[0] != SUCCEED:
-            LOGGER.error("Query for host info failed, stop scanning.")
-            return
+                # create works
+                for username, host_info in host_info_dict['host_infos'].items():
+                    if not TimedScanTask._check_host_info(username, host_info):
+                        continue
 
-        # create works
-        for username, host_info in res[1]['host_infos'].items():
-            if TimedScanTask._check_host_info(username, host_info):
-                task_id = str(uuid.uuid1()).replace('-', '')
-                # init status
-                cve_scan_manager = ScanManager(task_id, proxy, host_info, username)
-                cve_scan_manager.create_task()
-                if not cve_scan_manager.pre_handle():
-                    continue
-                # run the tas in a thread
-                cve_scan_manager.execute_task()
+                    task_id = str(uuid.uuid1()).replace('-', '')
+                    # init status
+                    cve_scan_manager = ScanManager(
+                        task_id, proxy, host_info, username, True)
+                    cve_scan_manager.create_task()
+                    if not cve_scan_manager.pre_handle():
+                        continue
+                    # run the tas in a thread
+                    cve_scan_manager.execute_task()
+        except sqlalchemy.exc.SQLAlchemyError:
+            LOGGER.error("Connect to database fail.")

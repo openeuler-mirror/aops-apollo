@@ -19,9 +19,8 @@ import unittest
 from unittest import mock
 from flask import Flask
 
-from vulcanus.restful.response import SUCCEED, PARAM_ERROR, MyResponse
-from vulcanus.restful.response import MyResponse
-from vulcanus.restful.status import StatusCode
+from vulcanus.restful.resp import make_response
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from apollo import BLUE_POINT
 from apollo.conf import *
 from apollo.conf.constant import VUL_TASK_DELETE
@@ -51,7 +50,7 @@ class TestDeleteTaskView(unittest.TestCase):
         response = self.client.delete(
             VUL_TASK_DELETE, json=args, headers=self.headers)
         res = response.json
-        expected_res = StatusCode.make_response(SUCCEED)
+        expected_res = make_response(SUCCEED)
         self.assertEqual(res, expected_res)
 
         args = {
@@ -60,5 +59,5 @@ class TestDeleteTaskView(unittest.TestCase):
         response = self.client.delete(
             VUL_TASK_DELETE, json=args, headers=self.headers)
         res = response.json
-        expected_res = StatusCode.make_response(PARAM_ERROR)
+        expected_res = make_response(PARAM_ERROR)
         self.assertEqual(res, expected_res)

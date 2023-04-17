@@ -17,20 +17,23 @@ Description: Handle about repo related operation
 """
 from flask import jsonify
 
-from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SUCCEED, make_response
+from apollo.database.proxy.repo import RepoProxy
 from apollo.function.schema.repo import ImportYumRepoSchema, UpdateYumRepoSchema, \
     GetYumRepoSchema, DeleteYumRepoSchema
-from apollo.database.proxy.repo import RepoProxy
-from apollo.database import SESSION
 from apollo.handler.repo_handler.helper import get_template_stream_response
+from vulcanus.restful.resp import make_response
+from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.restful.response import BaseResponse
+from apollo.conf import configuration
 
 
 class VulImportYumRepo(BaseResponse):
     """
     Restful interface for importing yum repo
     """
-    def post(self):
+
+    @BaseResponse.handle(schema=ImportYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    def post(self, callback: RepoProxy, **params):
         """
         Import repo into database
 
@@ -42,15 +45,17 @@ class VulImportYumRepo(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(ImportYumRepoSchema, RepoProxy(),
-                                              "import_repo", SESSION))
+        status_code = callback.import_repo(params)
+        return self.response(code=status_code)
 
 
 class VulUpdateYumRepo(BaseResponse):
     """
     Restful interface for updating yum repo
     """
-    def post(self):
+
+    @BaseResponse.handle(schema=UpdateYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    def post(self, callback: RepoProxy, **params):
         """
         Update repo info in database
 
@@ -62,15 +67,17 @@ class VulUpdateYumRepo(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(UpdateYumRepoSchema, RepoProxy(),
-                                              "update_repo", SESSION))
+        status_code = callback.update_repo(params)
+        return self.response(code=status_code)
 
 
 class VulGetYumRepo(BaseResponse):
     """
     Restful interface for getting yum repo
     """
-    def post(self):
+
+    @BaseResponse.handle(schema=GetYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    def post(self, callback: RepoProxy, **params):
         """
         Get repo from database
 
@@ -81,15 +88,17 @@ class VulGetYumRepo(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetYumRepoSchema, RepoProxy(), "get_repo",
-                                              SESSION))
+        status_code, result = callback.get_repo(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulDeleteYumRepo(BaseResponse):
     """
     Restful interface for deleting yum repo
     """
-    def delete(self):
+
+    @BaseResponse.handle(schema=DeleteYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    def delete(self, callback: RepoProxy, **params):
         """
         Delete repo from database
 
@@ -100,15 +109,17 @@ class VulDeleteYumRepo(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(DeleteYumRepoSchema, RepoProxy(), "delete_repo",
-                                              SESSION))
+        status_code = callback.delete_repo(params)
+        return self.response(code=status_code)
 
 
 class VulGetRepoTemplate(BaseResponse):
     """
     Restful interface for getting a template repo
     """
-    def get(self):
+
+    @BaseResponse.handle()
+    def get(self, **params):
         """
         Getting a template repo
 

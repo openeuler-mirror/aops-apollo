@@ -45,9 +45,13 @@ class REPO_STATUS:
     UNKNOWN = "unknown"
 
 
-class CVE_SCAN_STATUS:
-    SCANNING = "scanning"
-    DONE = "done"
+class HOST_STATUS:
+    ONLINE = 0
+    OFFLINE = 1
+    UNESTABLISHED = 2
+    SCANNING = 3
+    DONE = 4
+    UNKNOWN = 5
 
 
 class CVSS_SCORE:

@@ -15,44 +15,36 @@ Time:
 Author:
 Description: Handle about task related operation
 """
-import os
-import uuid
-import time
-import json
 import threading
+import time
+import uuid
 from typing import Dict, Tuple
 
-import sqlalchemy
-from flask import jsonify, request
-import yaml
+from flask import request
 
-from apollo.function.schema.task import CveScanCallbackSchema
-from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
-from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
-from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import \
-    DATABASE_CONNECT_ERROR, NO_DATA, REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR, \
-    DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED
-from apollo.function.schema.task import *
+from apollo.conf.constant import HOST_STATUS
+from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.function.schema.host import ScanHostSchema
-from apollo.function.utils import make_download_response
-from apollo.handler.task_handler.config import configuration, \
-    CVE_CHECK_ITEMS, REPO_CHECK_ITEMS
-from apollo.conf.constant import CVE_SCAN_STATUS
+from apollo.function.schema.task import *
+from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
+from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
+from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
+from apollo.handler.task_handler.config import configuration
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
-from apollo.handler.task_handler.cache import TASK_CACHE
-from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
-from apollo.database import SESSION
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import \
+    REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR, \
+    DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED
+from vulcanus.restful.response import BaseResponse
 
 
 class VulScanHost(BaseResponse):
     """
     Restful interface for scanning hosts
     """
+
     @staticmethod
     def _verify_param(query_host_list, actual_host_list):
         """
@@ -70,7 +62,7 @@ class VulScanHost(BaseResponse):
         # but the actual host list should not be empty.
         host_list = []
         for host in actual_host_list:
-            if host['status'] == CVE_SCAN_STATUS.SCANNING:
+            if host['status'] == HOST_STATUS.SCANNING:
                 return False
             host_list.append(host['host_id'])
 
@@ -90,22 +82,18 @@ class VulScanHost(BaseResponse):
 
         return True
 
-    def _handle(self, args):
+    def _handle(self, proxy, args):
         """
         Generate scan task according to host info, and run it.
 
         Args:
+            proxy(TaskMysqlProxy): Database connection object
             args (dict): request parameter
 
         Returns:
             int: status code
         """
         access_token = request.headers.get('access_token')
-        # connect to database
-        proxy = TaskMysqlProxy()
-        if not proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail, return.")
-            return DATABASE_CONNECT_ERROR
 
         # verify host id
         username = args['username']
@@ -128,7 +116,8 @@ class VulScanHost(BaseResponse):
 
         return SUCCEED
 
-    def post(self):
+    @BaseResponse.handle(schema=ScanHostSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Scan host's cve
 
@@ -139,7 +128,7 @@ class VulScanHost(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request(ScanHostSchema, self))
+        return self.response(self._handle(callback, params))
 
 
 class VulGetTaskList(BaseResponse):
@@ -147,7 +136,8 @@ class VulGetTaskList(BaseResponse):
     Restful interface for getting task(cve fixing or repo setting) list.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetTaskListSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
             sort (str, optional): can be chosen from host_num, create_time.
@@ -175,10 +165,8 @@ class VulGetTaskList(BaseResponse):
                     ]
                 }
         """
-        return jsonify(self.handle_request_db(GetTaskListSchema,
-                                              TaskMysqlProxy(),
-                                              "get_task_list",
-                                              SESSION))
+        status_code, result = callback.get_task_list(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetTaskProgress(BaseResponse):
@@ -186,7 +174,8 @@ class VulGetTaskProgress(BaseResponse):
     Restful interface for getting task progress.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetTaskProgressSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
 
@@ -207,10 +196,8 @@ class VulGetTaskProgress(BaseResponse):
                     }
                 }
         """
-        return jsonify(self.handle_request_db(GetTaskProgressSchema,
-                                              TaskMysqlProxy(),
-                                              "get_task_progress",
-                                              SESSION))
+        status_code, result = callback.get_task_progress(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGetTaskInfo(BaseResponse):
@@ -218,7 +205,8 @@ class VulGetTaskInfo(BaseResponse):
     Restful interface for getting basic info of a task.
     """
 
-    def get(self):
+    @BaseResponse.handle(schema=GetTaskInfoSchema, proxy=TaskMysqlProxy, config=configuration)
+    def get(self, callback: TaskMysqlProxy, **params):
         """
         Args:
             task_id (str): task id
@@ -238,10 +226,9 @@ class VulGetTaskInfo(BaseResponse):
                     }
                 }
         """
-        return jsonify(self.handle_request_db(GetTaskInfoSchema,
-                                              TaskMysqlProxy(),
-                                              "get_task_info",
-                                              SESSION))
+
+        status_code, result = callback.get_task_info(params)
+        return self.response(code=status_code, data=result)
 
 
 class VulGenerateCveTask(BaseResponse):
@@ -250,7 +237,7 @@ class VulGenerateCveTask(BaseResponse):
     """
 
     @staticmethod
-    def _handle(args: Dict) -> Tuple[int, Dict[str, str]]:
+    def _handle(task_proxy: TaskProxy, args: Dict) -> Tuple[int, Dict[str, str]]:
         """
         Handle cve fix generating task.
 
@@ -262,11 +249,6 @@ class VulGenerateCveTask(BaseResponse):
             dict: body including task id
         """
         result = {"task_id": ""}
-        # save task info to database
-        task_proxy = TaskProxy(configuration)
-        if not task_proxy.connect(SESSION):
-            LOGGER.error("Connect to database fail, return.")
-            return DATABASE_CONNECT_ERROR, result
 
         task_id = str(uuid.uuid1()).replace('-', '')
         args['task_id'] = task_id
@@ -282,7 +264,8 @@ class VulGenerateCveTask(BaseResponse):
 
         return SUCCEED, result
 
-    def post(self):
+    @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             task_name (str)
@@ -300,7 +283,8 @@ class VulGenerateCveTask(BaseResponse):
                     "task_id": "id1"
                 }
         """
-        return jsonify(self.handle_request(GenerateCveTaskSchema, self))
+        status_code, data = self._handle(callback, params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGetCveTaskInfo(BaseResponse):
@@ -308,7 +292,8 @@ class VulGetCveTaskInfo(BaseResponse):
     Restful interface for getting the info of a task which fixes cve.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveTaskInfoSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
             task_id (str)
@@ -333,10 +318,8 @@ class VulGetCveTaskInfo(BaseResponse):
                 }
 
         """
-        return jsonify(self.handle_request_db(GetCveTaskInfoSchema,
-                                              TaskMysqlProxy(),
-                                              "get_cve_task_info",
-                                              SESSION))
+        status_code, data = callback.get_cve_task_info(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGetCveTaskStatus(BaseResponse):
@@ -344,7 +327,8 @@ class VulGetCveTaskStatus(BaseResponse):
     Restful interface for getting host status in the task which fixes cve.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveTaskStatusSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
             task_id (str): task id
@@ -367,10 +351,8 @@ class VulGetCveTaskStatus(BaseResponse):
                     }
                 }
         """
-        return jsonify(self.handle_request_db(GetCveTaskStatusSchema,
-                                              TaskMysqlProxy(),
-                                              "get_task_cve_status",
-                                              SESSION))
+        status_code, data = callback.get_task_cve_status(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGetCveTaskProgress(BaseResponse):
@@ -378,7 +360,8 @@ class VulGetCveTaskProgress(BaseResponse):
     Restful interface for getting progress of the task which fixes cve.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveTaskProgressSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
             task_id (str): task id
@@ -401,10 +384,8 @@ class VulGetCveTaskProgress(BaseResponse):
                     }
                 }
         """
-        return jsonify(self.handle_request_db(GetCveTaskProgressSchema,
-                                              TaskMysqlProxy(),
-                                              "get_task_cve_progress",
-                                              SESSION))
+        status_code, data = callback.get_task_cve_progress(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGetCveTaskResult(BaseResponse):
@@ -412,7 +393,8 @@ class VulGetCveTaskResult(BaseResponse):
     Restful interface for getting a CVE task's result.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetCveTaskResultSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             task_id (str): task id
@@ -452,18 +434,17 @@ class VulGetCveTaskResult(BaseResponse):
                 }
 
         """
-        return jsonify(self.handle_request_db(GetCveTaskResultSchema,
-                                              TaskProxy(configuration),
-                                              "get_task_cve_result",
-                                              SESSION))
+        status_code, data = callback.get_task_cve_result(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGenerateRepoTask(BaseResponse):
     """
     Restful interface for generating a task which sets repo for host.
     """
+
     @staticmethod
-    def _handle(args):
+    def _handle(task_proxy, args):
         """
         Handle repo task generating
 
@@ -479,11 +460,6 @@ class VulGenerateRepoTask(BaseResponse):
                          create_time=int(time.time()), username=args["username"])
         task_info.update(args)
 
-        # connect to database
-        task_proxy = TaskProxy(configuration)
-        if not task_proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR, task_info
-
         # save task info to database
         status_code = task_proxy.generate_repo_task(task_info)
         if status_code != SUCCEED:
@@ -491,7 +467,8 @@ class VulGenerateRepoTask(BaseResponse):
 
         return status_code, dict(task_id=task_id)
 
-    def post(self):
+    @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             task_name (str)
@@ -507,7 +484,8 @@ class VulGenerateRepoTask(BaseResponse):
                     "task_id": "1"
                 }
         """
-        return jsonify(self.handle_request(GenerateRepoTaskSchema, self))
+        status_code, data = self._handle(callback, params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGetRepoTaskInfo(BaseResponse):
@@ -515,7 +493,8 @@ class VulGetRepoTaskInfo(BaseResponse):
     Restful interface for getting the info of a task which sets repo.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetRepoTaskInfoSchema, proxy=TaskMysqlProxy, config=configuration)
+    def post(self, callback: TaskMysqlProxy, **params):
         """
         Args:
             task_id (str)
@@ -526,10 +505,8 @@ class VulGetRepoTaskInfo(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request_db(GetRepoTaskInfoSchema,
-                                              TaskMysqlProxy(),
-                                              "get_repo_task_info",
-                                              SESSION))
+        status_code, data = callback.get_repo_task_info(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGetRepoTaskResult(BaseResponse):
@@ -537,7 +514,8 @@ class VulGetRepoTaskResult(BaseResponse):
     Restful interface for getting the result of a task which sets repo.
     """
 
-    def post(self):
+    @BaseResponse.handle(schema=GetRepoTaskResultSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             task_id (str)
@@ -547,10 +525,8 @@ class VulGetRepoTaskResult(BaseResponse):
             dict: response body
 
         """
-        return jsonify(self.handle_request_db(GetRepoTaskResultSchema,
-                                              TaskProxy(configuration),
-                                              "get_task_repo_result",
-                                              SESSION))
+        status_code, data = callback.get_task_repo_result(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulExecuteTask(BaseResponse):
@@ -619,7 +595,7 @@ class VulExecuteTask(BaseResponse):
 
         return SUCCEED
 
-    def _handle(self, args):
+    def _handle(self, proxy, args):
         """
         Handle executing task, now support cve and repo.
 
@@ -632,9 +608,6 @@ class VulExecuteTask(BaseResponse):
         access_token = request.headers.get('access_token')
         args['token'] = access_token
 
-        proxy = TaskProxy(configuration)
-        if not proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
         # verify the task:
         # 1.belongs to the user;
         # 2.task type is supported.
@@ -651,7 +624,8 @@ class VulExecuteTask(BaseResponse):
 
         return func(args, proxy)
 
-    def post(self):
+    @BaseResponse.handle(schema=ExecuteTaskSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             task_id (str)
@@ -663,18 +637,16 @@ class VulExecuteTask(BaseResponse):
                     "msg": ""
                 }
         """
-        return jsonify(self.handle_request(ExecuteTaskSchema, self))
+        return self.response(self._handle(callback, params))
 
 
 class VulDeleteTask(BaseResponse):
     """
     Restful interface for deleting tasks.
     """
+
     @staticmethod
-    def _handle(args):
-        task_proxy = TaskProxy(configuration)
-        if not task_proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
+    def _handle(task_proxy, args):
         status_code, running_tasks = task_proxy.delete_task(args)
         if status_code == PARTIAL_SUCCEED:
             LOGGER.warning(
@@ -682,7 +654,8 @@ class VulDeleteTask(BaseResponse):
 
         return status_code, dict(running_task=running_tasks)
 
-    def delete(self):
+    @BaseResponse.handle(schema=DeleteTaskSchema, proxy=TaskProxy, config=configuration)
+    def delete(self, callback: TaskProxy, **params):
         """
         Args:
             task_list (list): task id list
@@ -690,7 +663,8 @@ class VulDeleteTask(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request(DeleteTaskSchema, self))
+        status_code, data = self._handle(callback, params)
+        return self.response(code=status_code, data=data)
 
 
 class VulCveFixTaskCallback(BaseResponse):
@@ -699,7 +673,7 @@ class VulCveFixTaskCallback(BaseResponse):
     """
 
     @staticmethod
-    def _handle(args):
+    def _handle(proxy, args):
         """
         Handle cve fix callback.
 
@@ -709,13 +683,11 @@ class VulCveFixTaskCallback(BaseResponse):
         Returns:
             int: status code
         """
-        proxy = TaskProxy(configuration)
-        if not proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
 
         return CveFixCallback(proxy).callback(args['task_id'], args['host_id'], args['cves'])
 
-    def post(self):
+    @BaseResponse.handle(schema=CveFixCallbackSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             task_id (str)
@@ -725,7 +697,7 @@ class VulCveFixTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request(CveFixCallbackSchema, self))
+        return self.response(self._handle(callback, params))
 
 
 class VulRepoSetTaskCallback(BaseResponse):
@@ -734,7 +706,7 @@ class VulRepoSetTaskCallback(BaseResponse):
     """
 
     @staticmethod
-    def _handle(args):
+    def _handle(proxy, args):
         """
         Handle set repo callback.
 
@@ -744,16 +716,14 @@ class VulRepoSetTaskCallback(BaseResponse):
         Returns:
             int: status code
         """
-        proxy = TaskProxy(configuration)
-        if not proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
         task_info = dict(
             status=args["status"], repo_name=args["repo_name"], host_id=args["host_id"])
 
         repo_set_callback = RepoSetCallback(proxy)
         return repo_set_callback.callback(args['task_id'], task_info)
 
-    def post(self):
+    @BaseResponse.handle(schema=RepoSetCallbackSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             host_id (str)
@@ -764,7 +734,7 @@ class VulRepoSetTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request(RepoSetCallbackSchema, self))
+        return self.response(self._handle(callback, params))
 
 
 class VulCveScanTaskCallback(BaseResponse):
@@ -773,7 +743,7 @@ class VulCveScanTaskCallback(BaseResponse):
     """
 
     @staticmethod
-    def _handle(args):
+    def _handle(proxy, args):
         """
         Handle cve scan callback.
 
@@ -783,16 +753,14 @@ class VulCveScanTaskCallback(BaseResponse):
         Returns:
             int: status code
         """
-        proxy = TaskProxy(configuration)
-        if not proxy.connect(SESSION):
-            return DATABASE_CONNECT_ERROR
         task_info = dict(
             status=args["status"], host_id=args["host_id"], installed_packages=args["installed_packages"],
             os_version=args["os_version"], cves=args["cves"])
 
         return CveScanCallback(proxy).callback(args['task_id'], task_info, args["username"])
 
-    def post(self):
+    @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=TaskProxy, config=configuration)
+    def post(self, callback: TaskProxy, **params):
         """
         Args:
             host_id (str)
@@ -803,4 +771,4 @@ class VulCveScanTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        return jsonify(self.handle_request(CveScanCallbackSchema, self))
+        return self.response(self._handle(callback, params))

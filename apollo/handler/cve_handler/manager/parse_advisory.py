@@ -19,8 +19,10 @@ from collections import defaultdict
 from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
 
-from apollo.function.customize_exception import ParseAdvisoryError
 from vulcanus.log.log import LOGGER
+
+from apollo.function.customize_exception import ParseAdvisoryError
+from apollo.handler.cve_handler.manager.srcpackage_whitelist import SRC_PACKAGES_WHITE_LIST
 
 __all__ = ["parse_security_advisory"]
 
@@ -48,8 +50,8 @@ def parse_security_advisory(xml_path):
 
     root = tree.getroot()
     xml_dict = etree_to_dict(root)
-    cve_rows, cve_pkg_rows, cve_pkg_docs = parse_cvrf_dict(xml_dict)
-    return cve_rows, cve_pkg_rows, cve_pkg_docs
+    cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_cvrf_dict(xml_dict)
+    return cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
 
 
 def etree_to_dict(node):
@@ -94,39 +96,46 @@ def parse_cvrf_dict(cvrf_dict):
         list: list of dict, each dict is a row for mysql Cve table
         list: list of dict, each dict is a row for mysql CveAffectedPkgs table
         list: list of dict, each dict is a document for es cve package index
-
+        str: sa year
+        str: sa number
 
     Raises:
         ParseXmlError
     """
     # affected package of this security advisory. joined with ',' if have multiple packages
     cve_document_notes = cvrf_dict["cvrfdoc"].get("DocumentNotes", "")
-    if not cve_document_notes:
-        return [], [], []
+    cve_document_tracking = cvrf_dict["cvrfdoc"].get("DocumentTracking", "")
+    if not all([cve_document_notes, cve_document_tracking]):
+        return [], [], [], "", ""
+
     cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
+    cvrf_sa = cve_document_tracking["Identification"]["ID"]
+    sa_year, sa_number = cvrf_sa.split("-")[2:]
 
     cvrf_note = cve_document_notes["Note"]
-    srcpackage = ""
+    srcpackage_list = []
     for info in cvrf_note:
         if info["Title"] == "Affected Component":
-            srcpackage = info["text"]
+            srcpackage_list = info["text"].split(",")
             break
-
+    srcpackage_list = [SRC_PACKAGES_WHITE_LIST[package] if package in SRC_PACKAGES_WHITE_LIST else package
+                       for package in srcpackage_list]
     if isinstance(cve_info_list, dict):
         cve_info_list = [cve_info_list]
 
     package_info_list = cvrf_dict["cvrfdoc"].get("ProductTree", "").get("Branch")
 
     try:
-        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, srcpackage, package_info_list)
+        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, srcpackage_list,
+                                                                       package_info_list)
         es_cve_pkg_docs = parse_arch_info(cve_description)
     except (KeyError, TypeError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the advisory xml.")
-    return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs
+    return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs, sa_year, sa_number
 
 
-def parse_cve_info(cve_info_list, srcpackage, package_info_list):
+def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):
     """
     get mysql Cve and CveAffectedPkgs table rows, and description info for elasticsearch
     Args:
@@ -150,7 +159,7 @@ def parse_cve_info(cve_info_list, srcpackage, package_info_list):
                                                'URL': 'security advisory url'}},
               'Threats': {'Threat': {'Description': 'High', 'Type': 'Impact'}}}]
 
-        srcpackage(str): Source package name.
+        srcpackage_list(list): list of Source package name.
 
         package_info_list(list): Software package information, e.g.
             [{'FullProductName': [{'CPE': 'cpe:/a:openEuler:openEuler:20.03-LTS-SP3',
@@ -185,27 +194,19 @@ def parse_cve_info(cve_info_list, srcpackage, package_info_list):
     cve_table_rows = []
     cve_pkg_rows = []
     cve_description = {}
-    os_package_version = {}
+    package_os_version = {}
     for package_info in package_info_list:
-        # Branch Name is "openEuler" or "src", don`t need the package information
-        if package_info["Name"] in ["openEuler", "src"]:
+        # Branch Name is not "openEuler", don`t get the os version
+        if package_info["Name"] != "openEuler":
             continue
         full_product_name = package_info.get("FullProductName")
         if not full_product_name:
             continue
         if isinstance(full_product_name, dict):
             full_product_name = [full_product_name]
-        for product in full_product_name:
-            cpe = product.get("CPE")
-            if not cpe:
-                continue
-            os_version = "openEuler-" + cpe.split(":")[-1]
-            product_id = product.get("ProductID")
-            if not product_id:
-                continue
-            package_and_version = product_id.rsplit("-", 2)
-            package_version = "-".join(package_and_version[1:])
-            os_package_version[os_version] = package_version
+        for srcpackage in srcpackage_list:
+            for product in full_product_name:
+                package_os_version[product["text"]] = srcpackage
 
     for cve_info in cve_info_list:
         cve_id = cve_info["CVE"]
@@ -217,10 +218,10 @@ def parse_cve_info(cve_info_list, srcpackage, package_info_list):
             "reboot": False
         }
         cve_table_rows.append(cve_row)
-        for os_version, package_version in os_package_version.items():
+        for os_version, srcpackage in package_os_version.items():
             cve_pkg_rows.append({"cve_id": cve_id,
                                  "package": srcpackage,
-                                 "package_version": package_version,
+                                 "package_version": "",
                                  "os_version": os_version,
                                  "affected": True
                                  })

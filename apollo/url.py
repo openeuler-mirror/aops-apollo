@@ -37,7 +37,6 @@ SPECIFIC_URLS = {
         (cve_view.VulGetCveInfo, VUL_CVE_INFO_GET),
         (cve_view.VulGetCveHosts, VUL_CVE_HOST_GET),
         (cve_view.VulGetCveTaskHost, VUL_CVE_TASK_HOST_GET),
-        (cve_view.VulSetCveStatus, VUL_CVE_STATUS_SET),
         (cve_view.VulGetCveAction, VUL_CVE_ACTION_QUERY),
         (cve_view.VulUploadAdvisory, VUL_CVE_UPLOAD_ADVISORY),
         (cve_view.VulUploadUnaffected, VUL_CVE_UPLOAD_UNAFFECTED),

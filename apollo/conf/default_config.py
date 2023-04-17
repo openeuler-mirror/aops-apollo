@@ -31,7 +31,7 @@ mysql = {
     "PORT": 3306,
     "DATABASE_NAME": "aops",
     "ENGINE_FORMAT": "mysql+pymysql://@%s:%s/%s",
-    "POOL_SIZE": 10000,
+    "POOL_SIZE": 100,
     "POOL_RECYCLE": 7200
 }
 
@@ -49,4 +49,9 @@ zeus = {
 redis = {
     "IP": "127.0.0.1",
     "PORT": 6379
+}
+
+hermes = {
+    "IP": "127.0.0.1",
+    "PORT": 8000
 }

@@ -23,7 +23,7 @@ from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.status import SUCCEED, PARAM_ERROR
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 
 
 class CveFixManager(Manager):
@@ -90,18 +90,22 @@ class CveFixManager(Manager):
 
         response = BaseResponse.get_response(
             'POST', manager_url, pyload, header)
-        if response.get('code') != SUCCEED or not response.get("result"):
+        if response.get('label') != SUCCEED or not response.get("data", dict()):
             LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
-        else:
-            LOGGER.info(
-                "Cve fixing task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("result", {}).get("task_result") or []
+            return
+
+        LOGGER.info(
+            "Cve fixing task %s end, begin to handle result.", self.task_id)
+        self.result = response.get("data", dict()).get(
+            "result", {}).get("task_result") or []
 
     def post_handle(self):
         """
         After executing the task, parse the checking and executing result, then
         save to database.
         """
+        if not self.result:
+            return
         LOGGER.debug("Cve fixing task %s result: %s",
                      self.task_id, self.result)
 
