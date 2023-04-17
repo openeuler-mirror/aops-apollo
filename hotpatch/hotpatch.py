@@ -151,7 +151,7 @@ class HotpatchCommand(dnf.cli.Command):
             tiw = max(tiw, len(adv_type))
             ciw = max(ciw, len(coldpatch))
             format_lines.add((cve_id, adv_type, coldpatch, hotpatch))
-        for format_line in sorted(format_lines, key=lambda x: x[2]):
+        for format_line in sorted(format_lines, key=lambda x: (x[2], x[3])):
             print('%-*s %-*s %-*s %s' %
                   (idw, format_line[0], tiw, format_line[1], ciw, format_line[2], format_line[3]))
 
@@ -198,5 +198,17 @@ class HotpatchCommand(dnf.cli.Command):
                 elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
                     echo_lines[-1][3] = hotpatch.nevra
         
+        hp_cve_list = list(set(self.hp_hawkey.hotpatch_cves.keys()).difference(iterated_cve_id))
+        for cve_id in hp_cve_list:
+            hotpatch = self.hp_hawkey.hotpatch_cves[cve_id].hotpatch
+            if hotpatch is None:
+                continue
+            echo_line = [cve_id, hotpatch.advisory.severity+'/Sec.', '-', '-']
+            if hotpatch.state == self.hp_hawkey.INSTALLED:
+                continue
+            elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
+                echo_line = [cve_id, hotpatch.advisory.severity+'/Sec.', '-', hotpatch.nevra]
+            echo_lines.append(echo_line)
+
         self._filter_and_format_list_output(
             echo_lines, fixed_cve_id, fixed_coldpatches)
