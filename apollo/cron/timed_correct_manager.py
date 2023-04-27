@@ -33,7 +33,7 @@ class TimedCorrectTask(TimedTaskBase):
     """
     config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
     SERVICE_TIMEOUT_THRESHOLD_MIN = config_info.get(
-        "correct_data").get("service_timeout_threshold_min")
+        "correct_data").get("service_timeout_threshold_min", 15)
 
     @staticmethod
     def task_enter():
