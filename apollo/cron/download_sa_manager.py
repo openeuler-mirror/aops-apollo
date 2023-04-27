@@ -17,7 +17,6 @@ import shutil
 import sqlalchemy
 import requests
 import retrying
-from lxml import etree
 from retrying import retry
 
 from apollo.conf import configuration
@@ -37,16 +36,10 @@ class TimedDownloadSATask(TimedTaskBase):
     Timed download sa tasks
     """
     config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
-    security_base_url = config_info.get(
-        "download_sa", dict()).get("base_url", "")
-    if not security_base_url:
-        LOGGER.error("Please add base_url in configuration file")
-    advisory_years = config_info.get("download_sa", dict()).get("sa_years", "")
-    if advisory_years:
-        advisory_years = re.findall(r"\d{4}", advisory_years)
-    else:
-        LOGGER.error("Please add sa_years in configuration file")
-        raise KeyError
+    cvrf_url = config_info.get(
+        "download_sa", dict()).get("cvrf_url", "")
+    if not cvrf_url:
+        LOGGER.error("Please add cvrf_url in configuration file")
 
     save_sa_record = []
 
@@ -152,7 +145,7 @@ class TimedDownloadSATask(TimedTaskBase):
 
         for sa_name in sa_name_list:
             advisory_year, advisory_serial_number = re.findall("\d+", sa_name)
-            sa_url = f"{TimedDownloadSATask.security_base_url}/{advisory_year}/{sa_name}"
+            sa_url = f"{TimedDownloadSATask.cvrf_url}/{advisory_year}/{sa_name}"
             try:
                 response = TimedDownloadSATask.get_response(sa_url)
                 if response:
@@ -170,22 +163,21 @@ class TimedDownloadSATask(TimedTaskBase):
                                                            "download_status": False})
 
     @staticmethod
-    def get_advisory_url_list(url: str) -> list:
+    def get_advisory_url_list() -> list:
         """
         Send a request and parse the data on the page to get all the security bulletins url and store them in the list
-
-        Args:
-            url(str): the url of all security announcements
 
         Returns:
             list: security url list
         """
         try:
-            response = TimedDownloadSATask.get_response(url)
+            response = TimedDownloadSATask.get_response(TimedDownloadSATask.cvrf_url + "/index.txt")
             if response:
-                html = etree.HTML(response.text)
+                html = response.text
+                sa_list = html.replace("\r", "").split("\n")
                 security_files = [
-                    file for file in html.xpath("//*[@id='list']/tbody/tr/td[1]/a/@title")
+                    # 2021/cvrf-openEuler-SA-2021-1022.xml, we don't need the first five characters
+                    sa_name[5:] for sa_name in sa_list
                 ]
                 return security_files
             else:
@@ -206,18 +198,7 @@ class TimedDownloadSATask(TimedTaskBase):
         Returns:
             list: The name of the sa that needs to be downloaded
         """
-        today = datetime.datetime.today()
-        current_year = str(today.year)
-        TimedDownloadSATask.advisory_years.append(current_year)
-        all_sa_name_list = []
-
-        for year in set(TimedDownloadSATask.advisory_years):
-            try:
-                sa_name_list = TimedDownloadSATask.get_advisory_url_list(
-                    TimedDownloadSATask.security_base_url + "/" + str(year) + "/")
-                all_sa_name_list.extend(sa_name_list)
-            except retrying.RetryError:
-                LOGGER.error(f"Failed to get the {year} sa file")
+        all_sa_name_list = TimedDownloadSATask.get_advisory_url_list()
 
         succeed_sa_name_list = []
         for succeed_record in download_succeed_record:

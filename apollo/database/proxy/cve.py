@@ -951,7 +951,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         """
         Save the record of download sa
         Args:
-            sa_record_rows(list): aach element is a record of the AdvisoryDownloadRecord table,e.g.
+            sa_record_rows(list): each element is a record of the AdvisoryDownloadRecord table,e.g.
                 [{"advisory_year": 2022,
                 "advisory_serial_number": 1230,
                 "download_status": 1}]

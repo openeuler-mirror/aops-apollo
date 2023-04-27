@@ -195,16 +195,19 @@ class ScanManager(Manager):
         tmp = {}
         chart_data = []
         file_content = "序号,CVE_ID,主机IP,主机名称,CVSS评分,评分级别\n"
-        for num, row in enumerate(rows, 1):
+        excel_row_num = 1
+        for row in rows:
             if row.host_ip in tmp:
                 tmp[row.host_ip]["count"] += 1
-                file_content += f"{num},{row.cve_id},{row.host_ip}," \
+                file_content += f"{excel_row_num},{row.cve_id},{row.host_ip}," \
                                 f"{row.host_name},{row.cvss_score},{row.severity}\n"
+                excel_row_num += 1
             else:
                 if row.cve_id is not None:
                     tmp[row.host_ip] = {"count": 1, "host_name": row.host_name}
-                    file_content += f"{num},{row.cve_id},{row.host_ip}," \
+                    file_content += f"{excel_row_num},{row.cve_id},{row.host_ip}," \
                                     f"{row.host_name},{row.cvss_score},{row.severity}\n"
+                    excel_row_num += 1
                 else:
                     tmp[row.host_ip] = {"count": 0, "host_name": row.host_name}
 

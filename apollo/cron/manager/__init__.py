@@ -91,9 +91,12 @@ class TimedTaskManager():
                 return
             timed_task_parameters['id'] = task_id
 
-        if "base_url" in timed_task_parameters and "sa_years" in timed_task_parameters:
-            timed_task_parameters.pop("base_url")
-            timed_task_parameters.pop("sa_years")
+        if "day_of_week" not in timed_task_parameters or "hour" not in timed_task_parameters:
+            LOGGER.error("Create scheduled task is missing required  fields.")
+            return
+
+        if "cvrf_url" in timed_task_parameters:
+            timed_task_parameters.pop("cvrf_url")
         if "service_timeout_threshold_min" in timed_task_parameters:
             timed_task_parameters.pop("service_timeout_threshold_min")
 
@@ -102,7 +105,7 @@ class TimedTaskManager():
         if "auto_start" in timed_task_parameters:
             auto_start = timed_task_parameters['auto_start']
             timed_task_parameters.pop("auto_start")
-            if not auto_start:
+            if auto_start == "false":
                 LOGGER.info(f"{task_id}, This task is configured to not start.")
                 return
         TimedTaskManager._APscheduler.add_job(**timed_task_parameters)
