@@ -23,6 +23,7 @@ REQUIRES = [
     'PyYAML',
     'retrying',
     'lxml'
+    'gevent'
 ]
 
 setup(

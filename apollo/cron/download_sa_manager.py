@@ -18,6 +18,8 @@ import sqlalchemy
 import requests
 import retrying
 from retrying import retry
+from gevent import monkey; monkey.patch_all(ssl=False)
+import gevent
 
 from apollo.conf import configuration
 from apollo.conf.constant import ADVISORY_SAVED_PATH, TIMED_TASK_CONFIG_PATH
@@ -52,6 +54,11 @@ class TimedDownloadSATask(TimedTaskBase):
         """
         LOGGER.info("Begin to download advisory in %s.",
                     str(datetime.datetime.now()))
+
+        if os.path.exists(ADVISORY_SAVED_PATH):
+            shutil.rmtree(ADVISORY_SAVED_PATH)
+        os.makedirs(ADVISORY_SAVED_PATH)
+
         try:
             with CveProxy(configuration) as proxy:
                 ElasticsearchProxy.connect(proxy)
@@ -61,7 +68,10 @@ class TimedDownloadSATask(TimedTaskBase):
                 sa_name_list = TimedDownloadSATask.get_incremental_sa_name_list(
                     download_record)
 
-                TimedDownloadSATask.download_security_advisory(sa_name_list)
+                jobs = [gevent.spawn(TimedDownloadSATask.download_security_advisory, sa_name)
+                        for sa_name in sa_name_list]
+                gevent.joinall(jobs)
+
                 TimedDownloadSATask.save_security_advisory_to_database(proxy)
 
                 proxy.save_advisory_download_record(
@@ -132,35 +142,30 @@ class TimedDownloadSATask(TimedTaskBase):
             return ""
 
     @staticmethod
-    def download_security_advisory(sa_name_list: list):
+    def download_security_advisory(sa_name: str):
         """
         Get each url from the list, download and save it locally, and save it to the database if the download fails
 
         Args:
-            sa_name_list: Advisory url list, each element is the url of the security announcement
+            sa_name: sa`s name, e.g. cvrf-openEuler-SA-2021-1022.xml
         """
-        if os.path.exists(ADVISORY_SAVED_PATH):
-            shutil.rmtree(ADVISORY_SAVED_PATH)
-        os.makedirs(ADVISORY_SAVED_PATH)
-
-        for sa_name in sa_name_list:
-            advisory_year, advisory_serial_number = re.findall("\d+", sa_name)
-            sa_url = f"{TimedDownloadSATask.cvrf_url}/{advisory_year}/{sa_name}"
-            try:
-                response = TimedDownloadSATask.get_response(sa_url)
-                if response:
-                    with open(os.path.join(ADVISORY_SAVED_PATH, sa_name), "wb")as w:
-                        w.write(response.content)
-                else:
-                    LOGGER.error(f"Download failed request timeout: {sa_name}")
-                    TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
-                                                               "advisory_serial_number": advisory_serial_number,
-                                                               "download_status": False})
-            except retrying.RetryError:
-                LOGGER.error(f"Download failed max retries: {sa_name}")
+        advisory_year, advisory_serial_number = re.findall("\d+", sa_name)
+        sa_url = f"{TimedDownloadSATask.cvrf_url}/{advisory_year}/{sa_name}"
+        try:
+            response = TimedDownloadSATask.get_response(sa_url)
+            if response:
+                with open(os.path.join(ADVISORY_SAVED_PATH, sa_name), "wb")as w:
+                    w.write(response.content)
+            else:
+                LOGGER.error(f"Download failed request timeout: {sa_name}")
                 TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
                                                            "advisory_serial_number": advisory_serial_number,
                                                            "download_status": False})
+        except retrying.RetryError:
+            LOGGER.error(f"Download failed max retries: {sa_name}")
+            TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
+                                                       "advisory_serial_number": advisory_serial_number,
+                                                       "download_status": False})
 
     @staticmethod
     def get_advisory_url_list() -> list:
