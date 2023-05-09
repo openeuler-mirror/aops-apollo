@@ -10,16 +10,17 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
+from gevent import monkey; monkey.patch_all(thread=False)
+import gevent
 import datetime
 import os
 import re
 import shutil
 import sqlalchemy
-import requests
+import urllib.request
+import urllib.error
 import retrying
 from retrying import retry
-from gevent import monkey; monkey.patch_all(ssl=False)
-import gevent
 
 from apollo.conf import configuration
 from apollo.conf.constant import ADVISORY_SAVED_PATH, TIMED_TASK_CONFIG_PATH
@@ -64,7 +65,6 @@ class TimedDownloadSATask(TimedTaskBase):
                 ElasticsearchProxy.connect(proxy)
 
                 download_record, download_failed_advisory = proxy.get_advisory_download_record()
-
                 sa_name_list = TimedDownloadSATask.get_incremental_sa_name_list(
                     download_record)
 
@@ -134,11 +134,10 @@ class TimedDownloadSATask(TimedTaskBase):
             response body or "", "" means request failed
         """
         try:
-            response = requests.get(url, timeout=10)
-            if response.status_code != requests.codes["ok"]:
-                return None
-            return response
-        except requests.exceptions.RequestException:
+            response = urllib.request.urlopen(url, timeout=10)
+            return response.read()
+        except urllib.error.HTTPError:
+            LOGGER.info("Exception %s")
             return ""
 
     @staticmethod
@@ -155,7 +154,7 @@ class TimedDownloadSATask(TimedTaskBase):
             response = TimedDownloadSATask.get_response(sa_url)
             if response:
                 with open(os.path.join(ADVISORY_SAVED_PATH, sa_name), "wb")as w:
-                    w.write(response.content)
+                    w.write(response)
             else:
                 LOGGER.error(f"Download failed request timeout: {sa_name}")
                 TimedDownloadSATask.save_sa_record.append({"advisory_year": advisory_year,
@@ -178,8 +177,7 @@ class TimedDownloadSATask(TimedTaskBase):
         try:
             response = TimedDownloadSATask.get_response(TimedDownloadSATask.cvrf_url + "/index.txt")
             if response:
-                html = response.text
-                sa_list = html.replace("\r", "").split("\n")
+                sa_list = response.decode("utf-8").replace("\r", "").split("\n")
                 security_files = [
                     # 2021/cvrf-openEuler-SA-2021-1022.xml, we don't need the first five characters
                     sa_name[5:] for sa_name in sa_list
