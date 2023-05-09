@@ -20,7 +20,7 @@ Cve management service, monitor machine vulnerabilities and provide fix function
 
 %package -n dnf-hotpatch-plugin
 Summary: dnf hotpatch plugin
-Requires: python3-hawkey python3-dnf syscare
+Requires: python3-hawkey python3-dnf syscare >= 1.0.1
 
 %description -n dnf-hotpatch-plugin
 dnf hotpatch plugin, it's about hotpatch query and fix
