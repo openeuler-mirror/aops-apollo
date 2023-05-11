@@ -10,7 +10,6 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from gevent import monkey; monkey.patch_all(thread=False)
 import gevent
 import datetime
 import os
@@ -67,10 +66,11 @@ class TimedDownloadSATask(TimedTaskBase):
                 download_record, download_failed_advisory = proxy.get_advisory_download_record()
                 sa_name_list = TimedDownloadSATask.get_incremental_sa_name_list(
                     download_record)
-
-                jobs = [gevent.spawn(TimedDownloadSATask.download_security_advisory, sa_name)
-                        for sa_name in sa_name_list]
-                gevent.joinall(jobs)
+                # Limit the number of requests to 20 per time
+                for i in range(0, len(sa_name_list), 20):
+                    jobs = [gevent.spawn(TimedDownloadSATask.download_security_advisory, sa_name)
+                            for sa_name in sa_name_list[i: i + 20]]
+                    gevent.joinall(jobs)
 
                 TimedDownloadSATask.save_security_advisory_to_database(proxy)
 
@@ -134,10 +134,13 @@ class TimedDownloadSATask(TimedTaskBase):
             response body or "", "" means request failed
         """
         try:
-            response = urllib.request.urlopen(url, timeout=10)
+            response = urllib.request.urlopen(url, timeout=30)
             return response.read()
-        except urllib.error.HTTPError:
-            LOGGER.info("Exception %s")
+        except urllib.error.HTTPError as e:
+            LOGGER.info("Exception HTTPError %s" % e)
+            return None
+        except urllib.error.URLError as e:
+            LOGGER.info("Exception URLError %s" % e)
             return ""
 
     @staticmethod
