@@ -15,6 +15,7 @@ Time:
 Author:
 Description: Manager that start aops-manager
 """
+from gevent import monkey; monkey.patch_all(thread=False)
 import redis
 import sqlalchemy
 from flask import Flask

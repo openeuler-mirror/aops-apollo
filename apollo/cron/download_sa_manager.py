@@ -10,7 +10,6 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from gevent import monkey; monkey.patch_all()
 import gevent
 import datetime
 import os
