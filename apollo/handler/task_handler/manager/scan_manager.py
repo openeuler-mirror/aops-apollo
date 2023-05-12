@@ -71,6 +71,8 @@ class ScanManager(Manager):
             "callback": "/vulnerability/task/callback/cve/scan"
         }
 
+        self.last_scan_result = self.proxy.query_hotpatch_cve(self.host_list, self.username)
+
         return SUCCEED
 
     def pre_handle(self):
@@ -133,7 +135,11 @@ class ScanManager(Manager):
         """
         self.proxy.update_host_scan("finish", self.host_list)
         if configuration.email.get("ENABLED"):
-            self.send_email_to_user()
+            self.current_scan_result = self.proxy.query_hotpatch_cve(self.host_list, self.username)
+            self.last_scan_result.sort()
+            self.current_scan_result.sort()
+            if  self.current_scan_result != self.last_scan_result:
+                self.send_email_to_user()
 
     def send_email_to_user(self) -> None:
         """
@@ -159,6 +165,16 @@ class ScanManager(Manager):
         email_obj.send(receiver, message)
 
     def _generate_email_body(self, sender: str, receivers: str) -> MIMEMultipart:
+        """
+        The function used to generate email content
+
+        Args:
+            sender: Email Sender
+            receivers: The recipient of the email
+
+        Return:
+            MIMEMultipart: Mail Object
+        """
         message = MIMEMultipart('mixed')
         status, rows = self.proxy.query_host_cve_info(self.username)
         if status != SUCCEED:
@@ -192,15 +208,25 @@ class ScanManager(Manager):
         return message
 
     def _generate_cve_info_file(self, rows) -> tuple:
+        """
+        Generate CSV files and email content for cve information
+
+        Args:
+            rows: Information on host and cve found from the database
+
+        Return:
+            BytesIO: Generate CSV files
+            list: email content for cve information
+        """
         tmp = {}
         chart_data = []
-        file_content = "序号,CVE_ID,主机IP,主机名称,CVSS评分,评分级别\n"
+        file_content = "序号,CVE_ID,主机IP,主机名称,CVSS评分,评分级别,是否支持热补丁\n"
         excel_row_num = 1
         for row in rows:
             if row.host_ip in tmp:
                 tmp[row.host_ip]["count"] += 1
                 file_content += f"{excel_row_num},{row.cve_id},{row.host_ip}," \
-                                f"{row.host_name},{row.cvss_score},{row.severity}\n"
+                                f"{row.host_name},{row.cvss_score},{row.severity},{'是' if row.hotpatch else '否'}\n"
                 excel_row_num += 1
             else:
                 if row.cve_id is not None:
@@ -232,3 +258,6 @@ class ScanManager(Manager):
         file.write(content.encode("utf-8"))
         file.seek(0)
         return file
+
+
+
