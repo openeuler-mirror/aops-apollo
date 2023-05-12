@@ -42,7 +42,7 @@ Mulan V2
 
 ## 2.1、apollo需求场景分析
 
-![apollo上下文视图](pic/apos-apollo上下文视图.png)
+![apollo上下文视图](./pic/apos-apollo上下文视图.png)
 
 apollo需要至少考虑三个主要用户
 
@@ -77,7 +77,7 @@ apollo需要至少考虑三个主要用户
 - aops-hermes：提供webui能力
 - 其他：CICD流水线配合，实现PR到补丁发布；补丁服务，提供补丁发布信息订阅能力，根据邮件列表在补丁发布后通知订阅人员
 
-![逻辑架构图](pic/逻辑架构图.png)
+![逻辑架构图](./pic/逻辑架构图.png)
 
 ### 2.1.1、支持CVE和Bugfix热补丁制作及信息发布
 
@@ -90,7 +90,7 @@ apollo需要至少考虑三个主要用户
 | [IR-apollo-hotservice]apollo-service补丁服务       |
 | [IR-apollo-hotmakeinfo]apollo-支持制作热补丁元数据 |
 
-![热补丁发布流程](pic/热补丁发布流程.png)
+![热补丁发布流程](./pic/热补丁发布流程.png)
 
 - 热修复除了热补丁限制外，还需要解决热补丁制作问题，通过在CICD中集成热补丁流水线，实现依赖PR完成热补丁制作。除了热补丁交付件本身外，还在updateinfo.xml内嵌入热补丁信息，管理热补丁到CVE和bugfix的关系。本章节主要介绍信息管理，详细热补丁流程参考2.1.1
 - 客户手动获取补丁信息容易导致遗漏或者延期：上线补丁服务，支持补丁信息订阅和本地检测
@@ -123,18 +123,27 @@ apollo需要至少考虑三个主要用户
 
 **CICD需求**
 
-![热补丁流水线活动视图](pic/热补丁流水线活动视图.png)
+![热补丁流水线流程图](./pic/热补丁流水线流程图.png)
 
 以PR为起点，支持通过PR下面回复命令的方式实现热补丁制作，并管理这些热补丁交付，在最终发布从这些热补丁中发布
 
-可能存在制作失败，需要提供本地调试环境获取的能力，考虑使用容器或者tar的机制支持
+1. 通过makerhotpatch <软件版本>，创建对应的issue跟踪热补丁发布流程
+
+2. 同时根据<软件版本>从release目录中获取对应的源码包和debuginfo，在HotPatch仓库中创建对应的[元数据](# 热补丁元数据格式如下：)
+
+3. 对应仓库地址通过issue反馈给开发人员，同时给出热补丁开发指导
+
+4. 开发人员提交热补丁到仓库
+
+   **//后续提需求给ebs，从ebs出接口支持热补丁制作**
 
 - [IR-apollo-hotmake-CICD]\[SR-hotmake-CICD-001\]支持PR评论命令makehotpatch
     - PR合入后自动创建特定格式的热补丁issue
-    - 创建临时仓库，创建新PR关联两个仓库
-    - 准备热补丁制作环境：自动收集PR的代码，修改之前的二进制软件包信息
+    - 获取src和debuginfo链接，提交到Hotpatch_matedata
+    - 准备热补丁制作环境，完善issue信息，反馈给补丁制作和帮助文档给开发人员
     - 提供制作环境下载功能和指导文档，供开发人员自验证
-- [IR-apollo-hotmake-CICD]\[SR-hotmake-CICD-002\]创建热补丁元数据updateinfo.xml
+    - 提交补丁到matedata
+- [IR-apollo-hotmake-CICD]\[SR-hotmake-CICD-002\]创建热补丁元数据[updateinfo.xml](# **updateinfo.xml参考格式如下**)
     - 热补丁制作成功后，自动创建updateinfo.xml。并与热补丁存储在统一路径
 
 - [IR-apollo-hotmake-CICD]\[SR-hotmake-CICD-003\]热补丁评审发布
@@ -142,13 +151,17 @@ apollo需要至少考虑三个主要用户
     - 根据所选择的issue收集热补丁交付件
     - 根据热补丁清单，更新updateinfo并推送热补丁到repo
 
-
 **热补丁服务**
 
 - [IR-apollo-hotservice]\[SR-hotservice-001\]支持补丁信息订阅
   - 有新的补丁发布时，支持以邮件和短信的方式发送补丁信息。补丁信息包括CVE/BUG描述，CVE id，涉及软件包列表，是否支持热补丁修复等
+- [IR-apollo-hotservice]\[SR-hotservice-002\]安全公告支持热补丁信息显示
+  - [cvrf.xml](# cvrf.xml参考格式如下)参考ProductTree新增HotPatchTree字段，存储热补丁信息，方便前台显示
+  - 如果存在热补丁，对应安全公告新增热补丁页签
 
-**updateinfo.xml参考格式如下**
+- [IR-apollo-hotservice]\[SR-hotservice-003\]新增热补丁中心展示页面
+
+###### **updateinfo.xml参考格式如下**
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>  
@@ -185,6 +198,38 @@ apollo需要至少考虑三个主要用户
 </updates>
 ```
 
+###### **cvrf.xml参考格式如下**
+
+![cvrf格式](./pic/cvrf格式.png)
+
+###### **安全公告修改示意图如下**
+
+![安全公告-热补丁](./pic/安全公告-热补丁.png)
+
+###### **热补丁元数据格式如下：**
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<hotpatchdoc xmlns="https://gitee.com/openeuler/hotpatch_data" xmlns:cvrf="https://gitee.com/openeuler/hotpatch_data">
+	<DocumentTitle xml:lang="en">Managing Hot Patch Metadata</DocumentTitle>
+	<HotPatchList>
+	<Package Name="kernel-xxxxxxx" Type="cve/bug" statue="i/f/s">
+	    <hotpatch version="1">
+	        <SRC_RPM>download_link</SRC_RPM>
+		    <Debug_RPM>download_link</Debug_RPM>
+		</hotpatch>
+        <hotpatch version="2">
+	        <SRC_RPM>download_link</SRC_RPM>
+		    <Debug_RPM>download_link</Debug_RPM>
+		</hotpatch>
+	</Package>
+	</HotPatchList>
+
+</hotpatchdoc>
+```
+
+
+
 ### 2.1.2、系统缺陷支持热补丁修复
 
 **包含IR清单**
@@ -195,9 +240,9 @@ apollo需要至少考虑三个主要用户
 | [IR-apollo-rpm-hot_fix]apollo-支持使用rpm管理热补丁（待实现） |
 | [IR-apollo-dnf-hot_fix]apollo-支持使用dnf管理热补丁          |
 | [IR-apollo-hot_fix]apollo-系统缺陷支持热补丁修复             |
-| [IR-apollo-hot_cold_fix]apollo-系统缺陷支持冷热补丁混合管理  |
+| [IR-apollo-hot_cold_fix]apollo-系统缺陷支持冷热补丁混合管理（带实现） |
 
-![缺陷修复流程](pic/缺陷修复流程.png)
+![缺陷修复流程](./pic/缺陷修复流程.png)
 
 - 热补丁最终制作成rpm，通过updateinfo提供与CVE和Bugfix的信息管理。集中通过repo的方式对外发布。
 - 提供dnf-plugin-hotpatch使能dnf支持热补丁管理，提供热补丁下载，安装和升级操作。提供根据updateinfo升级热补丁操作，支持info，list，update，updateinfo list/info/summary，新增update --hotpatch接口。
@@ -209,7 +254,7 @@ apollo需要至少考虑三个主要用户
 
 **热补丁状态机图**
 
-![image-20230301155145691](pic/热补丁状态图.png)
+![image-20230301155145691](./pic/热补丁状态图.png)
 
 热补丁重启会丢失，引入Accept状态。
 
@@ -223,9 +268,9 @@ apollo需要至少考虑三个主要用户
 
 - [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-001\]支持热补丁本地状态查询
   - 支持本地热补丁状态查询，展示所有热补丁的状态，按照不同软件分块
-  - 支持按照cve显示所有热补丁的转台
-- [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-002\]支持单机巡检
-  - 开源用户一般是单机使用，本地的agent需要支持配置补丁repo，支持按需巡检和定期巡检
+  - 支持按照cve显示所有热补丁的状态
+- [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-002\]支持单机检查
+  - 开源用户一般是单机使用，本地的agent需要支持配置补丁repo，支持按需检查
 - [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-003\]支持热补丁修复
   - 本地热补丁支持按照cve id修复
   - 本地热补丁支持热补丁名称修复
@@ -239,11 +284,11 @@ apollo需要至少考虑三个主要用户
 
 **流程图示意**
 
-![缺陷修复活动图](pic/缺陷修复活动图.png)
+![缺陷修复活动图](./pic/缺陷修复活动图.png)
 
 **集群需求**
 
-集群一致性是需要考虑的重点？
+*集群一致性是需要考虑的重点？*
 
 - [IR-apollo-hot_fix]\[SR-apollo-hot_fix-001\]支持集群巡检
   - 支持手动巡检
@@ -398,26 +443,6 @@ apollo需要至少考虑三个主要用户
 |                        | 支持热补丁生命周期管理         | 热补丁插件  | 作为dnf插件集成 |
 |                        | 支持热补丁生成                 | 热补丁工具  |                 |
 
-### 2.2.4、22.03-LTS-SP2 版本需求分解
-| Use Case               | Story                                      | 模块                                               | 说明                 |
-| ---------------------- | ------------------------------------------ | -------------------------------------------------- | -------------------- |
-| 支持制作热补丁元数据   | 创建热补丁updateinfo.xml                   | [updateinfo.xml制作工具](#3.6、updateinfo制作工具) |                      |
-|                        | 支持指定缺陷类型/ID/描述/严重等级/缺陷id等 | [updateinfo.xml制作工具](#3.6、updateinfo制作工具) |                      |
-|                        | 支持updateinfo与正式补丁包的正确性检测     | [updateinfo.xml制作工具](#3.6、updateinfo制作工具) |                      |
-| 官网提供补丁订阅服务   | 支持补丁信息订阅                           | openEuler官网提供                                  |                      |
-| CICD流水线支持热补丁   | 支持PR评论命令makehotpatch                 | 社区CICD流程支持                                   |                      |
-|                        | 安全公告包含热补丁信息                     | 社区CICD流程支持                                   |                      |
-|                        | 创建热补丁元数据updateinfo.xml             | 社区CICD流程支持                                   |                      |
-|                        | 热补丁评审发布                             | 社区CICD流程支持                                   |                      |
-| 系统缺陷巡检和告警通知 | 支持集群巡检                               | 任务管理                                           | 部分接口需要重新适配 |
-|                        | 热补丁支持告警和通知                       | 告警                                               |                      |
-| 系统缺陷支持热补丁修复 | 支持集群修复                               | 任务管理                                           | 部分接口需要重新适配 |
-|                        | 支持集群热补丁回退                         | 任务管理                                           |                      |
-|                        | 支持集群热补丁查询                         | cve信息管理                                        |                      |
-| 支持使用dnf管理热补丁  | 支持热补丁本地状态查询                     | [热补丁插件](#3.5.5、热补丁本地状态查询)           | 作为dnf插件集成      |
-|                        | 支持热补丁修复                             | [热补丁插件](#3.5.4、热补丁修复)                   | 作为dnf插件集成      |
-|                        | 热补丁支持回退                             | [热补丁插件](#3.5.6、热补丁状态切换)               | 作为dnf插件集成      |
-|                        | 热补丁支持重启自动激活                     | [热补丁插件](#3.5.6、热补丁状态切换)               | 作为dnf插件集成      |
 
 
 # 3、模块设计
@@ -482,6 +507,16 @@ enabled=1
 | cve-1-1 | 不受影响 | 已修复   |
 | cve-1-2 | 受影响   | 未修复   |
 | cve-1-3 | 受影响   | 已修复   |
+
+### 3.2.2、cve评审状态设置
+
+支持用户修改cve状态，目前支持状态为：
+
+- not reviewed（未关注）
+- in review（关注中）
+- on-hold（挂起）
+- resolved（已解决）
+- no action（已忽略）
 
 ## 3.3、安全公告管理（暂时不涉及）
 
@@ -553,6 +588,10 @@ openEuler Security has rated this update as having a security impact of high. A 
 	</Vulnerability>
 </cvrfdoc>
 ```
+
+
+
+
 
 ### 3.3.2、不受影响cve信息解析
 
@@ -943,19 +982,7 @@ openEuler Security has rated this update as having a security impact of high. A 
 
 ### 3.5.1、热补丁状态图
 
-热补丁的rpm包安装后，可以通过dnf hotpatch list 查看热补丁的状态。
 
-NOT-APPLIED: 热补丁尚未安装
-
-DEACTIVED: 热补丁已被安装
-
-ACTIVED: 热补丁已被激活
-
-ACCEPT: 热补丁已被接受，后续重启后会被自动打上
-
-
-
-![image-20230301155145691](pic/热补丁状态图.png)
 
 ### 3.5.2、热补丁命名
 
@@ -970,11 +997,11 @@ patch-kernel-5.10.0-60.66.0.91.oe2203-HP001-1-1.x86_64.rpm
 
 #### 3.5.3.1、全局扫描流程图
 
-![热补丁扫描（全局）](pic/热补丁扫描（全局）.png)
+![热补丁扫描（全局）](./pic/热补丁扫描（全局）.png)
 
 #### 3.5.3.2、单包扫描流程图
 
-![热补丁扫描（单包）](pic/热补丁扫描（单包）.png)
+![热补丁扫描（单包）](./pic/热补丁扫描（单包）.png)
 
 #### 3.5.3.3、伪代码
 
@@ -1034,11 +1061,11 @@ CVE-3:
 installed package: A-1.0
 actived hotpatch:
 
-# dnf hotpatch --list
+# dnf hotpatch list
 # 扫描得到3个cve
-CVE-1  Important/Sec. A-1.1  A-hotpatch-1.0-HP001
-CVE-2  Important/Sec. A-1.2  A-hotpatch-1.0-HP002
-CVE-3  Important/Sec. A-1.3  -
+CVE-1  xxx  A-hotpatch-1.0-HP001
+CVE-2  xxx  A-hotpatch-1.0-HP002
+CVE-3  XXX  -
 ```
 
 **`CASE 2`**
@@ -1090,79 +1117,11 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 
 ### 3.5.4、热补丁修复
 
-热补丁主要支持以下三种修复方案：
 
-- 本地热补丁支持按照cve id修复
 
-- 本地热补丁支持热补丁名称修复
-- 本地热补丁支持全量修复，参考dnf update/upgrade
+## 3.6、热补丁工具
 
-流程图如下：
 
-![热补丁修复](pic/热补丁修复流程图.png)
-
-命令示例：
-
-```
-dnf hotupgrade --cve cve-1  // 指定漏洞编号修复
-
-dnf hotupgrade --advisory sa-2023-1  // 指定安全公告编号修复
-
-dnf hotupgrade patch-A-1.0.0-1-HP2-1-1.x86_64  // 直接按照热补丁名称修复。热补丁名称可通过dnf hotpatch --list 查到
-
-dnf hotupgrade   // 安装并激活所有可安装的热补丁
-```
-
-### 3.5.5、热补丁本地状态查询
-
-实现思路为dnf插件封装syscare 相关命令，对回显进行优化，通过对热补丁updateinfo.xml的解析，列出热补丁对应的cve信息。
-
-命令示例：
-
-```
-dnf hotpatch list
-// 列出已安装的3个热补丁
-CVE id   base-pkg/hotpatch        status
-CVE-3    A-1.1-1/HP3             ACTIVED
-CVE-1    B-1.1-1/HP1             AFFECTED
-CVE-2    C-1.1-1/HP2             DEACTIVED
-CVE-4    D-1.1-1/HP2             NOT_APPLIED
-```
-
-### 3.5.6、热补丁状态切换
-
-热补丁各状态参考：  [热补丁状态](#3.5.1、热补丁状态图)
-
-实现思路为dnf插件封装syscare 相关命令，对回显进行优化。
-
-命令示例：
-
-```
-dnf remove patch-A-1.1-1.x86_64  // 直接remove热补丁软件包，remove掉后不会在dnf hotpatch list中显示。若补丁已被激活，则会自动去激活再remove掉rpm包
-
-dnf hotpatch remove A-1.1-1/HP2  // ACTIVED/DEACTIVED/ACCEPT状态下,去激活热补丁, 状态变为NOT_APPLIED
-dnf hotpatch remove --cve cve-2  // ACTIVED/DEACTIVED/ACCEPT状态下,指定cve id去激活热补丁, 状态变为NOT_APPLIED
-
-dnf hotpatch apply A-1.1-1/HP2  // NOT_APPLIED状态下，安装并激活热补丁, 状态变为ACCTIVED
-
-dnf hotpatch deactive A-1.1-1/HP2  // ACCTIVED/ACCEPT状态下去激活热补丁, 状态变为DEACCTIVED
-
-dnf hotpatch active A-1.1-1/HP2  // DEACCTIVED状态下激活热补丁, 状态变为ACCTIVED
-
-dnf hotpatch accept A-1.1-1/HP2  // ACCTIVED状态下去接受热补丁, 状态变为ACCEPT，重启后热补丁自动激活
-```
-
-## 3.6、updateinfo制作工具
-
-待补充--王光格
-
-- 创建热补丁updateinfo.xml
-- 支持指定缺陷类型/ID/描述/严重等级/缺陷id等
-- 支持updateinfo与正式补丁包的正确性检测
-
-## 3.7、热补丁工具
-
-由[syscare项目](https://gitee.com/src-openeuler/syscare)实现。
 
 # 4、质量属性设计
 
@@ -1439,7 +1398,7 @@ command-specific options:
 | 2.0.0 | 任务管理模块重构，由ansible改为zeus服务统一命令下发          | 罗盛炜        |
 | 2.0.1 | 1.任务管理：cve扫描做修改，目前cve扫描不会作为一个任务存入数据库，并且逻辑为收集目标主机rpm信息、cve信息，通过callback返回，在服务端解析rpm信息得出不受影响cve，直接存入数据库。 | 罗盛炜        |
 | 2.1.0 | 1.cve扫描逻辑做调整，返回参数修改，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式<br />3.新增热补丁插件相关视图<br />4.更新热补丁接口清单<br />5.每个版本需求列表更新 | 胡峰/罗盛炜   |
-| 2.1.1 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4. 增加22.03-LTS-SP2需求<br />5.新增热补丁插件部分命令描述和设计| 胡峰/朱云成       |
+| 2.1.1 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4.新增热补丁流水线 | 胡峰          |
 
 
 # 8、参考目录
