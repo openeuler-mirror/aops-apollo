@@ -284,6 +284,7 @@ paths:
       description: 设置cve状态
       summary: 设置cve状态
       operationId: set_cve_status
+      deprecated: true
       produces:
         - application/json
       parameters:
@@ -1140,6 +1141,60 @@ paths:
           schema:
             $ref: '#/definitions/GeneralRsp'
       x-order: 18
+  /task/cve-rollback/generate:
+    post:
+      tags:
+        - task
+      description: |-
+        生成漏洞回滚任务
+      summary: 生成漏洞修复任务
+      operationId: generate_cve_rollback_task
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: task_info
+          schema:
+            $ref: '#/definitions/GenerateRollbackTaskReq'
+          required: false
+        - in: header
+          name: access_token
+          description: 授权码
+          type: string
+          required: false
+      responses:
+        '200':
+          description: ''
+          schema:
+            $ref: '#/definitions/GenerateCveTaskRsp'
+        '400':
+          description: ''
+          schema:
+            $ref: '#/definitions/ErrorRsp'
+  /task/callback/cve/rollback:
+    post:
+      tags:
+        - task
+      summary: cve修复的任务回调
+      description: cve修复的任务回调
+      operationId: callback_cve_rollback
+      consumes:
+        - application/x-www-form-urlencoded
+      parameters:
+        - name: access_token
+          in: header
+          required: false
+          type: string
+        - name: cve_fix_task_callback
+          in: body
+          required: false
+          schema:
+            $ref: '#/definitions/CveRollbackCallbackReq'
+      responses:
+        '200':
+          description: ''
+          schema:
+            $ref: '#/definitions/GeneralRsp'
 definitions:
   GetRepoTemplateRsp:
     allOf:
@@ -1704,19 +1759,15 @@ definitions:
             type: array
             items:
               type: string
-          status:
-            type: array
-            items:
-              type: string
-            example:
-              - not reviewd
-              - in review
-              - on-hold
-              - resloved
-              - no action
           affected:
             type: boolean
             description: 默认为True
+          hotpatch:
+            type: array
+            items:
+              type: boolean
+          fixed:
+            type: boolean
         required:
           - affected
     type: object
@@ -1773,7 +1824,11 @@ definitions:
                     type: string
                   repo:
                     type: string
-                  cve_num:
+                  affected_cve_num:
+                    type: integer
+                  unaffected_cve_num:
+                    type: integer
+                  fixed_cve_num:
                     type: integer
                   last_scan:
                     type: integer
@@ -1839,7 +1894,9 @@ definitions:
                       type: string
                     repo:
                       type: string
-                    cve_num:
+                    unfixed_cve_num:
+                      type: integer
+                    fixed_cve_num:
                       type: integer
                     last_scan:
                       type: integer
@@ -1932,6 +1989,15 @@ definitions:
         type: array
         items:
           type: string
+      filter:
+        description: 查询条件
+        type: object
+        properties:
+          fixed:
+            type: boolean
+          hotpatch:
+            type: boolean
+
   QueryCveTaskHostRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
@@ -1981,11 +2047,14 @@ definitions:
             type: array
             items:
               type: string
+          fixed:
+            type: boolean
           repo:
             type: array
             items:
               type: string
-    type: object
+        required:
+          - fixed
   QueryCveHostRsp:
     allOf:
       - $ref: '#/definitions/GeneralRsp'
@@ -2079,8 +2148,11 @@ definitions:
           affected:
             type: boolean
             description: 默认为True
+          fixed:
+            type: boolean
         required:
           - affected
+          - fixed
     type: object
   QueryCveListRsp:
     allOf:
@@ -2217,7 +2289,7 @@ definitions:
     description: 通用返回信息
     required:
       - code
-      - msg
+      - message
       - label
     properties:
       code:
@@ -2225,7 +2297,7 @@ definitions:
         type: integer
         minLength: 8
         maxLength: 36
-      msg:
+      message:
         description: 描述信息
         type: string
         minLength: 2
@@ -2306,15 +2378,31 @@ definitions:
         type: array
         items:
           type: object
-          additionalProperties:
-            type: string
+          properties:
+            name:
+              type: string
+            version:
+              type: boolean
           description: 主机安装的软件包名列表
       cves:
         type: array
         items:
           type: object
-          additionalProperties:
-            type: string
+          properties:
+            cve_id:
+              type: string
+            hotpatch:
+              type: boolean
+      fixed_cves:
+        type: array
+        items:
+          type: object
+          properties:
+            cve_id:
+              type: string
+            hotpatch:
+              type: boolean
+
   CveFixCallbackReq:
     type: object
     properties:
@@ -2340,3 +2428,49 @@ definitions:
         items:
           type: integer
         description: 空表示全部
+  GenerateRollbackTaskReq:
+    required:
+      - task_name
+      - description
+      - info
+    properties:
+      task_name:
+        type: string
+        description: 任务名称
+      description:
+        type: string
+        description: 任务描述
+      info:
+        type: array
+        description: 需要修复的主机与cve的信息
+        items:
+          properties:
+            host_id:
+              type: integer
+            cves:
+              type: array
+              items:
+                properties:
+                  cve_id:
+                    type: string
+                  hotpatch:
+                    type: boolean
+  CveRollbackCallbackReq:
+    type: object
+    properties:
+      task_id:
+        type: string
+      host_id:
+        type: string
+      cves:
+        type: array
+        items:
+          type: object
+          properties:
+            cve_id:
+              type: string
+            result:
+              type: string
+            log:
+              type: string
+        description: cve_id, 回滚结果(succeed/fail/unknown),日志
