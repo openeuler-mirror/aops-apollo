@@ -71,7 +71,7 @@ class ScanManager(Manager):
             "callback": "/vulnerability/task/callback/cve/scan"
         }
 
-        self.last_scan_result = self.proxy.query_hotpatch_cve(self.host_list, self.username)
+        self.last_scan_result = self.proxy.get_hotpatch_cves(self.host_list, self.username)
 
         return SUCCEED
 
@@ -135,10 +135,10 @@ class ScanManager(Manager):
         """
         self.proxy.update_host_scan("finish", self.host_list)
         if configuration.email.get("ENABLED"):
-            self.current_scan_result = self.proxy.query_hotpatch_cve(self.host_list, self.username)
+            self.current_scan_result = self.proxy.get_hotpatch_cves(self.host_list, self.username)
             self.last_scan_result.sort()
             self.current_scan_result.sort()
-            if  self.current_scan_result != self.last_scan_result:
+            if self.current_scan_result != self.last_scan_result:
                 self.send_email_to_user()
 
     def send_email_to_user(self) -> None:
@@ -258,6 +258,3 @@ class ScanManager(Manager):
         file.write(content.encode("utf-8"))
         file.seek(0)
         return file
-
-
-
