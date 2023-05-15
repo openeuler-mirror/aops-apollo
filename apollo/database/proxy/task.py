@@ -127,28 +127,6 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("query host basic info fail")
             return DATABASE_QUERY_ERROR, result
 
-    def get_hotpatch_cves(self, host_list: list, username: str) -> list:
-        """
-        from cve_host_match table query all data under the corresponding host id
-
-        Args:
-            host_list(list): host id list
-            username(str): user name
-
-        Return:
-            list: element of list is cve id, e.g.:
-                ["CVE-1-2", "CVE-2-3", "CVE-3-4"]
-        """
-        if not host_list:
-            host_list = self.session.query(Host.host_id).filter(Host.user == username).all()
-
-        scan_result_query = self.session.query(CveHostAssociation.cve_id)\
-        .filter(CveHostAssociation.hotpatch == 1,
-                CveHostAssociation.host_id.in_(host_list)).all()
-
-        return [cve.cve_id for cve in scan_result_query]
-
-
     def update_host_scan(self, status, host_list, username=None):
         """
         When the host need to be scanned, init the status to 'scanning',
