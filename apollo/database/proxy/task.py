@@ -2190,7 +2190,7 @@ class TaskMysqlProxy(MysqlProxy):
         """
         try:
             subquery = self.session.query(
-                CveHostAssociation.host_id, CveHostAssociation.cve_id,
+                CveHostAssociation.host_id, CveHostAssociation.cve_id, CveHostAssociation.hotpatch,
                 case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
                 case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity")) \
                 .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id) \
