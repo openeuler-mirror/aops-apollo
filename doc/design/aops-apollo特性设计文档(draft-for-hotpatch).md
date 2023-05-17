@@ -228,8 +228,6 @@ apollo需要至少考虑三个主要用户
 </hotpatchdoc>
 ```
 
-
-
 ### 2.1.2、系统缺陷支持热补丁修复
 
 **包含IR清单**
@@ -240,7 +238,7 @@ apollo需要至少考虑三个主要用户
 | [IR-apollo-rpm-hot_fix]apollo-支持使用rpm管理热补丁（待实现） |
 | [IR-apollo-dnf-hot_fix]apollo-支持使用dnf管理热补丁          |
 | [IR-apollo-hot_fix]apollo-系统缺陷支持热补丁修复             |
-| [IR-apollo-hot_cold_fix]apollo-系统缺陷支持冷热补丁混合管理（带实现） |
+| [IR-apollo-hot_cold_fix]apollo-系统缺陷支持冷热补丁混合管理（待实现） |
 
 ![缺陷修复流程](./pic/缺陷修复流程.png)
 
@@ -252,15 +250,7 @@ apollo需要至少考虑三个主要用户
 - 对外提供CVE/Bugfix巡检、修复、回退和查询操作，通过集群管理模块提供集群巡检能力
 - 需要支持在rpm信息中设置和查询热补丁标签？
 
-**热补丁状态机图**
 
-![image-20230301155145691](./pic/热补丁状态图.png)
-
-热补丁重启会丢失，引入Accept状态。
-
-- 激活热补丁后业务测试可能失败，此时处于Actived状态，通过重启可以自动恢复到激活前。
-
-- accept后热补丁重启后会自动生效
 
 **单机需求如下（630重点支持内核热补丁）**
 
@@ -278,9 +268,19 @@ apollo需要至少考虑三个主要用户
 - [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-004\]热补丁支持回退
   - 本地热补丁支持按照cve id回退
   - 本地热补丁支持按照补丁名称回退
+
 - [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-005\]热补丁支持重启自动激活
+
   - 支持重启自动激活
   - 支持按照不同热补丁开关自动激活
+
+  说明：
+
+  热补丁重启会丢失，引入Accept状态。具体可参考[热补丁状态图](#3.5.1、热补丁状态图)
+
+  - 激活热补丁后业务测试可能失败，此时处于Actived状态，通过重启可以自动恢复到激活前。	
+
+  - accept后热补丁重启后会自动生效
 
 **流程图示意**
 
@@ -318,13 +318,10 @@ apollo需要至少考虑三个主要用户
 
 - [IR-apollo-dnf-hot_fix]\[SR-dnf-hot_fix-RAS-001\]支持增量热补丁
   - 通过增量的方式，直接覆盖现有补丁，避免去激活，来避免缺陷暴露
+
 - **[IR-apollo-hot_fix]\[SR-apollo-hot_fix-RAS-001\]集群状态一致性（重要）**
 
-
-
-
-
-
+  
 
 **参考信息**
 
@@ -360,7 +357,6 @@ apollo需要至少考虑三个主要用户
 - 可以识别出用户需要的功能为：
   - cve信息查询，包括cve信息总览、cve列表、cve详情等
   - 主机维度查询，获取主机列表，获取主机的cve信息等。
-  - cve评审状态设置，用户可已设置cve状态，如标志某cve已review，或可忽略。
 
 ![cve信息查询](pic/cve信息查询.png)
 
@@ -403,7 +399,6 @@ apollo需要至少考虑三个主要用户
 |             | 查看cve具体信息               | cve信息管理  |  |
 |             | 获取某cve主机相关详细信息     | cve信息管理 |  |
 |             | 获取多个cve对应的主机基本信息 | cve信息管理 |  |
-|             | 设置cve评审状态             | cve信息管理 |  |
 |             | 查询修复cve后的一系列操作     | cve信息管理 |  |
 |  | 获取主机列表 | cve信息管理 |  |
 |             | 获取主机详细信息（基础信息+cve数量统计） | cve信息管理 |  |
@@ -443,7 +438,27 @@ apollo需要至少考虑三个主要用户
 |                        | 支持热补丁生命周期管理         | 热补丁插件  | 作为dnf插件集成 |
 |                        | 支持热补丁生成                 | 热补丁工具  |                 |
 
+### 2.2.4、22.03-LTS-SP2 版本需求分解
 
+| Use Case               | Story                                      | 模块                                               | 说明                 |
+| ---------------------- | ------------------------------------------ | -------------------------------------------------- | -------------------- |
+| 支持制作热补丁元数据   | 创建热补丁updateinfo.xml                   | [updateinfo.xml制作工具](#3.6、updateinfo制作工具) |                      |
+|                        | 支持指定缺陷类型/ID/描述/严重等级/缺陷id等 | [updateinfo.xml制作工具](#3.6、updateinfo制作工具) |                      |
+|                        | 支持updateinfo与正式补丁包的正确性检测     | [updateinfo.xml制作工具](#3.6、updateinfo制作工具) |                      |
+| 官网提供补丁订阅服务   | 支持补丁信息订阅                           | openEuler官网提供                                  |                      |
+| CICD流水线支持热补丁   | 支持PR评论命令makehotpatch                 | 社区CICD流程支持                                   |                      |
+|                        | 安全公告包含热补丁信息                     | 社区CICD流程支持                                   |                      |
+|                        | 创建热补丁元数据updateinfo.xml             | 社区CICD流程支持                                   |                      |
+|                        | 热补丁评审发布                             | 社区CICD流程支持                                   |                      |
+| 系统缺陷巡检和告警通知 | 支持集群巡检                               | 任务管理                                           | 部分接口需要重新适配 |
+|                        | 热补丁支持告警和通知                       | 告警                                               |                      |
+| 系统缺陷支持热补丁修复 | 支持集群修复                               | 任务管理                                           | 部分接口需要重新适配 |
+|                        | 支持集群热补丁回退                         | 任务管理                                           |                      |
+|                        | 支持集群热补丁查询                         | cve信息管理                                        |                      |
+| 支持使用dnf管理热补丁  | 支持热补丁本地状态查询                     | [热补丁插件](#5.2.3、热补丁状态管理)               | 作为dnf插件集成      |
+|                        | 支持热补丁修复                             | [热补丁插件](#5.2.2、热补丁修复)                   | 作为dnf插件集成      |
+|                        | 热补丁支持回退                             | [热补丁插件](#5.2.3、热补丁状态管理)               | 作为dnf插件集成      |
+|                        | 热补丁支持重启自动激活                     | [热补丁插件](#5.2.3、热补丁状态管理)               | 作为dnf插件集成      |
 
 # 3、模块设计
 
@@ -502,23 +517,14 @@ enabled=1
 
 文件内容如下：
 
-| cve名称 | 状态     | 修复状态 |
-| ------- | -------- | -------- |
-| cve-1-1 | 不受影响 | 已修复   |
-| cve-1-2 | 受影响   | 未修复   |
-| cve-1-3 | 受影响   | 已修复   |
+| cve名称 | 状态     | 修复状态 | 修复方式 |
+| ------- | -------- | -------- | -------- |
+| cve-1-1 | 不受影响 | 已修复   | -        |
+| cve-1-2 | 受影响   | 未修复   | -        |
+| cve-1-3 | 受影响   | 已修复   | 热补丁   |
+| cve-1-4 | 受影响   | 已修复   | 冷补丁   |
 
-### 3.2.2、cve评审状态设置
-
-支持用户修改cve状态，目前支持状态为：
-
-- not reviewed（未关注）
-- in review（关注中）
-- on-hold（挂起）
-- resolved（已解决）
-- no action（已忽略）
-
-## 3.3、安全公告管理（暂时不涉及）
+## 3.3、安全公告管理
 
 cve修复信息来自于安全公告与不受影响cve信息，需要在界面上导入，做一定解析后存入数据库中。
 
@@ -589,10 +595,6 @@ openEuler Security has rated this update as having a security impact of high. A 
 </cvrfdoc>
 ```
 
-
-
-
-
 ### 3.3.2、不受影响cve信息解析
 
 - 不受影响cve信息的文件格式（xml）如下：
@@ -627,7 +629,11 @@ openEuler Security has rated this update as having a security impact of high. A 
 </cvrfdoc>
 ```
 
-### 3.3.3、数据库
+### 3.3.3、已下载安全公告查看
+
+用户可以在前端界面查看到系统已导入的安全公告列表和导入时间等信息。待后续实现。
+
+### 3.3.4、数据库
 
 - **`cve`**
 
@@ -645,8 +651,6 @@ openEuler Security has rated this update as having a security impact of high. A 
 | CVE-2021-43818 | python-lxml | 4.6.5-2         | openEuler-20.03-LTS-SP2 | True     |
 | CVE-2021-43818 | python-lxml | 4.6.5-2         | openEuler-20.03-LTS-SP3 | True     |
 | CVE-2021-20304 | OpenEXR     |                 | openEuler-22.03-LTS     | False    |
-
-
 
 ## 3.4、任务管理
 
@@ -844,9 +848,9 @@ openEuler Security has rated this update as having a security impact of high. A 
     
     ![cve扫描逻辑](./pic/cve扫描逻辑.png)
     
-    - 根据cve_affected_pkgs{"os_version==os_version"}查询得到cve信息{cve_id, package, package_version, os_version, affected}
-    - 与installed_packages进行比较，得到cve列表{cve_id, affected, fixed}
-    - 从得到的cve列表与cves进行相比较，矫正受影响未修复的cve列表
+    - 根据cve_affected_pkgs{"os_version==os_version"}查询得到cve信息{cve_id, package, package_version, os_version, affected}。与installed_packages进行比较，得到不受影响cve列表。此时fixed、support_hp、fixed_by_hp字段均无意义，置为None
+    - 得到的已修复漏洞affected和fixed字段均为True，fixed_by_hp字段根据是否由热补丁修复的真实情况进行取值。由于该漏洞已被修复，support_hp字段此时意义不大，置为None
+    - 得到的未修复漏洞affected字段为True，fixed字段为False，support_hp字段根据是否支持热补丁修复的真实情况进行取值。由于该漏洞未被修复，故fixed_by_hp字段无意义，置为None
     - 存入数据库
 
   - 修改主机状态为`done`
@@ -982,7 +986,19 @@ openEuler Security has rated this update as having a security impact of high. A 
 
 ### 3.5.1、热补丁状态图
 
+热补丁的rpm包安装后，可以通过dnf hotpatch list 查看热补丁的状态。
 
+NOT-APPLIED: 热补丁尚未安装
+
+DEACTIVED: 热补丁已被安装
+
+ACTIVED: 热补丁已被激活
+
+ACCEPT: 热补丁已被接受，后续重启后会被自动打上
+
+
+
+![热补丁状态图](./pic/热补丁状态图.png)
 
 ### 3.5.2、热补丁命名
 
@@ -1117,11 +1133,35 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 
 ### 3.5.4、热补丁修复
 
+热补丁主要支持以下三种修复方案：
 
+- 本地热补丁支持按照cve id修复
+- 本地热补丁支持热补丁名称修复
+- 本地热补丁支持全量修复，参考dnf update/upgrade
 
-## 3.6、热补丁工具
+流程图如下：
 
+![热补丁修复](./pic/热补丁修复流程图.png)
 
+具体命令参考：[热补丁状态管理](#5.2.3、热补丁状态管理)
+
+### 3.5.5、热补丁状态管理
+
+实现思路为dnf插件封装syscare 相关命令，并通过对热补丁updateinfo.xml的解析，将cve信息与热补丁进行关联展示。
+
+具体命令参考：[热补丁状态管理](#5.2.3、热补丁状态管理)
+
+## 3.6、updateinfo制作工具
+
+待补充--王光格
+
+- 创建热补丁updateinfo.xml
+- 支持指定缺陷类型/ID/描述/严重等级/缺陷id等
+- 支持updateinfo与正式补丁包的正确性检测
+
+## 3.7、热补丁工具
+
+由[syscare项目](https://gitee.com/src-openeuler/syscare)实现。
 
 # 4、质量属性设计
 
@@ -1275,13 +1315,55 @@ command-specific options:
       CVE-2023-0288    patch-vim-minimal-8.2-58-name-2-11
     ```
 
-
-
-
-### 5.2.2、热补丁应用
+### 5.2.2、热补丁修复
 
 ```shell
-dnf hotpatch [--download | --apply | --status | --list | --active | --deactive | --remove] [SPEC ...] [--cve [cve_id]]
+dnf hotupgrade [SPEC ...] [--cve [cve_id]] [--advisory [advisory_id]]
+
+General DNF options:
+  -q, --quiet           quiet operation
+  -v, --verbose         verbose operation
+  -h, --help, --help-cmd
+                        show command help
+  --cve CVES, --cves CVES
+                        Include packages needed to fix the given CVE, in updates
+  --advisory ADVISORY
+                        Include packages needed to fix the given advisory, in updates
+
+  SPEC            Hotpatch specification
+```
+- `--cve`
+
+  ```shell
+  [root@localhost dnf]# dnf hotupgrade --cve cve-1
+  # 指定漏洞编号修复
+  ```
+
+- `--advisory`
+
+  ```shell
+  [root@localhost dnf]# dnf hotupgrade --advisory sa-2023-1
+  # 指定安全公告编号修复
+  ```
+
+- `--spec`
+
+  ```shell
+  [root@localhost dnf]# dnf hotupgrade patch-A-1.0.0-1-HP2-1-1.x86_64
+  # 直接按照热补丁名称修复。热补丁名称可通过dnf hotpatch --list 查到
+  ```
+
+- 直接执行
+
+  ```shell
+  [root@localhost dnf]# dnf hotupgrade
+  # 安装并激活所有可安装的热补丁
+  ```
+
+### 5.2.3、热补丁状态管理
+
+```shell
+dnf hotpatch [--list | --apply | --active | --deactive | --remove | --accept] [SPEC ...] [--cve [cve_id]]
 
 General DNF options:
   -q, --quiet           quiet operation
@@ -1292,88 +1374,82 @@ General DNF options:
                         Include packages needed to fix the given CVE, in updates
 
 command-specific options:
-  --download      download the patch
-  --apply         apply the patch
-  --status        show patch status
   --list          show list of installed patches
+  --apply         apply the patch
   --active        active the patch
   --deactive      deactive the patch
   --remove        remove the patch
+  --accept        accept the patch
   
   SPEC            Hotpatch specification
 ```
 
-- `--download`
-
-    ```shell
-    [root@localhost dnf]# dnf hotpatch --download
-    ```
-    
-- `--apply`
-
-    ```shell
-    [root@localhost dnf]# dnf hotpatch --apply --patch bind-libs-hotpatch
-    # 安装热补丁
-    ```
-- `--status`
-
-    ```shell
-    [root@localhost dnf]# dnf hotpatch --status bind-libs-hotpatch-6.2.5-1-HP001
-    # 查看该patch的状态
-    ACTIVED
-    ```
-
 - `--list`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch --list
-    redis-6.2.5-1     redis-hotpatch-6.2.5-1-HP001    ACTIVED
-    redis-6.2.5-1     redis-hotpatch-6.2.5-1-HP002    NOT-APPLIED
-    redis-6.2.5-1     redis-hotpatch-6.2.5-1-HP003    DEACTIVED
-    ```
+    [root@localhost dnf]# dnf hotpatch list
+    # 列出已安装的热补丁和状态
+    base-pkg/hotpatch        status
+    A-1.1-1/HP1             ACCEPT
+    B-1.1-1/HP1             DEACTIVED
+    C-1.1-1/HP1             ACTIVED
+    D-1.1-1/HP1             NOT_APPLIED
     
+    [root@localhost dnf]# dnf hotpatch list --cve CVE-1
+    # 根据cve id筛选出已安装的热补丁和状态
+    base-pkg/hotpatch        status
+    A-1.1-1/HP1             ACCEPT
+    
+    [root@localhost dnf]# dnf hotpatch list cves
+    # 列出已安装的热补丁和状态，同时列出其修复的cve。其中一个热补丁可能修复了多个cve
+    CVE id   base-pkg/hotpatch        status
+    CVE-1    A-1.1-1/HP1             ACCEPT
+    CVE-2    A-1.1-1/HP1             ACCEPT
+    CVE-3    B-1.1-1/HP1             DEACTIVED
+    CVE-4    B-1.1-1/HP1             DEACTIVED
+    CVE-5    C-1.1-1/HP1             ACTIVED
+    CVE-6    D-1.1-1/HP1             NOT_APPLIED
+    ```
+
+- `--apply`
+
+    ```shell
+    [root@localhost dnf]# dnf hotpatch apply bind-libs-hotpatch
+    # NOT_APPLIED状态下，安装并激活热补丁, 状态变为ACCTIVED
+    ```
+
+
 - `--active`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch --active bind-libs-hotpatch
-    # 激活该热补丁
+    [root@localhost dnf]# dnf hotpatch active bind-libs-hotpatch
+    # DEACCTIVED状态下激活热补丁, 状态变为ACCTIVED
     ```
-    
+
 - `--deactive`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch --deactive bind-libs-hotpatch
-    # 去激活该热补丁
+    [root@localhost dnf]# dnf hotpatch deactive bind-libs-hotpatch
+    # ACCTIVED/ACCEPT状态下去激活热补丁, 状态变为DEACCTIVED
     ```
-    
+
 - `--remove`
 
-    ```shell
-    [root@localhost dnf]# dnf hotpatch --remove bind-libs-hotpatch
-    # 移除热补丁，与apply对应，只有DEACTIVED状态下才能移除
-    ```
-    
-- `--cve`
+    这里需注意dnf hotpatch remove 与 dnf remove的区别
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch --cve CVE-2022-3080
-    succeed
+    [root@localhost dnf]# dnf hotpatch remove bind-libs-hotpatch
+    # ACTIVED/DEACTIVED/ACCEPT状态下,移除热补丁, 状态变为NOT_APPLIED
     
-    [root@localhost dnf]# dnf hotpatch --cve CVE-2022-3080
-    fail
-    
-    [root@localhost dnf]# dnf hotpatch --cve CVE-2022-0000
-    wrong cve or package
-    
-    [root@localhost dnf]# dnf hotpatch --cve CVE-2021-25220
-    hotpatch is unsupported
+    [root@localhost dnf]# dnf remove patch-A-1.1-1.x86_64  
+    # 直接remove热补丁软件包，remove掉后不会在dnf hotpatch list中显示。若补丁已被激活，则会自动去激活再remove掉rpm包
     ```
 
-- `SPEC`
+- `--accept`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch bind-libs-hotpatch
-    succeed
+    [root@localhost dnf]# dnf hotpatch accept bind-libs-hotpatch
+    # ACTIVED状态下接收热补丁。重启后由于syscare服务的设置，ACCEPT状态的热补丁会自动应用且状态为ACCEPT，而ACTIVED的热补丁重启后则会变为NOT_APPLIED
     ```
 
 
@@ -1388,17 +1464,16 @@ command-specific options:
 | 2    | rpm插件开发指导                                              | text   | text         | text     |
 | 3    | updateinfo中新增hot_patch_collection对已有流程是否有影响     | text   | text         | text     |
 
-
-
 # 7、修改日志
 
-| 版本  | 发布说明                                                     | 修改人        |
-| :---- | :----------------------------------------------------------- | ------------- |
-| 1.0.0 | 初稿，完成部分模块设计                                       | 罗盛炜/朱云成 |
-| 2.0.0 | 任务管理模块重构，由ansible改为zeus服务统一命令下发          | 罗盛炜        |
-| 2.0.1 | 1.任务管理：cve扫描做修改，目前cve扫描不会作为一个任务存入数据库，并且逻辑为收集目标主机rpm信息、cve信息，通过callback返回，在服务端解析rpm信息得出不受影响cve，直接存入数据库。 | 罗盛炜        |
-| 2.1.0 | 1.cve扫描逻辑做调整，返回参数修改，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式<br />3.新增热补丁插件相关视图<br />4.更新热补丁接口清单<br />5.每个版本需求列表更新 | 胡峰/罗盛炜   |
-| 2.1.1 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4.新增热补丁流水线 | 胡峰          |
+| 版本  | 发布说明                                                     | 修改人        | 修改时间    |
+| :---- | :----------------------------------------------------------- | ------------- | ------------- |
+| 1.0.0 | 初稿，完成部分模块设计                                       | 罗盛炜/朱云成 | 2021/10/15 |
+| 2.0.0 | 任务管理模块重构，由ansible改为zeus服务统一命令下发          | 罗盛炜        | 2022/10/30 |
+| 2.0.1 | 1.任务管理：cve扫描做修改，目前cve扫描不会作为一个任务存入数据库，并且逻辑为收集目标主机rpm信息、cve信息，通过callback返回，在服务端解析rpm信息得出不受影响cve，直接存入数据库。 | 罗盛炜        | 2022/11/15 |
+| 2.1.0 | 1.cve扫描逻辑做调整，返回参数修改，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式<br />3.新增热补丁插件相关视图<br />4.更新热补丁接口清单<br />5.每个版本需求列表更新 | 胡峰/罗盛炜   | 2023/2/20 |
+| 2.1.1 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4.新增热补丁流水线 | 胡峰          | 2023/5/11 |
+| 2.1.2 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4. 增加22.03-LTS-SP2需求<br />5.新增热补丁插件部分命令描述和设计 |      朱云成      |      2023/5/18      |
 
 
 # 8、参考目录
