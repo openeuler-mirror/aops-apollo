@@ -71,7 +71,7 @@ class ScanManager(Manager):
             "callback": "/vulnerability/task/callback/cve/scan"
         }
 
-        status_code, self.last_scan_result = self.proxy.query_host_cve_info(self.username)
+        _, self.last_scan_result = self.proxy.query_host_cve_info(self.username)
 
         return SUCCEED
 
@@ -226,7 +226,7 @@ class ScanManager(Manager):
             if row.host_ip in tmp:
                 tmp[row.host_ip]["count"] += 1
                 file_content += f"{excel_row_num},{row.cve_id},{row.host_ip}," \
-                                f"{row.host_name},{row.cvss_score},{row.severity},{'是' if row.hotpatch else '否'}\n"
+                                f"{row.host_name},{row.cvss_score},{row.severity},{'是' if row.support_hp else '否'}\n"
                 excel_row_num += 1
             else:
                 if row.cve_id is not None:

@@ -753,11 +753,7 @@ class VulCveScanTaskCallback(BaseResponse):
         Returns:
             int: status code
         """
-        task_info = dict(
-            status=args["status"], host_id=args["host_id"], installed_packages=args["installed_packages"],
-            os_version=args["os_version"], cves=args["cves"])
-
-        return CveScanCallback(proxy).callback(args['task_id'], task_info, args["username"])
+        return CveScanCallback(proxy).callback(args['task_id'], args, args["username"])
 
     @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):

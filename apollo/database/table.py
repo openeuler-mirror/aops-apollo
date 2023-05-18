@@ -35,7 +35,8 @@ class CveHostAssociation(Base, MyBase):
         'host.host_id', ondelete="CASCADE"), index=True)
     affected = Column(Boolean)
     fixed = Column(Boolean)
-    hotpatch = Column(Boolean)
+    support_hp = Column(Boolean, default=None)
+    fixed_by_hp = Column(Boolean, default=None)
 
 
 class CveAffectedPkgs(Base, MyBase):

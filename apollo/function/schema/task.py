@@ -227,12 +227,18 @@ class RepoSetCallbackSchema(Schema):
 
 class CveHostPatchInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    hotpatch = fields.Boolean()
+    support_hp = fields.Boolean()
 
 
 class InstallPcakageInfoSchema(Schema):
     name = fields.String(required=True, validate=lambda s: len(s) != 0)
     version = fields.String(required=True, validate=lambda s: len(s) != 0)
+
+
+
+class FixedCveInfoSchema(Schema):
+    cve_id = fields.String(required=True, validate=lambda s: len(s) != 0)
+    fixed_by_hp = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
 
 
 class CveScanCallbackSchema(Schema):
@@ -242,8 +248,8 @@ class CveScanCallbackSchema(Schema):
     installed_packages = fields.List(fields.Nested(
         InstallPcakageInfoSchema(), required=True), required=True)
     os_version = fields.String(required=True)
-    cves = fields.List(fields.Nested(
-        CveHostPatchInfoSchema(), required=True), required=True)
+    unfixed_cves = fields.List(fields.Nested(CveHostPatchInfoSchema(), required=True), required=True)
+    fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=True), required=True)
 
 
 __all__ = [
