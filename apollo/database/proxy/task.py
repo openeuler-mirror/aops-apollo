@@ -181,9 +181,13 @@ class TaskMysqlProxy(MysqlProxy):
                                             "version":"0.2.3"
                                          }],
                     "os_version":"string",
-                    "cves":[{
+                    "unfixed_cves":[{
                             "cve_id": "CVE-1-1",
-                            "hotpatch": true
+                            "support_hp": true
+                    }]，
+                    "fixed_cves":[{
+                        "cve_id": "CVE-1-1",
+                        "fixed_by_hp": true
                     }]
                 }
         Returns:
@@ -218,9 +222,13 @@ class TaskMysqlProxy(MysqlProxy):
                                             "version":"0.2.3"
                                          }],
                     "os_version":"string",
-                    "cves":[{
+                    "unfixed_cves":[{
                             "cve_id": "CVE-1-1",
-                            "hotpatch": true
+                            "support_hp": true
+                    }],
+                    "fixed_cves":[{
+                        "cve_id": "CVE-1-2",
+                        "fixed_by_hp": true
                     }]
                 }
         Returns:
@@ -232,8 +240,7 @@ class TaskMysqlProxy(MysqlProxy):
         installed_packages = [package["name"]
                               for package in task_info["installed_packages"]]
         os_version = task_info["os_version"]
-        affected_cves = {cve["cve_id"]: cve["hotpatch"]
-                         for cve in task_info["cves"]}
+        unfixed_cves = {cve["cve_id"]: cve["support_hp"] for cve in task_info["unfixed_cves"]}
 
         cve_list = []
         cves = set()
@@ -244,30 +251,41 @@ class TaskMysqlProxy(MysqlProxy):
             if cve.cve_id in cves:
                 continue
             cves.add(cve.cve_id)
-            if cve.cve_id in affected_cves:
+            if cve.cve_id in unfixed_cves:
                 cve_list.append({
                     "cve_id": cve.cve_id,
                     "host_id": host_id,
                     "affected": cve.affected,
                     "fixed": False,
-                    "hotpatch": affected_cves[cve.cve_id]
+                    "support_hp": unfixed_cves[cve.cve_id]
                 })
-                affected_cves.pop(cve.cve_id)
+                unfixed_cves.pop(cve.cve_id)
             else:
                 cve_list.append({
                     "cve_id": cve.cve_id,
                     "host_id": host_id,
                     "affected": cve.affected,
                     "fixed": True,
-                    "hotpatch": False
+                    "fixed_by_hp": False
                 })
-        for cve in affected_cves.keys():
+
+        for cve in unfixed_cves.keys():
             cve_list.append({
                 "cve_id": cve,
                 "host_id": host_id,
                 "affected": True,
                 "fixed": False,
-                "hotpatch": affected_cves[cve]
+                "support_hp": unfixed_cves[cve]
+            })
+
+        for fix_cve in task_info.get("fixed_cves", []):
+            cve_list.append({
+                "cve_id": fix_cve.get("cve_id"),
+                "host_id": host_id,
+                "affected": True,
+                "fixed": True,
+                "fixed_by_hp": fix_cve.get("fixed_by_hp"),
+                "support_hp": None
             })
 
         self.session.query(CveHostAssociation) \
@@ -2190,7 +2208,7 @@ class TaskMysqlProxy(MysqlProxy):
         """
         try:
             subquery = self.session.query(
-                CveHostAssociation.host_id, CveHostAssociation.cve_id, CveHostAssociation.hotpatch,
+                CveHostAssociation.host_id, CveHostAssociation.cve_id, CveHostAssociation.support_hp,
                 case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
                 case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity")) \
                 .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id) \
@@ -2199,7 +2217,7 @@ class TaskMysqlProxy(MysqlProxy):
 
             rows = self.session.query(Host.host_ip, Host.host_name, subquery) \
                 .outerjoin(subquery, Host.host_id == subquery.c.host_id) \
-                .filter(Host.user == username)
+                .filter(Host.user == username).all()
         except SQLAlchemyError as error:
             LOGGER.error(error)
             LOGGER.error("update task_cve_host table status failed.")

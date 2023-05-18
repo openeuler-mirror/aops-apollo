@@ -28,6 +28,7 @@ class CveListFilterSchema(Schema):
     severity = fields.List(fields.String(
         validate=validate.OneOf(["Critical", "High", "Medium", "Low", "Unknown"])), required=False)
     affected = fields.Boolean(required=False, default=True)
+    fixed = fields.Boolean(required=True, default=True, validate=validate.OneOf([True, False]))
 
 
 class GetCveListSchema(Schema):
@@ -59,6 +60,7 @@ class CveHostFilterSchema(Schema):
         validate=lambda s: len(s) != 0), required=False)
     repo = fields.List(fields.String(
         validate=lambda s: len(s) != 0), required=False)
+    fixed = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
 
 
 class GetCveHostsSchema(Schema):
@@ -75,12 +77,20 @@ class GetCveHostsSchema(Schema):
     filter = fields.Nested(CveHostFilterSchema, required=False)
 
 
+class CveTaskHostFilterSchema(Schema):
+    """
+    filter schema for /vulnerability/cve/task/host/get
+    """
+    fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
+
+
 class GetCveTaskHostSchema(Schema):
     """
     validators for parameter of /vulnerability/cve/task/host/get
     """
     cve_list = fields.List(fields.String(), required=True,
                            validate=lambda s: len(s) != 0)
+    filter = fields.Nested(CveTaskHostFilterSchema, required=False)
 
 
 class GetCveActionSchema(Schema):

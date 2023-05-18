@@ -39,10 +39,16 @@ class CveScanCallback(TaskCallback):
                                             "version":"0.2.3"
                                          }],
                     "os_version":"string",
-                    "cves":[{
+                    "unfixed_cves":[{
                             "cve_id": "CVE-1-1",
-                            "hotpatch": true
-                    }]
+                            "support_hp": true
+                    }],
+                    "fixed_cves":[
+                        {
+                            "cve_id": "CVE-1-2",
+                            "fixed_by_hp": true
+                        }
+                    ]
                 }
 
         Returns:
