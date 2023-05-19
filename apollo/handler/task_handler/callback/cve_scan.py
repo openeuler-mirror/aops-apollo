@@ -25,13 +25,15 @@ class CveScanCallback(TaskCallback):
     Callback function for cve scanning.
     """
 
-    def callback(self, task_id: str, task_info: dict, username: str) -> int:
+    def callback(self, task_info: dict) -> int:
         """
         Set the callback after the cve scan task is completed
         Args:
             task_id: task id,
             task_info: task info, e.g.:
                 {
+                    "task_id": task id,
+                    "host_id": 1
                     "status":succeed,
                     "host_id":1,
                     "installed_packages":[{
@@ -54,13 +56,13 @@ class CveScanCallback(TaskCallback):
         Returns:
             status_code: cve scan setting status
         """
-        status_code = self.proxy.save_cve_scan_result(task_info, username)
+        status_code = self.proxy.save_cve_scan_result(task_info)
         self.proxy.update_host_scan("finish", [task_info["host_id"]])
 
         if status_code != SUCCEED:
             LOGGER.error(
                 f"cve scan to hosts and update cve host state failed, status: {task_info['status']},"
-                f" task id: {task_id}.")
+                f" task id: {task_info['task_id']}.")
             return DATABASE_UPDATE_ERROR
 
         return SUCCEED

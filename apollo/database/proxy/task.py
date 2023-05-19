@@ -150,9 +150,9 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Init host scan status failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
-    def _get_installed_packages_cve(self, os_version: str, installed_packages: list):
+    def _query_unaffected_cve(self, os_version: str, installed_packages: list):
         """
-        Compare the installed software packages from all cves under the OS to obtain the corresponding cves
+        query CVE information which has no effect on the version
 
         Args:
             os_version(str): OS version
@@ -163,12 +163,13 @@ class TaskMysqlProxy(MysqlProxy):
             list: list of cve info
 
         """
-        installed_packages_cve = self.session.query(CveAffectedPkgs).filter(CveAffectedPkgs.os_version == os_version,
-                                                                            CveAffectedPkgs.package.in_(
-                                                                                installed_packages)).all()
+        installed_packages_cve = self.session.query(CveAffectedPkgs).filter(
+            CveAffectedPkgs.os_version == os_version,
+            CveAffectedPkgs.package.in_(installed_packages),
+            CveAffectedPkgs.affected == False).all()
         return installed_packages_cve
 
-    def save_cve_scan_result(self, task_info: dict, username: str) -> int:
+    def save_cve_scan_result(self, task_info: dict) -> int:
         """
         Save cve scan result to database.
         Args:
@@ -243,31 +244,13 @@ class TaskMysqlProxy(MysqlProxy):
         unfixed_cves = {cve["cve_id"]: cve["support_hp"] for cve in task_info["unfixed_cves"]}
 
         cve_list = []
-        cves = set()
 
-        installed_packages_cve = self._get_installed_packages_cve(
-            os_version, installed_packages)
-        for cve in installed_packages_cve:
-            if cve.cve_id in cves:
-                continue
-            cves.add(cve.cve_id)
-            if cve.cve_id in unfixed_cves:
-                cve_list.append({
-                    "cve_id": cve.cve_id,
-                    "host_id": host_id,
-                    "affected": cve.affected,
-                    "fixed": False,
-                    "support_hp": unfixed_cves[cve.cve_id]
-                })
-                unfixed_cves.pop(cve.cve_id)
-            else:
-                cve_list.append({
-                    "cve_id": cve.cve_id,
-                    "host_id": host_id,
-                    "affected": cve.affected,
-                    "fixed": True,
-                    "fixed_by_hp": False
-                })
+        for unaffected_cve in self._query_unaffected_cve(os_version, installed_packages):
+            cve_list.append({
+                "cve_id": unaffected_cve.cve_id,
+                "host_id": host_id,
+                "affected": False,
+            })
 
         for cve in unfixed_cves.keys():
             cve_list.append({
