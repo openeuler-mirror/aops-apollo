@@ -31,8 +31,8 @@ def export_csv(export_list: list, cve_name: str, cve_head: list):
                 "CVE-2018-16301",
                 "affected" or "unaffected",
                 "fixed" or "unfixed",
-                "-" or " «" or "∑Ò",
-                "-" or " «" or "∑Ò"
+                "-" or "ÊòØ" or "Âê¶",
+                "-" or "ÊòØ" or "Âê¶"
             ]]
     Returns:
         :param table_name: excel name

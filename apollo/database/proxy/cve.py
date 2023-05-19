@@ -1318,8 +1318,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 cve.cve_id,
                 "affected" if cve.affected else "affected",
                 "fixed" if cve.fixed else "unfixed",
-                "-" if cve.support_hp is None else " «" if cve.support_hp else "∑Ò",
-                "-" if cve.fixed_by_hp is None else " «" if cve.fixed_by_hp else "∑Ò",
+                "-" if cve.support_hp is None else "ÊòØ" if cve.support_hp else "Âê¶",
+                "-" if cve.fixed_by_hp is None else "ÊòØ" if cve.fixed_by_hp else "Âê¶",
             ])
 
         host_info_query = self.session.query(
