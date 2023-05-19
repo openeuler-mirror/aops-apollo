@@ -2382,14 +2382,14 @@ definitions:
             version:
               type: boolean
           description: 主机安装的软件包名列表
-      cves:
+      unfixed_cves:
         type: array
         items:
           type: object
           properties:
             cve_id:
               type: string
-            hotpatch:
+            support_hp:
               type: boolean
       fixed_cves:
         type: array
@@ -2398,7 +2398,7 @@ definitions:
           properties:
             cve_id:
               type: string
-            hotpatch:
+            fixed_by_hp:
               type: boolean
 
   CveFixCallbackReq:

@@ -742,19 +742,6 @@ class VulCveScanTaskCallback(BaseResponse):
     Restful interface for cve scan callback.
     """
 
-    @staticmethod
-    def _handle(proxy, args):
-        """
-        Handle cve scan callback.
-
-        Args:
-            args (dict): request parameter
-
-        Returns:
-            int: status code
-        """
-        return CveScanCallback(proxy).callback(args['task_id'], args, args["username"])
-
     @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=TaskProxy, config=configuration)
     def post(self, callback: TaskProxy, **params):
         """
@@ -767,4 +754,4 @@ class VulCveScanTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        return self.response(self._handle(callback, params))
+        return self.response(code=CveScanCallback(callback).callback(params))

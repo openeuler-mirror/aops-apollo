@@ -248,8 +248,8 @@ class CveScanCallbackSchema(Schema):
     installed_packages = fields.List(fields.Nested(
         InstallPcakageInfoSchema(), required=True), required=True)
     os_version = fields.String(required=True)
-    unfixed_cves = fields.List(fields.Nested(CveHostPatchInfoSchema(), required=True), required=True)
-    fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=True), required=True)
+    unfixed_cves = fields.List(fields.Nested(CveHostPatchInfoSchema(), required=False), required=True)
+    fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=False), required=True)
 
 
 __all__ = [
