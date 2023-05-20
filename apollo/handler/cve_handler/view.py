@@ -451,7 +451,7 @@ class VulExportExcel(BaseResponse):
                 host_id, username)
             if host_name:
                 self.filename = f"{host_name}.csv"
-                csv_head = ["cve_id", "status", "fix_status"]
+                csv_head = ["cve_id", "status", "fix_status", "support_hp", "fixed_by_hp"]
                 export_csv(cve_info_list, os.path.join(
                     self.filepath, self.filename), csv_head)
 

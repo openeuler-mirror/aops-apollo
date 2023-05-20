@@ -1316,8 +1316,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         for cve in cve_query:
             cve_list.append([
                 cve.cve_id,
-                "affected" if cve.affected else "unaffected",
-                "fixed" if cve.fixed else "unfixed"
+                "affected" if cve.affected else "affected",
+                "fixed" if cve.fixed else "unfixed",
+                "-" if cve.support_hp is None else "是" if cve.support_hp else "否",
+                "-" if cve.fixed_by_hp is None else "是" if cve.fixed_by_hp else "否",
             ])
 
         host_info_query = self.session.query(

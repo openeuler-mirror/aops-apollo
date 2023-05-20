@@ -30,12 +30,14 @@ def export_csv(export_list: list, cve_name: str, cve_head: list):
             [[
                 "CVE-2018-16301",
                 "affected" or "unaffected",
-                "fixed" or "unfixed"
+                "fixed" or "unfixed",
+                "-" or "是" or "否",
+                "-" or "是" or "否"
             ]]
     Returns:
         :param table_name: excel name
         :param columns_map: excel headers; e.g:
-            ["cve_id", "status", "fix_status"]
+            ["cve_id", "status", "fix_status", "support_hp", "fixed_by_hp"]
     """
     try:
         with open(cve_name, 'a', encoding='utf8', newline='') as csvfile:
