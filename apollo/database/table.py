@@ -135,7 +135,7 @@ class Task(Base, MyBase):
     __tablename__ = "vul_task"
 
     task_id = Column(String(32), primary_key=True, nullable=False)
-    task_type = Column(String(10), nullable=False)
+    task_type = Column(String(20), nullable=False)
     description = Column(String(50), nullable=False)
     task_name = Column(String(20), nullable=False)
     latest_execute_time = Column(Integer)
