@@ -1,10 +1,8 @@
 import dnf
-from dnf.i18n import _
 from dnf.cli.commands.updateinfo import UpdateInfoCommand
 from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 import hawkey
-from collections import Counter
 
 from .syscare import Syscare
 from .hotpatch_updateinfo import HotpatchUpdateInfo
@@ -313,13 +311,13 @@ class HotpatchCommand(dnf.cli.Command):
 
     def apply_hot_patches(self, target_patch: list) -> None:
         """
-         apply hotpatch using syscare command
-         Args:
-             target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
+        apply hotpatch using syscare command
+        Args:
+            target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
 
-         Returns:
-             None
-         """
+        Returns:
+            None
+        """
         if len(target_patch) != 1:
             logger.error("using dnf hotpatch --apply wrong!")
             return
@@ -337,13 +335,13 @@ class HotpatchCommand(dnf.cli.Command):
 
     def accept_hot_patches(self, target_patch: list) -> None:
         """
-         accept hotpatch using syscare command
-         Args:
-             target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
+        accept hotpatch using syscare command
+        Args:
+            target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
 
-         Returns:
-             None
-         """
+        Returns:
+            None
+        """
         if len(target_patch) != 1:
             logger.error("using dnf hotpatch --accept wrong!")
             return
