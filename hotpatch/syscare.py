@@ -1,9 +1,9 @@
 import subprocess
 from typing import List
 
-
 SUCCEED = 0
 FAIL = 255
+
 
 def cmd_output(cmd):
     try:
@@ -13,6 +13,7 @@ def cmd_output(cmd):
     except Exception as e:
         print("error: ", e)
         return str(e), FAIL
+
 
 class Syscare:
     @classmethod
@@ -91,6 +92,13 @@ class Syscare:
     @staticmethod
     def restore():
         cmd = ["syscare", "restore"]
+        output, return_code = cmd_output(cmd)
+
+        return output, return_code
+
+    @staticmethod
+    def accept(patch_name: str):
+        cmd = ["syscare", "accept", patch_name]
         output, return_code = cmd_output(cmd)
 
         return output, return_code
