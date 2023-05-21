@@ -3,6 +3,9 @@ from dnf.i18n import _
 from dnf.cli.commands.updateinfo import UpdateInfoCommand
 import hawkey
 from .hotpatch_updateinfo import HotpatchUpdateInfo
+from dnf.cli.output import Output
+from dnfpluginscore import _, logger
+from .syscare import Syscare
 
 
 class Versions:
@@ -48,6 +51,7 @@ class Versions:
 class HotpatchCommand(dnf.cli.Command):
     aliases = ['hotpatch']
     summary = _('show hotpatch info')
+    syscare = Syscare()
 
     def __init__(self, cli):
         """
@@ -61,6 +65,16 @@ class HotpatchCommand(dnf.cli.Command):
         output_format.add_argument("--list", dest='_spec_action', const='list',
                                    action='store_const',
                                    help=_('show list of cves'))
+        output_format.add_argument('--apply', type=str, default=None, dest='apply_name', nargs=1,
+                                   help=_('apply hotpatch'))
+        output_format.add_argument('--remove', type=str, default=None, dest='remove_name', nargs=1,
+                                   help=_('remove hotpatch'))
+        output_format.add_argument('--active', type=str, default=None, dest='active_name', nargs=1,
+                                   help=_('active hotpatch'))
+        output_format.add_argument('--deactive', type=str, default=None, dest='deactive_name', nargs=1,
+                                   help=_('deactive hotpatch'))
+        output_format.add_argument('--accept', type=str, default=None, dest='accept_name', nargs=1,
+                                   help=_('accept hotpatch'))
 
     def configure(self):
         demands = self.cli.demands
@@ -74,6 +88,16 @@ class HotpatchCommand(dnf.cli.Command):
 
         if self.opts._spec_action == 'list':
             self.display()
+        if self.opts.remove_name:
+            self.remove_hot_patches(self.opts.remove_name)
+        if self.opts.apply_name:
+            self.apply_hot_patches(self.opts.apply_name)
+        if self.opts.active_name:
+            self.active_hot_patches(self.opts.active_name)
+        if self.opts.deactive_name:
+            self.deactive_hot_patches(self.opts.deactive_name)
+        if self.opts.accept_name:
+            self.accept_hot_patches(self.opts.accept_name)
 
     def get_mapping_nevra_cve(self) -> dict:
         """
@@ -118,6 +142,7 @@ class HotpatchCommand(dnf.cli.Command):
         """
         Only show specified cve information that have not been fixed, and format output
         """
+
         def is_patch_fixed(coldpatch, fixed_coldpatches):
             """
             Check whether the coldpatch is fixed
@@ -197,18 +222,114 @@ class HotpatchCommand(dnf.cli.Command):
                     echo_lines.pop()
                 elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
                     echo_lines[-1][3] = hotpatch.nevra
-        
+
         hp_cve_list = list(set(self.hp_hawkey.hotpatch_cves.keys()).difference(iterated_cve_id))
         for cve_id in hp_cve_list:
             hotpatch = self.hp_hawkey.hotpatch_cves[cve_id].hotpatch
             if hotpatch is None:
                 continue
-            echo_line = [cve_id, hotpatch.advisory.severity+'/Sec.', '-', '-']
+            echo_line = [cve_id, hotpatch.advisory.severity + '/Sec.', '-', '-']
             if hotpatch.state == self.hp_hawkey.INSTALLED:
                 continue
             elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
-                echo_line = [cve_id, hotpatch.advisory.severity+'/Sec.', '-', hotpatch.nevra]
+                echo_line = [cve_id, hotpatch.advisory.severity + '/Sec.', '-', hotpatch.nevra]
             echo_lines.append(echo_line)
 
         self._filter_and_format_list_output(
             echo_lines, fixed_cve_id, fixed_coldpatches)
+
+    def remove_hot_patches(self, target_patch) -> None:
+        target_patch = target_patch[0]
+        output = Output(self.base, dnf.conf.Conf())
+        logger.info(_("Gonna remove these hot patches: %s"), target_patch)
+
+        self.syscare.save()
+
+        output, status = self.syscare.remove(target_patch)
+        if status:
+            logger.info(_("Remove hot patch '%s' failed, roll back to original status."),
+                        self.base.output.term.bold(target_patch))
+            output, status = self.syscare.restore()
+            if status:
+                raise dnf.exceptions.Error(_('Roll back failed.'))
+            raise dnf.exceptions.Info(_('Roll back succeed.'))
+        else:
+            logger.info(_("Remove hot patch '%s' succeed"))
+        return status
+
+    def active_hot_patches(self, target_patch) -> None:
+        target_patch = target_patch[0]
+        output = Output(self.base, dnf.conf.Conf())
+        logger.info(_("Gonna activate these hot patches: %s"), target_patch)
+
+        self.syscare.save()
+
+        output, status = self.syscare.active(target_patch)
+        if status:
+            logger.info(_("activate hot patch '%s' failed, roll back to original status."),
+                        self.base.output.term.bold(target_patch))
+            output, status = self.syscare.restore()
+            if status:
+                raise dnf.exceptions.Error(_('Roll back failed.'))
+            raise dnf.exceptions.Error(_('Roll back succeed.'))
+        else:
+            logger.info(_("activate hot patch '%s' succeed"))
+        return status
+
+    def deactive_hot_patches(self, target_patch) -> None:
+        target_patch = target_patch[0]
+        output = Output(self.base, dnf.conf.Conf())
+        logger.info(_("Gonna deactivate these hot patches: %s"), target_patch)
+
+        self.syscare.save()
+
+        output, status = self.syscare.deactive(target_patch)
+        if status:
+            logger.info(_("deactivate hot patch '%s' failed, roll back to original status."),
+                        self.base.output.term.bold(target_patch))
+            output, status = self.syscare.restore()
+            if status:
+                raise dnf.exceptions.Error(_('Roll back failed.'))
+            raise dnf.exceptions.Error(_('Roll back succeed.'))
+        else:
+            logger.info(_("deactivate hot patch '%s' succeed"))
+        return status
+
+    def apply_hot_patches(self, target_patch) -> None:
+        target_patch = target_patch[0]
+        output = Output(self.base, dnf.conf.Conf())
+        logger.info(_("Gonna apply these hot patches: %s"), target_patch)
+
+        self.syscare.save()
+
+        output, status = self.syscare.apply(target_patch)
+        if status:
+            logger.info(_("apply hot patch '%s' failed, roll back to original status."),
+                        self.base.output.term.bold(target_patch))
+            output, status = self.syscare.restore()
+            logger.info(_(output))
+            if status:
+                raise dnf.exceptions.Error(_('Roll back failed.'))
+            raise dnf.exceptions.Error(_('Roll back succeed.'))
+        else:
+            logger.info(_("apply hot patch '%s' succeed"))
+        return status
+
+    def accept_hot_patches(self, target_patch) -> None:
+        target_patch = target_patch[0]
+        output = Output(self.base, dnf.conf.Conf())
+        logger.info(_("Gonna accept these hot patches: %s"), target_patch)
+
+        self.syscare.save()
+
+        output, status = self.syscare.accept(target_patch)
+        if status:
+            logger.info(_("accept hot patch '%s' failed, roll back to original status."),
+                        self.base.output.term.bold(target_patch))
+            output, status = self.syscare.restore()
+            if status:
+                raise dnf.exceptions.Error(_('Roll back failed.'))
+            raise dnf.exceptions.Error(_('Roll back succeed.'))
+        else:
+            logger.info(_("accept hot patch '%s' succeed"))
+        return status
