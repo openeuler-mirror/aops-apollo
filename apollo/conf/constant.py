@@ -69,6 +69,12 @@ class CVE_SEVERITY:
     NONE = "None"
 
 
+class TaskType:
+    CVE_FIX = "cve fix"
+    CVE_ROLLBACK = "cve rollback"
+    REPO_SET = "repo set"
+
+
 # route of repo related interface
 VUL_REPO_IMPORT = "/vulnerability/repo/import"
 VUL_REPO_GET = "/vulnerability/repo/get"
@@ -109,10 +115,13 @@ VUL_TASK_REPO_GENERATE = "/vulnerability/task/repo/generate"
 VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
+VUL_TASK_CVE_ROLLBACK_GENERATE = "/vulnerability/task/cve-rollback/generate"
+
 # route of callback
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
 VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerability/task/callback/cve/scan"
+VUL_TASK_CVE_ROLLBACK_CALLBACK = "/vulnerability/task/callback/cve/rollback"
 # elasticsearch index
 CVE_INDEX = 'cve'
 TASK_INDEX = "task"

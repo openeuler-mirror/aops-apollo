@@ -26,7 +26,7 @@ from elasticsearch import ElasticsearchException
 from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import REPO_FILE, TASK_INDEX, HOST_STATUS
+from apollo.conf.constant import REPO_FILE, TASK_INDEX, HOST_STATUS, TaskType
 from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
     CveTaskAssociation, CveHostAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
@@ -36,8 +36,6 @@ from vulcanus.database.table import Host, User
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
     DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, SUCCEED, SERVER_ERROR, PARTIAL_SUCCEED, WRONG_DATA
-
-task_types = ["cve fix", "repo set"]
 
 
 class TaskMysqlProxy(MysqlProxy):
@@ -601,13 +599,13 @@ class TaskMysqlProxy(MysqlProxy):
         # filter task's type in case of other type added into task table
         task_query = self.session.query(Task.task_id, Task.task_type) \
             .filter(Task.username == username, Task.task_id.in_(task_list),
-                    Task.task_type.in_(task_types))
+                    Task.task_type.in_([TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET]))
 
         for row in task_query:
-            if row.task_type == "cve fix":
-                cve_task.append(row.task_id)
-            else:
+            if row.task_type == TaskType.REPO_SET:
                 repo_task.append(row.task_id)
+            else:
+                cve_task.append(row.task_id)
         return cve_task, repo_task
 
     @staticmethod
@@ -1492,12 +1490,10 @@ class TaskMysqlProxy(MysqlProxy):
                     TaskCveHostAssociation.host_id == host_id)
 
         if not status_query.count():
-            LOGGER.error(
-                "Updating cve host status failed due to no data found.")
+            LOGGER.error("Updating cve host status failed due to no data found.")
             return NO_DATA
         if status_query.count() > 1:
-            LOGGER.error(
-                "Updating cve host status failed due to internal error.")
+            LOGGER.error("Updating cve host status failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
         status_query.one().status = status
@@ -1538,8 +1534,7 @@ class TaskMysqlProxy(MysqlProxy):
         if cve_list:
             filters.add(CveTaskAssociation.cve_id.in_(cve_list))
 
-        progress_query = self.session.query(
-            CveTaskAssociation).filter(*filters)
+        progress_query = self.session.query(CveTaskAssociation).filter(*filters)
 
         if method == "add":
             progress_query.update({CveTaskAssociation.progress:
@@ -1551,8 +1546,7 @@ class TaskMysqlProxy(MysqlProxy):
             progress_query.update({CveTaskAssociation.progress: CveTaskAssociation.host_num},
                                   synchronize_session=False)
         elif method == "zero":
-            progress_query.update(
-                {CveTaskAssociation.progress: 0}, synchronize_session=False)
+            progress_query.update({CveTaskAssociation.progress: 0}, synchronize_session=False)
         else:
             LOGGER.error("Set cve progress with unknown method '%s'." % method)
             return SERVER_ERROR
@@ -1625,29 +1619,25 @@ class TaskMysqlProxy(MysqlProxy):
             if status_code != SUCCEED:
                 return status_code
             self.session.commit()
-            LOGGER.debug(
-                "Finished setting task %s status to unknown." %
-                task_id)
+            LOGGER.debug("Finished setting task %s status to unknown." % task_id)
             return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error(
-                "Setting task %s status to unknown failed due to internal error." %
-                task_id)
+            LOGGER.error("Setting task %s status to unknown failed due to internal error." % task_id)
             return DATABASE_UPDATE_ERROR
 
     def _set_failed_task_status(self, task_id, task_type):
         """
         set failed task's running hosts' status to "unknown"
         """
-        if task_type == "cve fix":
+        if task_type == TaskType.CVE_FIX or task_type == TaskType.CVE_ROLLBACK:
             host_query = self.session.query(TaskCveHostAssociation) \
                 .filter(TaskCveHostAssociation.task_id == task_id,
                         TaskCveHostAssociation.status == "running")
             host_query.update(
                 {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
-        elif task_type == "repo set":
+        elif task_type == TaskType.REPO_SET:
             host_query = self.session.query(TaskHostRepoAssociation) \
                 .filter(TaskHostRepoAssociation.task_id == task_id,
                         TaskHostRepoAssociation.status == "running")
@@ -1977,14 +1967,14 @@ class TaskMysqlProxy(MysqlProxy):
         check the task is open for execute or not
         Args:
             task_id (str): task id
-            task_type (str): for now, 'cve fix' or 'repo set'
+            task_type (str): for now, 'cve fix' or 'repo set' or 'cve rollback'
 
         Returns:
             bool
         """
-        if task_type == 'cve fix':
+        if task_type == TaskType.CVE_FIX or task_type == TaskType.CVE_ROLLBACK:
             task_progress = self._get_cve_task_progress([task_id])
-        elif task_type == 'repo set':
+        elif task_type == TaskType.REPO_SET:
             task_progress = self._get_repo_task_progress([task_id])
         else:
             LOGGER.error("Unknown task type '%s' was given when checking task '%s' status."
@@ -2077,7 +2067,7 @@ class TaskMysqlProxy(MysqlProxy):
         task_template = {
             "task_id": task_id,
             "task_name": task_info["result"]["task_name"],
-            "task_type": "repo set",
+            "task_type": TaskType.REPO_SET,
             "check_items": [],
             "repo_info": {
                 "name": repo_name,
@@ -2140,21 +2130,19 @@ class TaskMysqlProxy(MysqlProxy):
                 self._update_cve_host_status(task_id, cve_id, host_id, status)
                 cve_id_list.append(cve_id)
             if not cve_id_list:
-                LOGGER.warning(
-                    "The cve list is empty when the cve progress is set.")
+                LOGGER.warning("The cve list is empty when the cve progress is set.")
                 return DATABASE_UPDATE_ERROR
+
             status_code = self._set_cve_progress(task_id, cve_id_list, "add")
             if status_code != SUCCEED:
                 return status_code
             self.session.commit()
-            LOGGER.debug(
-                "Finished setting cve fixing progress and update cve host status.")
+            LOGGER.debug("Finished setting cve fixing progress and update cve host status.")
             return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error(
-                "Setting cve fixing progress failed due to internal error.")
+            LOGGER.error("Setting cve fixing progress failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
     def query_user_email(self, username: str) -> tuple:
@@ -2208,6 +2196,84 @@ class TaskMysqlProxy(MysqlProxy):
 
         return SUCCEED, rows
 
+    def get_cve_rollback_task_info(self, task_id):
+        """
+        Get cve rollback task basic info of the task id, for generating the task info.
+
+        Args:
+            task_id (str): task_id
+
+        Returns:
+            int: status code
+            dict: e.g.
+                {
+                    "task_id": "1",
+                    "task_name": "CVE修复回滚",
+                    "task_type": "cve rollback",
+                    "total_hosts": ["id1", "id2"],
+                    "tasks": [
+                        {
+                            "host_id": "id1",
+                            "check": true,
+                            "cves": [
+                                {
+                                    "cve_id": "cve1",
+                                    "hotpatch": true
+                                }
+                            }
+                        }
+                    ]
+                }
+        """
+        result = dict()
+        try:
+            status_code, result = self._get_cve_rollback_task_info(task_id)
+            LOGGER.debug("Finished getting the basic info of cve rollback task.")
+            return status_code, result
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("Getting the basic info of cve rollback task failed due to internal error.")
+            return DATABASE_QUERY_ERROR, result
+
+    def _get_cve_rollback_task_info(self, task_id: str) -> Tuple[int, Dict]:
+        """
+        query cve rollback task's basic info
+        Args:
+            task_id (str): task id
+
+        Returns:
+            int
+            dict
+        """
+        task_hosts = self.session.query(TaskCveHostAssociation.cve_id,
+                                        TaskCveHostAssociation.host_id,
+                                        TaskCveHostAssociation.hotpatch)\
+            .filter(TaskCveHostAssociation.task_id == task_id).all()
+
+        task_basic_info = self._query_task_basic_info(task_id).first()
+        if not all([task_hosts, task_basic_info]):
+            LOGGER.debug("No data found when getting the info of cve task: %s." % task_id)
+            return NO_DATA, {}
+
+        task_info = {
+            "task_id": task_basic_info.task_id,
+            "task_name": task_basic_info.task_name,
+            "task_type": task_basic_info.task_type,
+            "total_hosts": [],
+            "tasks": []
+        }
+        tasks = dict()
+        for task_host in task_hosts:
+            cve_info = dict(cve_id=task_host.cve_id, hotpatch=task_host.hotpatch)
+            if task_host.host_id in tasks:
+                tasks[task_host.host_id].append(cve_info)
+            else:
+                tasks[task_host.host_id] = [cve_info]
+        task_info["total_hosts"] = list(tasks.keys())
+        task_info["tasks"] = [{"host_id": host_id, "cves": cves} for host_id, cves in tasks.items()]
+
+        return SUCCEED, task_info
+
 
 class TaskEsProxy(ElasticsearchProxy):
     def get_package_info(self, data):
@@ -2250,11 +2316,9 @@ class TaskEsProxy(ElasticsearchProxy):
         Returns:
             int: status code
         """
-        operation_code, task_exist = self.exists(
-            TASK_INDEX, document_id=task_id)
+        operation_code, task_exist = self.exists(TASK_INDEX, document_id=task_id)
         if not operation_code:
-            LOGGER.error(
-                "Failed to query whether the task exists or not due to internal error")
+            LOGGER.error("Failed to query whether the task exists or not due to internal error")
             return DATABASE_INSERT_ERROR
 
         if not task_exist:
@@ -2651,10 +2715,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         self.session.commit()
 
         try:
-            self.session.bulk_insert_mappings(
-                CveTaskAssociation, task_cve_rows)
-            self.session.bulk_insert_mappings(
-                TaskCveHostAssociation, task_cve_host_rows)
+            self.session.bulk_insert_mappings(CveTaskAssociation, task_cve_rows)
+            self.session.bulk_insert_mappings(TaskCveHostAssociation, task_cve_host_rows)
         except SQLAlchemyError:
             self.session.rollback()
             self.session.query(Task).filter(
@@ -3087,3 +3149,70 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             return DATABASE_UPDATE_ERROR
 
         return SUCCEED
+
+    def generate_cve_rollback_task(self, data):
+        """
+        For generating, save cve rollback task basic info to mysql, init task info in es.
+
+        Args:
+            data (dict): e.g.
+                {
+                    "username": "admin",
+                    "task_id": "",
+                    "task_name": "",
+                    "task_type": "",
+                    "description": "",
+                    "create_time": 1,
+                    "info": [
+                        {
+                            "host_id": "id1",
+                            "cves": [
+                                {
+                                    "cve_id": "cve1",
+                                    "hotpatch": true
+                                }
+                            ],
+                        }
+                    ]
+                }
+
+        Returns:
+            int: status code
+        """
+        try:
+            self._gen_cve_rollback_task(data)
+            self.session.commit()
+            LOGGER.debug("Finished generating cve rollback task.")
+            return SUCCEED
+        except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
+            self.session.rollback()
+            LOGGER.error(error)
+            LOGGER.error("Generating cve rollback task failed due to internal error.")
+            return DATABASE_INSERT_ERROR
+
+    def _gen_cve_rollback_task(self, data):
+        task_id = data["task_id"]
+        task_cve_host = dict()
+        cves = dict()
+        for task_info in data.pop("info"):
+            task_cve_host[task_info["host_id"]] = []
+            for cve in task_info["cves"]:
+                cves[cve["cve_id"]] = cves[cve["cve_id"]] + 1 if cve["cve_id"] in cves else 1
+                task_cve_host[task_info["host_id"]].append((cve["cve_id"], cve["hotpatch"]))
+
+        task_cve_rows = [self._task_cve_row_dict(task_id, cve_id, False, host_num) for cve_id, host_num in cves.items()]
+
+        task_cve_host_rows = []
+        hosts = self.session.query(Host).filter(Host.host_id.in_(list(task_cve_host.keys()))).all()
+        for host in hosts:
+            host_info = {"host_id": host.host_id, "host_name": host.host_name, "host_ip": host.host_ip}
+            for cve_id, hotpatch in task_cve_host[host.host_id]:
+                host_info["hotpatch"] = hotpatch
+                task_cve_host_rows.append(self._task_cve_host_row_dict(task_id, cve_id, host_info))
+
+        # insert data into mysql tables
+        data["host_num"] = len(task_cve_host.keys())
+        self._insert_cve_task_tables(data, task_cve_rows, task_cve_host_rows)
+
+        # insert task id and username into es
+        self._init_task_in_es(task_id, data["username"])
