@@ -254,7 +254,7 @@ class HotpatchCommand(dnf.cli.Command):
                 raise dnf.exceptions.Error(_('Roll back failed.'))
             raise dnf.exceptions.Info(_('Roll back succeed.'))
         else:
-            logger.info(_("Remove hot patch '%s' succeed"))
+            logger.info(_("Remove hot patch '%s' succeed"), target_patch)
         return status
 
     def active_hot_patches(self, target_patch) -> None:
@@ -273,7 +273,7 @@ class HotpatchCommand(dnf.cli.Command):
                 raise dnf.exceptions.Error(_('Roll back failed.'))
             raise dnf.exceptions.Error(_('Roll back succeed.'))
         else:
-            logger.info(_("activate hot patch '%s' succeed"))
+            logger.info(_("activate hot patch '%s' succeed"), target_patch)
         return status
 
     def deactive_hot_patches(self, target_patch) -> None:
@@ -292,7 +292,7 @@ class HotpatchCommand(dnf.cli.Command):
                 raise dnf.exceptions.Error(_('Roll back failed.'))
             raise dnf.exceptions.Error(_('Roll back succeed.'))
         else:
-            logger.info(_("deactivate hot patch '%s' succeed"))
+            logger.info(_("deactivate hot patch '%s' succeed"), target_patch)
         return status
 
     def apply_hot_patches(self, target_patch) -> None:
@@ -312,7 +312,7 @@ class HotpatchCommand(dnf.cli.Command):
                 raise dnf.exceptions.Error(_('Roll back failed.'))
             raise dnf.exceptions.Error(_('Roll back succeed.'))
         else:
-            logger.info(_("apply hot patch '%s' succeed"))
+            logger.info(_("apply hot patch '%s' succeed"), target_patch)
         return status
 
     def accept_hot_patches(self, target_patch) -> None:
@@ -331,5 +331,5 @@ class HotpatchCommand(dnf.cli.Command):
                 raise dnf.exceptions.Error(_('Roll back failed.'))
             raise dnf.exceptions.Error(_('Roll back succeed.'))
         else:
-            logger.info(_("accept hot patch '%s' succeed"))
+            logger.info(_("accept hot patch '%s' succeed"), target_patch)
         return status
