@@ -241,40 +241,38 @@ class TaskMysqlProxy(MysqlProxy):
         os_version = task_info["os_version"]
         unfixed_cves = {cve["cve_id"]: cve["support_hp"] for cve in task_info["unfixed_cves"]}
 
-        cve_list = []
-
+        cve_info_dict = {}
         for unaffected_cve in self._query_unaffected_cve(os_version, installed_packages):
-            cve_list.append({
+            cve_info_dict[unaffected_cve.cve_id] = {
                 "cve_id": unaffected_cve.cve_id,
                 "host_id": host_id,
                 "affected": False,
-            })
+            }
 
         for cve in unfixed_cves.keys():
-            cve_list.append({
+            cve_info_dict[cve] = {
                 "cve_id": cve,
                 "host_id": host_id,
                 "affected": True,
                 "fixed": False,
                 "support_hp": unfixed_cves[cve]
-            })
+            }
 
         for fix_cve in task_info.get("fixed_cves", []):
-            cve_list.append({
+           cve_info_dict[fix_cve.get("cve_id")] = {
                 "cve_id": fix_cve.get("cve_id"),
                 "host_id": host_id,
                 "affected": True,
                 "fixed": True,
                 "fixed_by_hp": fix_cve.get("fixed_by_hp"),
                 "support_hp": None
-            })
+            }
 
         self.session.query(CveHostAssociation) \
             .filter(CveHostAssociation.host_id == host_id) \
             .delete(synchronize_session=False)
 
-        self.session.bulk_insert_mappings(
-            CveHostAssociation, cve_list)
+        self.session.bulk_insert_mappings(CveHostAssociation, cve_info_dict.values())
         return SUCCEED
 
     def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
