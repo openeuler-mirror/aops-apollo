@@ -88,7 +88,7 @@ class HotpatchCommand(dnf.cli.Command):
         if self.opts._spec_action == 'list':
             self.display()
         if self.opts.apply_name:
-            self.operate_hot_patches(self.opts.apply_name,"apply",self.syscare.apply)
+            self.operate_hot_patches(self.opts.apply_name, "apply", self.syscare.apply)
         if self.opts.remove_name:
             self.operate_hot_patches(self.opts.remove_name, "remove", self.syscare.remove)
         if self.opts.active_name:
@@ -97,7 +97,6 @@ class HotpatchCommand(dnf.cli.Command):
             self.operate_hot_patches(self.opts.deactive_name, "deactive", self.syscare.deactive)
         if self.opts.accept_name:
             self.operate_hot_patches(self.opts.accept_name, "accept", self.syscare.accept)
-
 
     def get_mapping_nevra_cve(self) -> dict:
         """
@@ -238,7 +237,7 @@ class HotpatchCommand(dnf.cli.Command):
         self._filter_and_format_list_output(
             echo_lines, fixed_cve_id, fixed_coldpatches)
 
-    def operate_hot_patches(self, target_patch: list, operate,func) -> None:
+    def operate_hot_patches(self, target_patch: list, operate, func) -> None:
         """
         operate hotpatch using syscare command
         Args:
@@ -248,15 +247,15 @@ class HotpatchCommand(dnf.cli.Command):
             None
         """
         if len(target_patch) != 1:
-            logger.error(_("using dnf hotpatch --%s wrong!"),operate)
+            logger.error(_("using dnf hotpatch --%s wrong!"), operate)
             return
         target_patch = target_patch[0]
         output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna %s this hot patch: %s"), operate,self.base.output.term.bold(target_patch))
+        logger.info(_("Gonna %s this hot patch: %s"), operate, self.base.output.term.bold(target_patch))
 
         output, status = func(target_patch)
         if status:
-            logger.info(_("%s hot patch '%s' failed, remain original status."),operate,
+            logger.info(_("%s hot patch '%s' failed, remain original status."), operate,
                         self.base.output.term.bold(target_patch))
         else:
-            logger.info(_("%s hot patch '%s' succeed"), operate,self.base.output.term.bold(target_patch))
+            logger.info(_("%s hot patch '%s' succeed"), operate, self.base.output.term.bold(target_patch))
