@@ -45,22 +45,26 @@ class Versions:
 
 
 @dnf.plugin.register_command
-class HotpatchCommand(dnf.cli.Command):
-    aliases = ['hotpatch']
-    summary = _('show hotpatch info')
+class HotUpdateinfoCommand(dnf.cli.Command):
+    aliases = ['hot-updateinfo']
+    summary = _('show hotpatch updateinfo')
 
     def __init__(self, cli):
         """
         Initialize the command
         """
-        super(HotpatchCommand, self).__init__(cli)
+        super(HotUpdateinfoCommand, self).__init__(cli)
 
     @staticmethod
     def set_argparser(parser):
-        output_format = parser.add_mutually_exclusive_group()
-        output_format.add_argument("--list", dest='_spec_action', const='list',
-                                   action='store_const',
-                                   help=_('show list of cves'))
+
+        spec_action_cmds = ['list']
+        parser.add_argument('spec_action', nargs=1, choices=spec_action_cmds,
+                            help=_('show updateinfo list'))
+        
+        with_cve_cmds = ['cve', 'cves']
+        parser.add_argument('with_cve', nargs=1, choices=with_cve_cmds,
+                            help=_('show cves'))
 
     def configure(self):
         demands = self.cli.demands
@@ -72,7 +76,7 @@ class HotpatchCommand(dnf.cli.Command):
     def run(self):
         self.hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
 
-        if self.opts._spec_action == 'list':
+        if self.opts.spec_action and self.opts.spec_action[0] == 'list' and self.opts.with_cve:
             self.display()
 
     def get_mapping_nevra_cve(self) -> dict:
@@ -118,7 +122,6 @@ class HotpatchCommand(dnf.cli.Command):
         """
         Only show specified cve information that have not been fixed, and format output
         """
-
         def is_patch_fixed(coldpatch, fixed_coldpatches):
             """
             Check whether the coldpatch is fixed
@@ -198,7 +201,7 @@ class HotpatchCommand(dnf.cli.Command):
                     echo_lines.pop()
                 elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
                     echo_lines[-1][3] = hotpatch.nevra
-
+        
         hp_cve_list = list(set(self.hp_hawkey.hotpatch_cves.keys()).difference(iterated_cve_id))
         for cve_id in hp_cve_list:
             hotpatch = self.hp_hawkey.hotpatch_cves[cve_id].hotpatch
