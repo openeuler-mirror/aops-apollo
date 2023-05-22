@@ -191,7 +191,7 @@ def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):
             }]
         dict: cve id mapped with its description
     """
-    cve_table_rows = []
+    cve_table_rows_dict = {}
     cve_pkg_rows = []
     cve_description = {}
     package_os_version = {}
@@ -210,14 +210,15 @@ def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):
 
     for cve_info in cve_info_list:
         cve_id = cve_info["CVE"]
-        cve_row = {
+        if cve_id in cve_table_rows_dict:
+            raise ParseAdvisoryError("The advisory has multiple CVE info for the CVE '%s'." % cve_id)
+        cve_table_rows_dict["cve_id"] = {
             "cve_id": cve_id,
             "publish_time": cve_info["ReleaseDate"],
             "severity": cve_info["Threats"]["Threat"]["Description"],
             "cvss_score": cve_info["CVSSScoreSets"]["ScoreSet"]["BaseScore"],
             "reboot": False
         }
-        cve_table_rows.append(cve_row)
         for os_version, srcpackage in package_os_version.items():
             cve_pkg_rows.append({"cve_id": cve_id,
                                  "package": srcpackage,
@@ -230,7 +231,7 @@ def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):
         description = cve_info["Notes"]["Note"].get("text", "")
         cve_description[cve_id] = description
 
-    return cve_table_rows, cve_pkg_rows, cve_description
+    return list(cve_table_rows_dict.values()), cve_pkg_rows, cve_description
 
 
 def parse_arch_info(cve_description):
