@@ -88,15 +88,16 @@ class HotpatchCommand(dnf.cli.Command):
         if self.opts._spec_action == 'list':
             self.display()
         if self.opts.apply_name:
-            self.apply_hot_patches(self.opts.apply_name)
+            self.operate_hot_patches(self.opts.apply_name,"apply",self.syscare.apply)
         if self.opts.remove_name:
-            self.remove_hot_patches(self.opts.remove_name)
+            self.operate_hot_patches(self.opts.remove_name, "remove", self.syscare.remove)
         if self.opts.active_name:
-            self.active_hot_patches(self.opts.active_name)
+            self.operate_hot_patches(self.opts.active_name, "active", self.syscare.active)
         if self.opts.deactive_name:
-            self.deactive_hot_patches(self.opts.deactive_name)
+            self.operate_hot_patches(self.opts.deactive_name, "deactive", self.syscare.deactive)
         if self.opts.accept_name:
-            self.accept_hot_patches(self.opts.accept_name)
+            self.operate_hot_patches(self.opts.accept_name, "accept", self.syscare.accept)
+
 
     def get_mapping_nevra_cve(self) -> dict:
         """
@@ -237,9 +238,9 @@ class HotpatchCommand(dnf.cli.Command):
         self._filter_and_format_list_output(
             echo_lines, fixed_cve_id, fixed_coldpatches)
 
-    def remove_hot_patches(self, target_patch: list) -> None:
+    def operate_hot_patches(self, target_patch: list, operate,func) -> None:
         """
-        remove hotpatch using syscare command
+        operate hotpatch using syscare command
         Args:
             target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
 
@@ -247,112 +248,15 @@ class HotpatchCommand(dnf.cli.Command):
             None
         """
         if len(target_patch) != 1:
-            logger.error("using command dnf hotpatch --remove wrong! ")
+            logger.error(_("using dnf hotpatch --%s wrong!"),operate)
             return
         target_patch = target_patch[0]
         output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna remove this hot patche: %s"), self.base.output.term.bold(target_patch))
+        logger.info(_("Gonna %s this hot patch: %s"), operate,self.base.output.term.bold(target_patch))
 
-        output, status = self.syscare.remove(target_patch)
+        output, status = func(target_patch)
         if status:
-            logger.info(_("Remove hot patch '%s' failed, remain original status."),
+            logger.info(_("%s hot patch '%s' failed, remain original status."),operate,
                         self.base.output.term.bold(target_patch))
         else:
-            logger.info(_("Remove hot patch '%s' succeed"), self.base.output.term.bold(target_patch))
-        return
-
-    def active_hot_patches(self, target_patch: list) -> None:
-        """
-        activate hotpatch using syscare command
-        Args:
-            target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
-
-        Returns:
-            None
-        """
-        if len(target_patch) != 1:
-            logger.error("using dnf hotpatch --active wrong!")
-            return
-        target_patch = target_patch[0]
-        output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna activate this hot patch: %s"), self.base.output.term.bold(target_patch))
-
-        output, status = self.syscare.active(target_patch)
-        if status:
-            logger.info(_("activate hot patch '%s' failed, remain original status."),
-                        self.base.output.term.bold(target_patch))
-        else:
-            logger.info(_("activate hot patch '%s' succeed"), self.base.output.term.bold(target_patch))
-        return
-
-    def deactive_hot_patches(self, target_patch: list) -> None:
-        """
-        deactive hotpatch using syscare command
-        Args:
-            target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
-
-        Returns:
-            None
-        """
-        if len(target_patch) != 1:
-            logger.error("using dnf hotpatch --deactive wrong!")
-            return
-        target_patch = target_patch[0]
-        output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna deactivate this hot patch: %s"), self.base.output.term.bold(target_patch))
-
-        output, status = self.syscare.deactive(target_patch)
-        if status:
-            logger.info(_("deactivate hot patch '%s' failed, remain original status."),
-                        self.base.output.term.bold(target_patch))
-        else:
-            logger.info(_("deactivate hot patch '%s' succeed"), self.base.output.term.bold(target_patch))
-        return
-
-    def apply_hot_patches(self, target_patch: list) -> None:
-        """
-        apply hotpatch using syscare command
-        Args:
-            target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
-
-        Returns:
-            None
-        """
-        if len(target_patch) != 1:
-            logger.error("using dnf hotpatch --apply wrong!")
-            return
-        target_patch = target_patch[0]
-        output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna apply this hot patch: %s"), self.base.output.term.bold(target_patch))
-
-        output, status = self.syscare.apply(target_patch)
-        if status:
-            logger.info(_("apply hot patch '%s' failed, remain original status."),
-                        self.base.output.term.bold(target_patch))
-        else:
-            logger.info(_("apply hot patch '%s' succeed"), self.base.output.term.bold(target_patch))
-        return
-
-    def accept_hot_patches(self, target_patch: list) -> None:
-        """
-        accept hotpatch using syscare command
-        Args:
-            target_patch: type:list,e.g.:['redis-6.2.5-1/HP2']
-
-        Returns:
-            None
-        """
-        if len(target_patch) != 1:
-            logger.error("using dnf hotpatch --accept wrong!")
-            return
-        target_patch = target_patch[0]
-        output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna accept this hot patch: %s"), self.base.output.term.bold(target_patch))
-
-        output, status = self.syscare.accept(target_patch)
-        if status:
-            logger.info(_("accept hot patch '%s' failed, remain original status."),
-                        self.base.output.term.bold(target_patch))
-        else:
-            logger.info(_("accept hot patch '%s' succeed"), self.base.output.term.bold(target_patch))
-        return
+            logger.info(_("%s hot patch '%s' succeed"), operate,self.base.output.term.bold(target_patch))
