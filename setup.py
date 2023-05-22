@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 NAME = "aops-apollo"
-VERSION = "2.0.0"
+VERSION = "1.2.1"
 
 # To install the library, run the following
 #
@@ -22,7 +22,7 @@ REQUIRES = [
     'SQLAlchemy',
     'PyYAML',
     'retrying',
-    'lxml'
+    'lxml',
     'gevent'
 ]
 
@@ -35,7 +35,7 @@ setup(
     data_files=[
         ('/etc/aops', ['conf/apollo.ini']),
         ('/etc/aops', ['conf/apollo_crontab.ini']),
-        ('/usr/lib/systemd/system', ['aops-apollo.service'])
+        ('/usr/lib/systemd/system', ['aops-apollo.service']),
     ],
     scripts=['aops-apollo'],
     zip_safe=False

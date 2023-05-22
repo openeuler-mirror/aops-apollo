@@ -1,6 +1,6 @@
 Name:		aops-apollo
-Version:	v1.2.0
-Release:	2
+Version:	v1.2.1
+Release:	1
 Summary:	Cve management service, monitor machine vulnerabilities and provide fix functions.
 License:	MulanPSL2
 URL:		https://gitee.com/openeuler/%{name}
@@ -25,6 +25,13 @@ Requires: python3-hawkey python3-dnf syscare >= 1.0.1
 %description -n dnf-hotpatch-plugin
 dnf hotpatch plugin, it's about hotpatch query and fix
 
+%package -n aops-apollo-tool
+Summary: Small tools for aops-apollo, e.g. updateinfo.xml generater
+Requires: python3-rpm
+
+%description -n aops-apollo-tool
+smalltools for aops-apollo, e.g.updateinfo.xml generater
+
 %prep
 %autosetup -n %{name}-%{version}
 
@@ -32,12 +39,22 @@ dnf hotpatch plugin, it's about hotpatch query and fix
 # build for aops-apollo
 %py3_build
 
+# build for aops-apollo-tool
+pushd aops-apollo-tool
+%py3_build
+popd
 
 # install for aops-apollo
 %py3_install
 
+# install for aops-apollo-tool
+pushd aops-apollo-tool
+%py3_install
+popd
+
 #install for aops-dnf-plugin
 cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
+
 
 %files
 %doc README.*
@@ -45,20 +62,38 @@ cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %attr(0644,root,root) %{_sysconfdir}/aops/apollo_crontab.ini
 %attr(0755,root,root) %{_bindir}/aops-apollo
 %attr(0755,root,root) %{_unitdir}/aops-apollo.service
-%{python3_sitelib}/aops_apollo*.egg-info
+%{python3_sitelib}/aops_apollo*.egg-info/*
 %{python3_sitelib}/apollo/*
 
 %files -n dnf-hotpatch-plugin
 %{python3_sitelib}/dnf-plugins/*
 
-%changelog
-* Mon Mar 27 2023 wangguangge<wangguangge@huawei.com> - v1.2.0-2
-- add dnf hotpatch list plugin
+%files -n aops-apollo-tool
+%attr(0644,root,root) %{_sysconfdir}/aops_apollo_tool/updateinfo_config.ini
+%attr(0755,root,root) %{_bindir}/gen-updateinfo
+%{python3_sitelib}/aops_apollo_tool*.egg-info/*
+%{python3_sitelib}/aops_apollo_tool/*
 
-* Fri Mar 24 2023 yangpengtao<1475324955@qq.com> - v1.2.0-1
+%changelog
+* Tue May 23 2023 zhu-yuncheng<zhuyuncheng@huawei.com> - v1.2.1-1
+- Better dnf hotpatch plugin for more syscare command
+- Add updateinfo.xml generation tool
+
+* Thu May 11 2023 ptyang<1475324955@qq.com> - v1.2.0-4
+- Add network request exception capture
+
+* Tue May 9 2023 ptyang<1475324955@qq.com> - v1.2.0-3
+- fix send two emails bug
+
+* Thu Apr 27 2023 ptyang<1475324955@qq.com> - v1.2.0-2
+- fix args not effective bug
+- download SA using a collaborative process
+
+* Mon Apr 17 2023 gongzhengtang<gong_zhengtang@163.com> - v1.2.0-1
 - add updated security advisory at regular time
 - add execute the CVE scan command at regular time
 - add correct abnormal data at regular time
+- add dnf hotpatch list plugin
 
 * Tue Dec 27 2022 wenxin<shusheng.wen@outlook.com> - v1.1.2-3
 - modify version for vulcanus
