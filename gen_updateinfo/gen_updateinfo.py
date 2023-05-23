@@ -56,9 +56,11 @@ def check_uniqueness_of_advisory_id(root: ET, advisory_id: str) -> int:
     """
     existed_adv_id = {advisory_id}
     for update in root.iter('update'):
-        try:
-            update_adv_id = update.find('id').text
-        except ET.ParseError:
+
+        adv_id = update.find('id')
+        if adv_id is not None:
+            update_adv_id = adv_id.text
+        else:
             print("error: the required paramter of advisory id is missing in the input file.")
             sys.exit(1)
 
