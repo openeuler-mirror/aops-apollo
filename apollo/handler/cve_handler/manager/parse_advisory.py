@@ -129,7 +129,7 @@ def parse_cvrf_dict(cvrf_dict):
         cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, srcpackage_list,
                                                                        package_info_list)
         es_cve_pkg_docs = parse_arch_info(cve_description)
-    except (KeyError, TypeError) as error:
+    except (KeyError, TypeError, ParseAdvisoryError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the advisory xml.")
     return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs, sa_year, sa_number
@@ -212,7 +212,7 @@ def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):
         cve_id = cve_info["CVE"]
         if cve_id in cve_table_rows_dict:
             raise ParseAdvisoryError("The advisory has multiple CVE info for the CVE '%s'." % cve_id)
-        cve_table_rows_dict["cve_id"] = {
+        cve_table_rows_dict[cve_id] = {
             "cve_id": cve_id,
             "publish_time": cve_info["ReleaseDate"],
             "severity": cve_info["Threats"]["Threat"]["Description"],
