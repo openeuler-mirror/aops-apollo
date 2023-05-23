@@ -80,6 +80,7 @@ class CveRollbackManager(Manager):
         After executing the task, parse the checking and executing result, then save to database.
         """
         if not self.result:
+            self.fault_handle()
             return
         LOGGER.debug("Cve rollback task %s result: %s", self.task_id, self.result)
 

@@ -105,6 +105,7 @@ class CveFixManager(Manager):
         save to database.
         """
         if not self.result:
+            self.fault_handle()
             return
         LOGGER.debug("Cve fixing task %s result: %s",
                      self.task_id, self.result)
