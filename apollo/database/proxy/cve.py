@@ -867,17 +867,15 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         exist_cve_query = self.session.query(CveHostAssociation.cve_id) \
             .join(Host, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.affected == 1, CveHostAssociation.fixed == 0)
-        # get first column value from tuple to list
-        exist_cve_list = list(zip(*exist_cve_query))[0]
 
         related_cve_query = self.session.query(CveAffectedPkgs.cve_id) \
-            .filter(CveAffectedPkgs.package.in_(pkg_list)) \
-            .filter(CveAffectedPkgs.cve_id.in_(exist_cve_list))
-        related_cve = set(list(zip(*related_cve_query))[0])
+            .filter(CveAffectedPkgs.package.in_(pkg_list),CveAffectedPkgs.cve_id.in_(exist_cve_query.subquery())) \
+            .distinct()
 
-        related_cve.remove(cve_id)
-        return list(related_cve)
+        related_cve = [row[0] for row in related_cve_query.all() if row[0] != cve_id]
 
+        return related_cve
+        
     @staticmethod
     def _cve_info_row2dict(row, description_dict, pkg_list):
         """

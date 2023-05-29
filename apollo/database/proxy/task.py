@@ -924,9 +924,7 @@ class TaskMysqlProxy(MysqlProxy):
         filters = set()
 
         if filter_dict.get("cve_id"):
-            filters.add(Cve.cve_id.like("%" + filter_dict["cve_id"] + "%"))
-        if filter_dict.get("reboot"):
-            filters.add(Cve.reboot == filter_dict["reboot"])
+            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         return filters
 
     def _query_cve_task(self, username, task_id, filters):
@@ -948,12 +946,11 @@ class TaskMysqlProxy(MysqlProxy):
                 }
         """
         task_cve_query = self.session.query(TaskCveHostAssociation.cve_id,
-                                            Cve.reboot,
                                             CveAffectedPkgs.package,
                                             TaskCveHostAssociation.host_id,
                                             TaskCveHostAssociation.status) \
-            .outerjoin(Cve, Cve.cve_id == TaskCveHostAssociation.cve_id) \
-            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == Cve.cve_id) \
+            .outerjoin(CveHostAssociation, CveHostAssociation.cve_id == TaskCveHostAssociation.cve_id) \
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id) \
             .outerjoin(Task, Task.task_id == TaskCveHostAssociation.task_id) \
             .filter(Task.task_id == task_id, Task.username == username) \
             .filter(*filters)
@@ -969,7 +966,6 @@ class TaskMysqlProxy(MysqlProxy):
                     {
                         "cve_id": "CVE-2021-0001",
                         "package": "tensorflow",
-                        "reboot": True,
                         "host_id": "id1",
                         "status": "fixed"
                     }
@@ -979,7 +975,6 @@ class TaskMysqlProxy(MysqlProxy):
                 [{
                     "cve_id": "CVE-2021-0001",
                     "package": "tensorflow",
-                    "reboot": True,
                     "host_num": 3,
                     "status": "running"
                 }]
@@ -991,8 +986,7 @@ class TaskMysqlProxy(MysqlProxy):
         for row in task_cve_query:
             cve_id = row.cve_id
             if cve_id not in cve_dict:
-                cve_dict[cve_id] = {"package": {row.package}, "reboot": row.reboot,
-                                    "host_set": {row.host_id}, "status_set": {row.status}}
+                cve_dict[cve_id] = {"package": {row.package}, "host_set": {row.host_id}, "status_set": {row.status}}
             else:
                 cve_dict[cve_id]["package"].add(row.package)
                 cve_dict[cve_id]["host_set"].add(row.host_id)
