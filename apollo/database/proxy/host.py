@@ -514,7 +514,8 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         Returns:
             set
         """
-        filters = {CveHostAssociation.fixed == filter_dict.get("fixed", False)}
+        fixed = filter_dict.get("fixed", False)
+        filters = {CveHostAssociation.fixed == fixed}
         
         if not filter_dict:
             return filters
@@ -525,9 +526,9 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
 
-        if filter_dict.get("hotpatch") and filter_dict.get("fixed") is True:
+        if filter_dict.get("hotpatch") and fixed is True:
             filters.add(CveHostAssociation.fixed_by_hp.in_(filter_dict["hotpatch"]))
-        elif filter_dict.get("hotpatch") and filter_dict.get("fixed") is False:
+        elif filter_dict.get("hotpatch") and fixed is False:
             filters.add(CveHostAssociation.support_hp.in_(filter_dict["hotpatch"]))
 
         if "affected" in filter_dict:

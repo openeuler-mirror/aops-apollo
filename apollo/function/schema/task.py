@@ -19,6 +19,7 @@ from marshmallow import Schema
 from marshmallow import fields
 from marshmallow import validate
 
+from apollo.conf.constant import TaskType
 
 class TaskListFilterSchema(Schema):
     """
@@ -26,7 +27,7 @@ class TaskListFilterSchema(Schema):
     """
     task_name = fields.String(required=False, validate=lambda s: len(s) > 0)
     task_type = fields.List(fields.String(
-        validate=validate.OneOf(["cve fix", "repo set"])), required=False)
+        validate=validate.OneOf([getattr(TaskType,p) for p in dir(TaskType) if p.isupper()])), required=False)
 
 
 class GetTaskListSchema(Schema):

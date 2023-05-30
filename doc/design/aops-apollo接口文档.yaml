@@ -1702,7 +1702,7 @@ definitions:
             type: array
             items:
               type: string
-            description: 可选cve scan、cve fix、repo set
+            description: 可选cve rollback、cve fix、repo set
     type: object
   QueryTaskListRsp:
     allOf:
