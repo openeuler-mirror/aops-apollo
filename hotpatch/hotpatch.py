@@ -102,12 +102,12 @@ class HotpatchCommand(dnf.cli.Command):
         hotpatch_cves = self.hp_hawkey.hotpatch_cves
         echo_lines = []
         for cve_id in hotpatch_cves.keys():
-            hotpatch = hotpatch_cves[cve_id].hotpatch
-            status = self.hp_hawkey._get_hotpatch_status_in_syscare(hotpatch)
-            if status == '':
-                continue
-            echo_line = [cve_id, hotpatch.syscare_name, status]
-            echo_lines.append(echo_line)
+            for hotpatch in hotpatch_cves[cve_id].hotpatches:
+                status = self.hp_hawkey._get_hotpatch_status_in_syscare(hotpatch)
+                if status == '':
+                    continue
+                echo_line = [cve_id, hotpatch.syscare_name, status]
+                echo_lines.append(echo_line)
 
         self._filter_and_format_list_output(echo_lines)
     
@@ -132,4 +132,5 @@ class HotpatchCommand(dnf.cli.Command):
                         self.base.output.term.bold(target_patch))
         else:
             logger.info(_("%s hot patch '%s' succeed"), operate, self.base.output.term.bold(target_patch))
+
 

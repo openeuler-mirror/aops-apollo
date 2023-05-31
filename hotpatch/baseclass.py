@@ -115,7 +115,7 @@ class Hotpatch(object):
 
 
 class Cve(object):
-    __slots__ = ['_cve_id', '_hotpatch']
+    __slots__ = ['_cve_id', '_hotpatches']
 
     def __init__(self,
                  id,
@@ -124,15 +124,14 @@ class Cve(object):
         id: str
         """
         self._cve_id = id
-        self._hotpatch = None
+        self._hotpatches = []
 
     @property
-    def hotpatch(self):
-        return self._hotpatch
+    def hotpatches(self):
+        return self._hotpatches
 
-    @hotpatch.setter
-    def hotpatch(self, hotpatch: Hotpatch):
-        self._hotpatch = hotpatch
+    def add_hotpatch(self, hotpatch: Hotpatch):
+        self._hotpatches.append(hotpatch)
 
     @property
     def cve_id(self):
@@ -206,3 +205,4 @@ class Advisory(object):
 
     def add_hotpatch(self, hotpatch: Hotpatch):
         self._hotpatches.append(hotpatch)
+

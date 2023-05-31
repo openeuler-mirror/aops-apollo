@@ -67,7 +67,7 @@ class HotpatchUpdateInfo(object):
         """
         Initialize hotpatch information from repos
         """
-        # get xxx-hotpatch.xml.gz file paths by traversing the system_cachedir(/var/cache/dnf)
+        # get xxx-updateinfo.xml.gz file paths by traversing the system_cachedir(/var/cache/dnf)
         system_cachedir = self.cli.base.conf.system_cachedir
         all_repos = self.cli.base.repos
         map_repo_updateinfoxml = {}
@@ -80,9 +80,9 @@ class HotpatchUpdateInfo(object):
                     continue
 
                 for xml_file in os.listdir(repodata_path):
-                    # the hotpatch relevant updateinfo is recorded in xxx-hotpatch.xml.gz
-                    if "hotpatch" in xml_file:
-                        repo_name = file.split("-")[0]
+                    # the hotpatch relevant updateinfo is recorded in xxx-updateinfo.xml.gz
+                    if "updateinfo" in xml_file:
+                        repo_name = file.rsplit("-")[0]
                         cache_updateinfo_xml_path = os.path.join(
                             repodata_path, xml_file)
                         map_repo_updateinfoxml[repo_name] = cache_updateinfo_xml_path
@@ -99,7 +99,7 @@ class HotpatchUpdateInfo(object):
         Parse the pkglist information, filter the hotpatches with different arches
         """
         hotpatches = []
-        hot_patch_collection = pkglist.find('collection')
+        hot_patch_collection = pkglist.find('hot_patch_collection')
         arches = self.base.sack.list_arches()
         if not hot_patch_collection:
             return hotpatches
@@ -171,14 +171,19 @@ class HotpatchUpdateInfo(object):
         advisory.cves = advisory_cves
 
         for hotpatch_kwargs in advisory_hotpatches:
+            # parse the id string of the package to list
+            # e.g. parse the id of "CVE-2021-2023,CVE-2021-2024" to ["CVE-2021-2023", "CVE-2021-2024"]
+            hotpatch_ref_id = hotpatch_kwargs.pop('id')
+            hotpatch_ref_id = hotpatch_ref_id.split(',')
+
             hotpatch = Hotpatch(**hotpatch_kwargs)
             hotpatch.advisory = advisory
-            hotpatch.cves = advisory_cves.keys()
+            hotpatch.cves = hotpatch_ref_id
 
             advisory.add_hotpatch(hotpatch)
-
-            for cve in advisory_cves.values():
-                cve.hotpatch = hotpatch
+            
+            for ref_id in hotpatch_ref_id:
+                advisory_cves[ref_id].add_hotpatch(hotpatch)
 
         self._hotpatch_advisories[advisory_kwargs['id']] = advisory
 
@@ -213,9 +218,9 @@ class HotpatchUpdateInfo(object):
     
     def _parse_and_store_from_xml(self, updateinfoxml):
         """
-        Parse and store hotpatch update information from xxx-hotpatch.xml.gz
+        Parse and store hotpatch update information from xxx-updateinfo.xml.gz
 
-        xxx-hotpatch.xml.gz e.g.
+        xxx-updateinfo.xml.gz e.g.
 
         <?xml version="1.0" encoding="UTF-8"?>
         <updates>
@@ -226,19 +231,26 @@ class HotpatchUpdateInfo(object):
                 <release>openEuler</release>
                 <issued date="2022-04-16"></issued>
                 <references>
-                    <reference href="https://nvd.nist.gov/vuln/detail/CVE-2021-46658" id="CVE-2021-1" title="CVE-2021-1" type="cve"></reference>
+                    <reference href="https://nvd.nist.gov/vuln/detail/CVE-2021-1111" id="CVE-2021-1111" title="CVE-2021-1111" type="cve"></reference>
+                    <reference href="https://nvd.nist.gov/vuln/detail/CVE-2021-1112" id="CVE-2021-1112" title="CVE-2021-1112" type="cve"></reference>
                 </references>
                 <description>patch-redis-6.2.5-1-HP001.(CVE-2022-24048)</description>
                 <pkglist>
-                <collection>
+                <hot_patch_collection>
                     <name>openEuler</name>
-                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP001" release="0" version="1">
-                        <filename>patch-redis-6.2.5-1-HP001-0-1.aarch64.rpm</filename>
+                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP001" release="1" version="1" id="CVE-2021-1111" >
+                        <filename>patch-redis-6.2.5-1-HP001-1-1.aarch64.rpm</filename>
                     </package>
-                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP001" release="0" version="1">
-                        <filename>patch-redis-6.2.5-1-HP001-0-1.x86_64.rpm</filename>
+                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP001" release="1" version="1" id="CVE-2021-1111">
+                        <filename>patch-redis-6.2.5-1-HP001-1-1.x86_64.rpm</filename>
                     </package>
-                <collection>
+                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP002" release="1" version="1" id="CVE-2021-1111,CVE-2021-1112">
+                        <filename>patch-redis-6.2.5-1-HP002-1-1.aarch64.rpm</filename>
+                    </package>
+                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP002" release="1" version="1" id="CVE-2021-1111,CVE-2021-1112">
+                        <filename>patch-redis-6.2.5-1-HP002-1-1.x86_64.rpm</filename>
+                    </package>
+                </hot_patch_collection>
                 </pkglist>
             </update>
             ...
@@ -248,6 +260,9 @@ class HotpatchUpdateInfo(object):
         tree = ET.parse(content)
         root = tree.getroot()
         for update in root.iter('update'):
+            # check whether the hotpatch relevant package information is in each advisory
+            if not update.find('pkglist/hot_patch_collection'):
+                continue
             advisory = self._parse_advisory(update)
             self._store_advisory_info(advisory)
 
@@ -288,9 +303,9 @@ class HotpatchUpdateInfo(object):
             mapping_cve_hotpatches[cve_id] = []
             if cve_id not in self.hotpatch_cves:
                 continue
-            hotpatch = self.hotpatch_cves[cve_id].hotpatch
-            if hotpatch is not None and hotpatch.state == self.INSTALLABLE:
-                mapping_cve_hotpatches[cve_id].append(hotpatch.nevra)
+            for hotpatch in self.hotpatch_cves[cve_id].hotpatches:
+                if hotpatch.state == self.INSTALLABLE:
+                    mapping_cve_hotpatches[cve_id].append(hotpatch.nevra)
         return mapping_cve_hotpatches
 
     def get_hotpatches_from_advisories(self, advisories: list[str]) -> dict():
@@ -317,3 +332,4 @@ class HotpatchUpdateInfo(object):
                     mapping_advisory_hotpatches[advisory_id].append(
                             hotpatch.nevra)
         return mapping_advisory_hotpatches
+
