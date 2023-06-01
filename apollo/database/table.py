@@ -37,7 +37,7 @@ class CveHostAssociation(Base, MyBase):
     fixed = Column(Boolean)
     support_hp = Column(Boolean, default=None)
     fixed_by_hp = Column(Boolean, default=None)
-
+    hp_status = Column(String(20))
 
 class CveAffectedPkgs(Base, MyBase):
     """
@@ -144,6 +144,7 @@ class Task(Base, MyBase):
     create_time = Column(Integer)
     host_num = Column(Integer)
     check_items = Column(String(32))
+    accepted = Column(Boolean, default=False)
 
     username = Column(String(40), ForeignKey('user.username'))
 

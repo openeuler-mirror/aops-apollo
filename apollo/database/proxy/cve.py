@@ -224,7 +224,10 @@ class CveMysqlProxy(MysqlProxy):
         Returns:
             set
         """
-        filters = {CveHostAssociation.fixed == filter_dict.get("fixed", False)}
+        # when fixed does not have a value, the query data is not meaningful
+        # the default query is unfixed CVE information 
+        fixed = filter_dict.get("fixed", False)
+        filters = {CveHostAssociation.fixed == fixed}
         if not filter_dict:
             return filters
 
@@ -235,6 +238,12 @@ class CveMysqlProxy(MysqlProxy):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
         if filter_dict.get("repo"):
             filters.add(Host.repo_name.in_(filter_dict["repo"]))
+        if filter_dict.get("hp_status"):
+            filters.add(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]))
+        if filter_dict.get("hotpatch") and fixed is True:
+            filters.add(CveHostAssociation.fixed_by_hp.in_(filter_dict["hotpatch"]))
+        elif filter_dict.get("hotpatch") and fixed is False:
+            filters.add(CveHostAssociation.support_hp.in_(filter_dict["hotpatch"]))
         return filters
 
     def _query_cve_hosts(self, username, cve_id, filters):
@@ -250,7 +259,8 @@ class CveMysqlProxy(MysqlProxy):
         """
         cve_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip, Host.host_group_name,
                                        Host.repo_name, Host.last_scan, CveHostAssociation.support_hp,
-                                       CveHostAssociation.fixed, CveHostAssociation.fixed_by_hp) \
+                                       CveHostAssociation.fixed, CveHostAssociation.fixed_by_hp,
+                                       CveHostAssociation.hp_status ) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.cve_id == cve_id) \
             .filter(*filters)
@@ -268,7 +278,8 @@ class CveMysqlProxy(MysqlProxy):
                 "host_group": row.host_group_name,
                 "repo": row.repo_name,
                 "last_scan": row.last_scan,
-                "hotpatch": row.fixed_by_hp if row.fixed is True else row.support_hp
+                "hotpatch": row.fixed_by_hp if row.fixed is True else row.support_hp,
+                "hp_status": row.hp_status
             }
             result.append(host_info)
         return result
@@ -382,7 +393,8 @@ class CveMysqlProxy(MysqlProxy):
             sqlalchemy.orm.query.Query
         """
         cve_query = self.session.query(CveHostAssociation.cve_id, Host.host_id, Host.host_name, Host.host_ip, 
-        CveHostAssociation.support_hp, CveHostAssociation.fixed_by_hp, CveHostAssociation.fixed) \
+                                       CveHostAssociation.support_hp, CveHostAssociation.fixed_by_hp, 
+                                       CveHostAssociation.fixed) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(CveHostAssociation.cve_id.in_(cve_list)) \
             .filter(*filters)

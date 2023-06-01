@@ -265,7 +265,8 @@ class TaskMysqlProxy(MysqlProxy):
                 "affected": True,
                 "fixed": True,
                 "fixed_by_hp": fix_cve.get("fixed_by_hp"),
-                "support_hp": None
+                "support_hp": None,
+                "hp_status": fix_cve.get("hp_status")
             }
 
         self.session.query(CveHostAssociation) \
@@ -1397,6 +1398,7 @@ class TaskMysqlProxy(MysqlProxy):
             "task_name": basic_task.task_name,
             "task_type": basic_task.task_type,
             "check_items": basic_task.check_items.split(',') if basic_task.check_items else [],
+            "accepted": basic_task.accepted,
             "total_hosts": [],
             "tasks": []
         }
@@ -1423,7 +1425,7 @@ class TaskMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.Query
         """
-        task_query = self.session.query(Task.task_id, Task.task_name, Task.task_type, Task.check_items) \
+        task_query = self.session.query(Task.task_id, Task.task_name, Task.task_type, Task.check_items, Task.accepted) \
             .filter(Task.task_id == task_id)
         return task_query
 
@@ -2606,6 +2608,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                     "auto_reboot": True,
                     "create_time": 1,
                     "check_items": "",
+                    "accepted": True
                     "info": [
                         {
                             "cve_id": "cve1",

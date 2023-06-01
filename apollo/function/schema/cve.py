@@ -61,6 +61,8 @@ class CveHostFilterSchema(Schema):
     repo = fields.List(fields.String(
         validate=lambda s: len(s) != 0), required=False)
     fixed = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
+    hotpatch = fields.List(fields.Boolean(validate=validate.OneOf([True, False])), required=False)
+    hp_status = fields.List(fields.String(validate=validate.OneOf(["ACCEPTED", "ACTIVED"])), required=False)
 
 
 class GetCveHostsSchema(Schema):
