@@ -20,9 +20,10 @@ from dnf.cli.option_parser import OptionParser
 from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
-from .syscare import Syscare
+from .syscare import Syscare, cmd_output, SUCCEED
 from .hotpatch_updateinfo import HotpatchUpdateInfo
 
+EMPTY_TAG = "-"
 
 @dnf.plugin.register_command
 class HotupgradeCommand(dnf.cli.Command):
@@ -61,7 +62,8 @@ class HotupgradeCommand(dnf.cli.Command):
             advisory_pkgs = self.get_hotpatch_based_on_advisory(self.opts.advisory)
             self.hp_list = cve_pkgs + advisory_pkgs
         else:
-            raise dnf.exceptions.Error(_('No qualified rpm package name or cve/advisory id.'))
+            self.hp_list = self.upgrade_all()
+            logger.info(_("Gonna apply these hot patches:%s"), self.hp_list)
 
         hp_target_map = self._get_available_hotpatches(self.hp_list)
         if not hp_target_map:
@@ -266,3 +268,49 @@ class HotupgradeCommand(dnf.cli.Command):
         for hp in advisory_hp_dict.values():
             hp_list += hp
         return list(set(hp_list))
+
+    def upgrade_all(self):
+        """
+        upgrade all exist cve and hot patches
+
+        Return:
+             find all patches and return patches list
+            e.g.:
+            ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
+        """
+        hotpatchs_info = self.get_hot_updateinfo_list()
+        hp_list = []
+        for item in hotpatchs_info:
+            if item[-1] != EMPTY_TAG:
+                hp_list.append(item[-1])
+        return list(set(hp_list))
+
+    @staticmethod
+    def get_hot_updateinfo_list():
+        """
+        Find all hotpatches and upgrade all
+        use  command : dnf hot-updateinfo list cves
+        Last metadata expiration check: 0:48:26 ago on 2023年06月01日 星期四 20时29分55秒.
+        CVE-2023-3332  Low/Sec.       -   -
+        CVE-2023-3331  Low/Sec.       -   -
+        CVE-2023-1112  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
+        CVE-2023-1111  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
+
+        return:list
+        [["CVE-2023-3332","Low/Sec.", "-" ,"-"]]
+
+        """
+        cmd = ["dnf", "hot-updateinfo", "list", "cves"]
+
+        output, return_code = cmd_output(cmd)
+        if return_code != SUCCEED:
+            return []
+
+        content = output.split('\n')
+        if len(content) <= 2:
+            return []
+        result = []
+        for item in content[1:-1]:
+            tmp = item.split()
+            result.append(tmp)
+        return result
