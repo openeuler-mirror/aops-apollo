@@ -25,6 +25,7 @@ from .hotpatch_updateinfo import HotpatchUpdateInfo
 
 EMPTY_TAG = "-"
 
+
 @dnf.plugin.register_command
 class HotupgradeCommand(dnf.cli.Command):
     aliases = ("hotupgrade",)
@@ -179,8 +180,8 @@ class HotupgradeCommand(dnf.cli.Command):
     def _remove_hot_patches(self, target_patch_map: dict) -> None:
         output = Output(self.base, dnf.conf.Conf())
         logger.info(_("Gonna remove these hot patches: %s"), list(target_patch_map.values()))
-        #remove_flag = output.userconfirm()
-        #if not remove_flag:
+        # remove_flag = output.userconfirm()
+        # if not remove_flag:
         #    raise dnf.exceptions.Error(_('Operation aborted.'))
 
         self.syscare.save()
@@ -269,22 +270,6 @@ class HotupgradeCommand(dnf.cli.Command):
             hp_list += hp
         return list(set(hp_list))
 
-    def upgrade_all(self):
-        """
-        upgrade all exist cve and hot patches
-
-        Return:
-             find all patches and return patches list
-            e.g.:
-            ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
-        """
-        hotpatchs_info = self.get_hot_updateinfo_list()
-        hp_list = []
-        for item in hotpatchs_info:
-            if item[-1] != EMPTY_TAG:
-                hp_list.append(item[-1])
-        return list(set(hp_list))
-
     @staticmethod
     def get_hot_updateinfo_list():
         """
@@ -314,3 +299,19 @@ class HotupgradeCommand(dnf.cli.Command):
             tmp = item.split()
             result.append(tmp)
         return result
+
+    def upgrade_all(self):
+        """
+        upgrade all exist cve and hot patches
+
+        Return:
+             find all patches and return patches list
+            e.g.:
+            ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
+        """
+        hotpatchs_info = self.get_hot_updateinfo_list()
+        hp_list = []
+        for item in hotpatchs_info:
+            if item[-1] != EMPTY_TAG:
+                hp_list.append(item[-1])
+        return list(set(hp_list))
