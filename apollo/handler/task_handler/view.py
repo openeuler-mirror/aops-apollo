@@ -287,6 +287,14 @@ class VulGenerateCveTask(BaseResponse):
                     "task_id": "id1"
                 }
         """
+        host_ids = [host["host_id"] for hosts in params["info"] for host in hosts["host_info"]]
+        if not callback.validate_hosts(host_id=list(set(host_ids))):
+            return self.response(code=PARAM_ERROR)
+
+        cve_ids = [cve["cve_id"] for cve in params["info"]]
+        if not callback.validate_cves(cve_id=list(set(cve_ids))):
+            return self.response(code=PARAM_ERROR)
+
         status_code, data = self._handle(callback, params)
         return self.response(code=status_code, data=data)
 
@@ -488,6 +496,10 @@ class VulGenerateRepoTask(BaseResponse):
                     "task_id": "1"
                 }
         """
+        host_ids = [host["host_id"] for host in params["info"]]
+        if not callback.validate_hosts(host_id=list(set(host_ids))):
+            return self.response(code=PARAM_ERROR)
+
         status_code, data = self._handle(callback, params)
         return self.response(code=status_code, data=data)
 
@@ -836,6 +848,14 @@ class VulGenerateCveRollback(BaseResponse):
                     "task_id": "1"
                 }
         """
+        host_ids = [host["host_id"] for host in params["info"]]
+        if not callback.validate_hosts(host_id=list(set(host_ids))):
+            return self.response(code=PARAM_ERROR)
+
+        cve_ids = [cve["cve_id"] for host in params["info"] for cve in host["cves"]]
+        if not callback.validate_cves(cve_id=list(set(cve_ids))):
+            return self.response(code=PARAM_ERROR)
+
         status_code, data = self._handle(callback, params)
         return self.response(code=status_code, data=data)
 

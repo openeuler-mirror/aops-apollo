@@ -3208,3 +3208,40 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         # insert task id and username into es
         self._init_task_in_es(task_id, data["username"])
+
+    def validate_cves(self, cve_id: list) -> bool:
+        """
+        Verifying cve validity
+
+        Args:
+            cve_id: id of the cve to be validate
+
+        Returns:
+            bool:  A return of true indicates that the validation passed
+        """
+
+        try:
+            exists_cve_count = self.session.query(CveHostAssociation).filter(
+                CveHostAssociation.cve_id.in_(cve_id)).count()
+
+            return True if exists_cve_count == len(cve_id) else False
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return False
+
+    def validate_hosts(self, host_id: list) -> bool:
+        """
+        Verifying host validity
+
+        Args:
+            host_id: id of the host to be validate
+
+        Returns:
+            bool:  A return of true indicates that the validation passed
+        """
+        try:
+            exists_host_count = self.session.query(Host).filter(Host.host_id.in_(host_id)).count()
+            return True if exists_host_count == len(host_id) else False
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return False
