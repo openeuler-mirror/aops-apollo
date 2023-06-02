@@ -525,7 +525,8 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 "%" + filter_dict["cve_id"] + "%"))
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
-
+        if filter_dict.get("hp_status"):
+            filters.add(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]))
         if filter_dict.get("hotpatch") and fixed is True:
             filters.add(CveHostAssociation.fixed_by_hp.in_(filter_dict["hotpatch"]))
         elif filter_dict.get("hotpatch") and fixed is False:
@@ -548,7 +549,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         """
         host_cve_query = self.session.query(CveHostAssociation.cve_id, Cve.publish_time, Cve.severity, Cve.cvss_score,
                                             CveHostAssociation.fixed, CveHostAssociation.support_hp,
-                                            CveHostAssociation.fixed_by_hp) \
+                                            CveHostAssociation.fixed_by_hp, CveHostAssociation.hp_status) \
             .select_from(CveHostAssociation) \
             .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id) \
             .outerjoin(Host, Host.host_id == CveHostAssociation.host_id) \
@@ -577,7 +578,8 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 "severity": row.severity,
                 "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
                 "cvss_score": row.cvss_score,
-                "hotpatch": row.fixed_by_hp if row.fixed is True else row.support_hp
+                "hotpatch": row.fixed_by_hp if row.fixed is True else row.support_hp,
+                "hp_status": row.hp_status
             }
             result.append(cve_info)
         return result

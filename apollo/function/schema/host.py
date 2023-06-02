@@ -93,6 +93,7 @@ class HostCvesFilterSchema(Schema):
     hotpatch = fields.List(fields.Boolean(
         validate=validate.OneOf([True, False])), required=False)
     fixed = fields.Boolean(validate=validate.OneOf([True, False]))
+    hp_status = fields.List(fields.String(validate=validate.OneOf(["ACCEPTED", "ACTIVED"])), required=False)
 
 
 class GetHostCvesSchema(Schema):
