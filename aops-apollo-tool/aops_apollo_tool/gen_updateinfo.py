@@ -26,7 +26,7 @@ import rpm
 import configparser
 
 # get updateinfo global config
-UPDATEINFO_FILE = "/etc/gen_updateinfo/updateinfo_config.ini"
+UPDATEINFO_FILE = "/etc/aops_apollo_tool/updateinfo_config.ini"
 CONF = configparser.ConfigParser()
 CONF.read(filenames=UPDATEINFO_FILE)
 
@@ -69,6 +69,21 @@ def check_uniqueness_of_advisory_id(root: ET, advisory_id: str) -> int:
             sys.exit(1)
         existed_adv_id.add(update_adv_id)
 
+def parse_src_rpm_info_by_filename(filename: str) -> tuple:
+    """
+    Parse source rpm package information by filename, the filename should be 'name-version-release.src.rpm'.
+
+    Returns:
+        name, version, release
+    """
+    nevra_pos = filename.rindex('.src.rpm')
+    nevra = filename[:nevra_pos]
+    release_pos = nevra.rindex('-')
+    version_pos = nevra.rindex('-', 0, release_pos)
+    name, version, release = nevra[0:version_pos], nevra[
+        version_pos+1:release_pos], nevra[release_pos+1:]
+
+    return name, version, release
 
 def generate_package_list(package_dir: str) -> Element:
     """
@@ -107,21 +122,27 @@ def generate_package_list(package_dir: str) -> Element:
         except rpm.error:
             print("error: %s cannot be successfully parsed" % package_path)
             sys.exit(1)
+        
+        filename = Element('filename')
+        if pkg.endswith('.src.rpm'):
+            # parse source rpm information by filename, and the arch information is not marked
+            name, version, release = parse_src_rpm_info_by_filename(pkg)
+            package.attrib['name'] = name
+            package.attrib['version'] = version
+            package.attrib['release'] = release
+            filename.text = pkg
 
-        try:
+        else:
             package.attrib['arch'] = pkg_info[rpm.RPMTAG_ARCH]
             package.attrib['name'] = pkg_info[rpm.RPMTAG_NAME]
             package.attrib['version'] = pkg_info[rpm.RPMTAG_VERSION]
             package.attrib['release'] = pkg_info[rpm.RPMTAG_R]
-        except rpm.error:
-            print("error: key information is lost in %s" % package_path)
-            sys.exit(1)
 
-        filename = Element('filename')
-        filename.text = "%s-%s-%s.%s.rpm" % (package.attrib['name'], 
-                                            package.attrib['release'], 
-                                            package.attrib['version'],
-                                            package.attrib['arch'])
+            filename.text = "%s-%s-%s.%s.rpm" % (package.attrib['name'], 
+                                                package.attrib['release'], 
+                                                package.attrib['version'],
+                                                package.attrib['arch'])
+
         package.append(filename)
         collection.append(package)
         
@@ -305,4 +326,5 @@ def main():
     sys.exit(0)
 
 main()
+
 
