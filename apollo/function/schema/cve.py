@@ -18,7 +18,7 @@ Description: For cve related restful interfaces schema
 from marshmallow import Schema
 from marshmallow import fields
 from marshmallow import validate
-
+from vulcanus.restful.serialize.validate import PaginationSchema
 
 class CveListFilterSchema(Schema):
     """
@@ -31,7 +31,7 @@ class CveListFilterSchema(Schema):
     fixed = fields.Boolean(required=True, default=True, validate=validate.OneOf([True, False]))
 
 
-class GetCveListSchema(Schema):
+class GetCveListSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/cve/list/get
     """
@@ -39,8 +39,6 @@ class GetCveListSchema(Schema):
         ["cve_id", "publish_time", "cvss_score", "host_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate=lambda s: s > 0)
-    per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(CveListFilterSchema, required=False)
 
 
@@ -65,7 +63,7 @@ class CveHostFilterSchema(Schema):
     hp_status = fields.List(fields.String(validate=validate.OneOf(["ACCEPTED", "ACTIVED"])), required=False)
 
 
-class GetCveHostsSchema(Schema):
+class GetCveHostsSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/cve/host/get
     """
@@ -74,8 +72,6 @@ class GetCveHostsSchema(Schema):
         ["last_scan"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate=lambda s: s > 0)
-    per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(CveHostFilterSchema, required=False)
 
 
