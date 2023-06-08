@@ -20,6 +20,7 @@ from marshmallow import fields
 from marshmallow import validate
 
 from apollo.conf.constant import TaskType
+from vulcanus.restful.serialize.validate import PaginationSchema
 
 class TaskListFilterSchema(Schema):
     """
@@ -30,7 +31,7 @@ class TaskListFilterSchema(Schema):
         validate=validate.OneOf([getattr(TaskType,p) for p in dir(TaskType) if p.isupper()])), required=False)
 
 
-class GetTaskListSchema(Schema):
+class GetTaskListSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/list/get
     """
@@ -38,8 +39,6 @@ class GetTaskListSchema(Schema):
         ["host_num", "create_time"]))
     direction = fields.String(required=False, validate=validate.OneOf(
         ["asc", "desc"]))
-    page = fields.Integer(required=False, validate=lambda s: s > 0)
-    per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(TaskListFilterSchema, required=False)
 
 
@@ -105,15 +104,13 @@ class CveTaskInfoFilterSchema(Schema):
         ["succeed", "fail", "running", "unknown"])), required=False)
 
 
-class GetCveTaskInfoSchema(Schema):
+class GetCveTaskInfoSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/cve/info/get
     """
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     sort = fields.String(required=False, validate=validate.OneOf(["host_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
-    page = fields.Integer(required=False, validate=lambda s: s > 0)
-    per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(CveTaskInfoFilterSchema, required=False)
 
 
@@ -169,13 +166,11 @@ class RepoTaskInfoFilterSchema(Schema):
         required=False)
 
 
-class GetRepoTaskInfoSchema(Schema):
+class GetRepoTaskInfoSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/repo/info/get
     """
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
-    page = fields.Integer(required=False, validate=lambda s: s > 0)
-    per_page = fields.Integer(required=False, validate=lambda s: 0 < s < 50)
     filter = fields.Nested(RepoTaskInfoFilterSchema, required=False)
 
 
