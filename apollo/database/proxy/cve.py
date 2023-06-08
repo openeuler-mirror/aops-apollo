@@ -187,8 +187,7 @@ class CveMysqlProxy(MysqlProxy):
 
         cve_id = data["cve_id"]
         filters = self._get_cve_hosts_filters(data.get("filter", {}))
-        cve_hosts_query = self._query_cve_hosts(
-            data["username"], cve_id, filters)
+        cve_hosts_query = self._query_cve_hosts(data["username"], cve_id, filters, data.get("filter", {}))
 
         total_count = cve_hosts_query.count()
         if not total_count:
@@ -238,33 +237,42 @@ class CveMysqlProxy(MysqlProxy):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
         if filter_dict.get("repo"):
             filters.add(Host.repo_name.in_(filter_dict["repo"]))
-        if filter_dict.get("hp_status"):
-            filters.add(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]))
+
         if filter_dict.get("hotpatch") and fixed is True:
             filters.add(CveHostAssociation.fixed_by_hp.in_(filter_dict["hotpatch"]))
         elif filter_dict.get("hotpatch") and fixed is False:
             filters.add(CveHostAssociation.support_hp.in_(filter_dict["hotpatch"]))
         return filters
 
-    def _query_cve_hosts(self, username, cve_id, filters):
+    def _query_cve_hosts(self, username: str, cve_id: str, filters: set, filter_dict: dict):
         """
         query needed cve hosts info
         Args:
             username (str): user name of the request
             cve_id (str): cve id
             filters (set): filter given by user
-
+            filter_dict {
+                "fixed": bool,
+                "hotpatch": [true, false],
+                "hp_status": [accepted, active]
+            }
         Returns:
             sqlalchemy.orm.query.Query
         """
         cve_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip, Host.host_group_name,
                                        Host.repo_name, Host.last_scan, CveHostAssociation.support_hp,
                                        CveHostAssociation.fixed, CveHostAssociation.fixed_by_hp,
-                                       CveHostAssociation.hp_status ) \
+                                       CveHostAssociation.hp_status) \
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
             .filter(Host.user == username, CveHostAssociation.cve_id == cve_id) \
             .filter(*filters)
 
+        if filter_dict.get("fixed"):
+            if filter_dict.get("hotpatch") == [True] and filter_dict.get("hp_status"):
+                return cve_query.filter(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]))
+            elif len(filter_dict.get("hotpatch")) != 1 and filter_dict.get("hp_status"):
+                return cve_query.filter(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]), 
+                CveHostAssociation.fixed_by_hp == True).union(cve_query.filter(CveHostAssociation.fixed_by_hp == False))
         return cve_query
 
     @staticmethod
