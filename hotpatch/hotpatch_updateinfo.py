@@ -5,6 +5,7 @@ from typing import Optional
 import gzip
 import xml.etree.ElementTree as ET
 import datetime
+import re
 
 
 class HotpatchUpdateInfo(object):
@@ -287,7 +288,8 @@ class HotpatchUpdateInfo(object):
 
     def get_hotpatches_from_cve(self, cves: list[str]) -> dict():
         """
-        Get hotpatches from specified cve
+        Get hotpatches from specified cve. If there are several hotpatches for the same source package for a cve, only return the
+        hotpatch with the highest version.
 
         Args: 
             cves: [cve_id_1, cve_id_2]
@@ -303,9 +305,16 @@ class HotpatchUpdateInfo(object):
             mapping_cve_hotpatches[cve_id] = []
             if cve_id not in self.hotpatch_cves:
                 continue
+            # find the hotpatch with the highest version for the same source package
+            mapping_src_pkg_to_hotpatches = dict()
             for hotpatch in self.hotpatch_cves[cve_id].hotpatches:
                 if hotpatch.state == self.INSTALLABLE:
-                    mapping_cve_hotpatches[cve_id].append(hotpatch.nevra)
+                    mapping_src_pkg_to_hotpatches.setdefault(hotpatch.src_pkg, []).append([hotpatch.hotpatch_name, hotpatch])
+            for src_pkg, hotpatches in mapping_src_pkg_to_hotpatches.items():
+                # extract the number in HPxxx and sort hotpatches in descending order according to the number
+                hotpatches = sorted(hotpatches, key=lambda x: int(re.findall("\d+", x[0])[0]), reverse=True)
+                mapping_cve_hotpatches[cve_id].append(hotpatches[0][1].nevra)
+                
         return mapping_cve_hotpatches
 
     def get_hotpatches_from_advisories(self, advisories: list[str]) -> dict():
