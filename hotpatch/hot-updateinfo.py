@@ -80,9 +80,12 @@ class HotUpdateinfoCommand(dnf.cli.Command):
 
     def _filter_and_format_list_output(self, echo_lines: list, fixed_cve_id: set):
         """
-        Only show specified cve information that have not been fixed, and format output
-        """
+        Only show specified cve information that have not been fixed, and format the display lines
 
+        Returns:
+            idw, tiw, ciw, format_lines
+        """
+        # calculate the width of each column
         idw = tiw = ciw = 0
         format_lines = set()
         for echo_line in echo_lines:
@@ -99,11 +102,13 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             tiw = max(tiw, len(adv_type))
             ciw = max(ciw, len(coldpatch))
             format_lines.add((cve_id, adv_type, coldpatch, hotpatch))
-        for format_line in sorted(format_lines, key=lambda x: (x[2], x[3])):
-            print('%-*s %-*s %-*s %s' %
-                  (idw, format_line[0], tiw, format_line[1], ciw, format_line[2], format_line[3]))
+        
+        # sort format_lines according to the coldpatch and the hotpatch name
+        format_lines = sorted(format_lines, key=lambda x: (x[2], x[3]))
 
-    def display(self):
+        return idw, tiw, ciw, format_lines
+
+    def get_formatting_parameters_and_display_lines(self):
         """
         Append hotpatch information according to the output of 'dnf updateinfo list cves'
 
@@ -111,6 +116,9 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             [
                 [cve_id, adv_type, coldpatch, hotpatch]
             ]
+
+        Returns: 
+            idw, tiw, ciw, display_lines
         """
 
         def type2label(updateinfo, typ, sev):
@@ -159,6 +167,16 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                     echo_line = [cve_id, hotpatch.advisory.severity + '/Sec.', '-', hotpatch.nevra]
                 echo_lines.append(echo_line)
 
-        self._filter_and_format_list_output(
+        idw, tiw, ciw, display_lines = self._filter_and_format_list_output(
             echo_lines, fixed_cve_id)
+        
+        return idw, tiw, ciw, display_lines
 
+    def display(self):
+        """
+        Print the display lines according to the formatting parameters.
+        """
+        idw, tiw, ciw, display_lines = self.get_formatting_parameters_and_display_lines()
+        for display_line in display_lines:
+            print('%-*s %-*s %-*s %s' %
+                  (idw, display_line[0], tiw, display_line[1], ciw, display_line[2], display_line[3]))
