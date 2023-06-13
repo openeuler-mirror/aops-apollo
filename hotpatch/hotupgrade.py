@@ -20,8 +20,9 @@ from dnf.cli.option_parser import OptionParser
 from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
-from .syscare import Syscare, cmd_output, SUCCEED
+from .syscare import Syscare
 from .hotpatch_updateinfo import HotpatchUpdateInfo
+from .hot_updateinfo import HotUpdateinfoCommand
 
 EMPTY_TAG = "-"
 
@@ -270,8 +271,7 @@ class HotupgradeCommand(dnf.cli.Command):
             hp_list += hp
         return list(set(hp_list))
 
-    @staticmethod
-    def get_hot_updateinfo_list():
+    def get_hot_updateinfo_list(self):
         """
         Find all hotpatches and upgrade all
         use  command : dnf hot-updateinfo list cves
@@ -281,23 +281,19 @@ class HotupgradeCommand(dnf.cli.Command):
         CVE-2023-1112  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
         CVE-2023-1111  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
 
-        return:list
-        [["CVE-2023-3332","Low/Sec.", "-" ,"-"]]
+        return:list e.g.
+        ['patch-redis-6.2.5-1-HP002-1-1.x86_64', '-', '-']
 
         """
-        cmd = ["dnf", "hot-updateinfo", "list", "cves"]
-
-        output, return_code = cmd_output(cmd)
-        if return_code != SUCCEED:
-            return []
-
-        content = output.split('\n')
-        if len(content) <= 2:
-            return []
-        result = []
-        for item in content[1:-1]:
-            tmp = item.split()
-            result.append(tmp)
+        self.hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
+        hot_updateinfo = HotUpdateinfoCommand(self.cli)
+        hot_updateinfo.opts = self.opts
+        hot_updateinfo.hp_hawkey = self.hp_hawkey
+        hot_updateinfo.filter_cves = None
+        all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
+        result = list()
+        for display_line in all_cves.display_lines:
+            result.append(display_line[3])
         return result
 
     def upgrade_all(self):
@@ -310,8 +306,8 @@ class HotupgradeCommand(dnf.cli.Command):
             ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
         """
         hotpatchs_info = self.get_hot_updateinfo_list()
-        hp_list = []
+        hp_list = list()
         for item in hotpatchs_info:
-            if item[-1] != EMPTY_TAG:
-                hp_list.append(item[-1])
+            if item != EMPTY_TAG:
+                hp_list.append(item)
         return list(set(hp_list))
