@@ -5,6 +5,7 @@ import hawkey
 from .hotpatch_updateinfo import HotpatchUpdateInfo
 from dataclasses import dataclass
 
+
 @dataclass
 class DisplayItem:
     """
@@ -21,6 +22,7 @@ class DisplayItem:
     tiw: int
     ciw: int
     display_lines: list
+
 
 @dnf.plugin.register_command
 class HotUpdateinfoCommand(dnf.cli.Command):
@@ -39,7 +41,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         spec_action_cmds = ['list']
         parser.add_argument('spec_action', nargs=1, choices=spec_action_cmds,
                             help=_('show updateinfo list'))
-        
+
         with_cve_cmds = ['cve', 'cves']
         parser.add_argument('with_cve', nargs=1, choices=with_cve_cmds,
                             help=_('show cves'))
@@ -120,13 +122,13 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             tiw = max(tiw, len(adv_type))
             ciw = max(ciw, len(coldpatch))
             format_lines.add((cve_id, adv_type, coldpatch, hotpatch))
-        
+
         # sort format_lines according to the coldpatch and the hotpatch name
         format_lines = sorted(format_lines, key=lambda x: (x[2], x[3]))
-        
-        display_item = DisplayItem(idw=idw, 
-                                   tiw=tiw, 
-                                   ciw=ciw, 
+
+        display_item = DisplayItem(idw=idw,
+                                   tiw=tiw,
+                                   ciw=ciw,
                                    display_lines=format_lines)
 
         return display_item
@@ -158,12 +160,12 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             pkg_name, pkg_evr, pkg_arch = nevra
             for cve_id, atypesev in id2type.items():
                 iterated_cve_id.add(cve_id)
-                label = type2label(self.updateinfo, *atypesev) 
+                label = type2label(self.updateinfo, *atypesev)
                 if cve_id not in self.hp_hawkey.hotpatch_cves or not self.hp_hawkey.hotpatch_cves[cve_id].hotpatches:
                     echo_line = [cve_id, label, nevra, '-']
                     echo_lines.append(echo_line)
                     continue
-                
+
                 for hotpatch in self.hp_hawkey.hotpatch_cves[cve_id].hotpatches:
                     echo_line = [cve_id, label, nevra, '-']
                     echo_lines.append(echo_line)
@@ -177,7 +179,6 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                     elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
                         echo_lines[-1][3] = hotpatch.nevra
 
-        
         hp_cve_list = list(set(self.hp_hawkey.hotpatch_cves.keys()).difference(iterated_cve_id))
         for cve_id in hp_cve_list:
             for hotpatch in self.hp_hawkey.hotpatch_cves[cve_id].hotpatches:
@@ -192,7 +193,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
 
         display_item = self._filter_and_format_list_output(
             echo_lines, fixed_cve_id)
-        
+
         return display_item
 
     def display(self):

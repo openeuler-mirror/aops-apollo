@@ -285,10 +285,10 @@ class HotupgradeCommand(dnf.cli.Command):
         ['patch-redis-6.2.5-1-HP002-1-1.x86_64', '-', '-']
 
         """
-        self.hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
+        hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
         hot_updateinfo = HotUpdateinfoCommand(self.cli)
         hot_updateinfo.opts = self.opts
-        hot_updateinfo.hp_hawkey = self.hp_hawkey
+        hot_updateinfo.hp_hawkey = hp_hawkey
         hot_updateinfo.filter_cves = None
         all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
         result = list()
