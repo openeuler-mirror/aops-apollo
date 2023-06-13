@@ -3,6 +3,24 @@ from dnf.i18n import _
 from dnf.cli.commands.updateinfo import UpdateInfoCommand
 import hawkey
 from .hotpatch_updateinfo import HotpatchUpdateInfo
+from dataclasses import dataclass
+
+@dataclass
+class DisplayItem:
+    """
+    Class for storing the formatting parameters and display lines.
+    
+    idw: the width of 'cve_id'
+    tiw: the width of 'adv_type'
+    ciw: the width of 'coldpatch'
+    display_lines: [
+            [cve_id, adv_type, coldpatch, hotpatch],
+        ]
+    """
+    idw: int
+    tiw: int
+    ciw: int
+    display_lines: list
 
 @dnf.plugin.register_command
 class HotUpdateinfoCommand(dnf.cli.Command):
@@ -80,9 +98,12 @@ class HotUpdateinfoCommand(dnf.cli.Command):
 
     def _filter_and_format_list_output(self, echo_lines: list, fixed_cve_id: set):
         """
-        Only show specified cve information that have not been fixed, and format output
-        """
+        Only show specified cve information that have not been fixed, and format the display lines
 
+        Returns:
+            DisplayItem
+        """
+        # calculate the width of each column
         idw = tiw = ciw = 0
         format_lines = set()
         for echo_line in echo_lines:
@@ -99,11 +120,18 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             tiw = max(tiw, len(adv_type))
             ciw = max(ciw, len(coldpatch))
             format_lines.add((cve_id, adv_type, coldpatch, hotpatch))
-        for format_line in sorted(format_lines, key=lambda x: (x[2], x[3])):
-            print('%-*s %-*s %-*s %s' %
-                  (idw, format_line[0], tiw, format_line[1], ciw, format_line[2], format_line[3]))
+        
+        # sort format_lines according to the coldpatch and the hotpatch name
+        format_lines = sorted(format_lines, key=lambda x: (x[2], x[3]))
+        
+        display_item = DisplayItem(idw=idw, 
+                                   tiw=tiw, 
+                                   ciw=ciw, 
+                                   display_lines=format_lines)
 
-    def display(self):
+        return display_item
+
+    def get_formatting_parameters_and_display_lines(self):
         """
         Append hotpatch information according to the output of 'dnf updateinfo list cves'
 
@@ -111,6 +139,9 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             [
                 [cve_id, adv_type, coldpatch, hotpatch]
             ]
+
+        Returns: 
+            DisplayItem
         """
 
         def type2label(updateinfo, typ, sev):
@@ -159,6 +190,17 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                     echo_line = [cve_id, hotpatch.advisory.severity + '/Sec.', '-', hotpatch.nevra]
                 echo_lines.append(echo_line)
 
-        self._filter_and_format_list_output(
+        display_item = self._filter_and_format_list_output(
             echo_lines, fixed_cve_id)
+        
+        return display_item
 
+    def display(self):
+        """
+        Print the display lines according to the formatting parameters.
+        """
+        display_item = self.get_formatting_parameters_and_display_lines()
+        idw, tiw, ciw, display_lines = display_item.idw, display_item.tiw, display_item.ciw, display_item.display_lines
+        for display_line in display_lines:
+            print('%-*s %-*s %-*s %s' %
+                  (idw, display_line[0], tiw, display_line[1], ciw, display_line[2], display_line[3]))
