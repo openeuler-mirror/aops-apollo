@@ -310,4 +310,18 @@ class HotupgradeCommand(dnf.cli.Command):
         for item in hotpatchs_info:
             if item != EMPTY_TAG:
                 hp_list.append(item)
-        return list(set(hp_list))
+        if len(hp_list) == 0 or len(hp_list) == 1:
+            return hp_list
+
+        hp_list.sort(reverse=True)
+        res_hp_list = list()
+        res_hp_list.append(hp_list[0])
+        pkg_name = hp_list[0].split("-")[1]
+        for hp in hp_list[1:]:
+            pkg_name_tmp = hp.split("-")[1]
+            if pkg_name_tmp == pkg_name:
+                continue
+            else:
+                res_hp_list.append(hp)
+                pkg_name = hp.split("-")[1]
+        return res_hp_list
