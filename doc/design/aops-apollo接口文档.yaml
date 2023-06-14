@@ -1768,6 +1768,12 @@ definitions:
               type: boolean
           fixed:
             type: boolean
+            description: CVE在具体主机的修复状态,默认为False
+          hp_status:
+            type: array
+            items:
+              type: string
+              description: 已修复主机的热补丁状态，可选ACTIVED, ACCEPTED, 仅用于fixed为True的筛选
         required:
           - affected
     type: object
@@ -2047,6 +2053,12 @@ definitions:
               type: string
           fixed:
             type: boolean
+            description: CVE在具体主机的修复状态,默认为False
+          hp_status:
+            type: array
+            items:
+              type: string
+              description: 已修复主机的热补丁状态，可选ACTIVED, ACCEPTED, 仅用于fixed为True的筛选
           repo:
             type: array
             items:
