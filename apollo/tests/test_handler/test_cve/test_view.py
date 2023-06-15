@@ -19,27 +19,33 @@ import shutil
 import unittest
 from unittest import mock
 
-from flask import Flask, Blueprint
+import sqlalchemy
+from flask import (
+    Flask,
+    Blueprint
+)
 from flask_restful import Api
+from vulcanus.database.proxy import MysqlProxy
 
 from apollo.conf.constant import *
-from apollo.database.proxy.cve import CveProxy
+from apollo.database.proxy.cve import (
+    CveProxy,
+    CveMysqlProxy
+)
 from apollo.url import SPECIFIC_URLS
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, PARAM_ERROR, SUCCEED, WRONG_FILE_FORMAT, SERVER_ERROR, \
-    DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import (
+    DATABASE_CONNECT_ERROR,
+    PARAM_ERROR,
+    SUCCEED,
+    WRONG_FILE_FORMAT,
+    SERVER_ERROR,
+    DATABASE_QUERY_ERROR,
+    DATABASE_UPDATE_ERROR
+)
+from apollo.tests import BaseTestCase
 
-API = Api()
-for view, url in SPECIFIC_URLS['CVE_URLS']:
-    API.add_resource(view, url)
-
-APOLLO = Blueprint('apollo', __name__)
-app = Flask("apollo")
-API.init_app(APOLLO)
-app.register_blueprint(APOLLO)
-
-app.testing = True
-client = app.test_client()
+client = BaseTestCase.create_app()
 header = {
     "Content-Type": "application/json; charset=UTF-8"
 }
@@ -118,12 +124,15 @@ class VulGetCveInfoTestCase(unittest.TestCase):
         self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
 
-class VulGetCveHostsTestCase(unittest.TestCase):
+class VulGetCveHostsTestCase(BaseTestCase):
+
+    def setUp(self) -> None:
+        self.mock_args = {"cve_id": "mock_cve_id"}
+
     def test_vulgetcvehosts_should_return_error_when_request_method_is_wrong(self):
         args = {}
-        response = client.get(VUL_CVE_HOST_GET, json=args).json
-        self.assertEqual(
-            response.get("data", dict())['message'], 'The method is not allowed for the requested URL.')
+        response = client.get(VUL_CVE_HOST_GET, json=args)
+        self.assertEqual(405, response.status_code)
 
     def test_vulgetcvehosts_should_return_param_error_when_input_wrong_param(self):
         args = {
@@ -135,16 +144,54 @@ class VulGetCveHostsTestCase(unittest.TestCase):
             headers=header_with_token).json
         self.assertEqual(response['label'], PARAM_ERROR)
 
+    @mock.patch.object(MysqlProxy, '_create_session')
     @mock.patch.object(BaseResponse, 'verify_request')
-    def test_vulgetcvehosts_should_return_connect_error_when_database_query_error(self,
-                                                                                  mock_verify_request):
+    def test_vulgetcvehosts_should_return_connect_error_when_database_connect_failed(
+            self, mock_verify_request, mock_connect):
         args = {"cve_id": "1234", "username": "admin"}
         mock_verify_request.return_value = args, SUCCEED
+        mock_connect.side_effect = sqlalchemy.exc.SQLAlchemyError("Connection error")
         response = client.post(
             VUL_CVE_HOST_GET,
             json=args,
             headers=header_with_token).json
-        self.assertEqual(response['label'], DATABASE_QUERY_ERROR)
+        self.assertEqual(DATABASE_CONNECT_ERROR, response['label'])
+
+    @mock.patch.object(CveMysqlProxy, 'get_cve_host')
+    @mock.patch.object(MysqlProxy, '_create_session')
+    @mock.patch.object(BaseResponse, 'verify_token')
+    def test_vulgetcvehosts_should_return_database_query_error_when_query_cve_host_failed(
+            self, mock_token, mock_connect, mock_query_cve_host):
+        mock_token.return_value = SUCCEED
+        mock_connect.return_value = None
+        mock_query_cve_host.return_value = DATABASE_QUERY_ERROR, {}
+        response = client.post(VUL_CVE_HOST_GET, json=self.mock_args, headers=header_with_token)
+        self.assertEqual(DATABASE_QUERY_ERROR, response.json.get("label"))
+
+    @mock.patch.object(CveMysqlProxy, 'get_cve_host')
+    @mock.patch.object(MysqlProxy, '_create_session')
+    @mock.patch.object(BaseResponse, 'verify_token')
+    def test_vulgetcvehosts_should_return_host_info_about_cve_when_query_cve_host_succeed(
+            self, mock_token, mock_connect, mock_query_cve_host):
+        mock_token.return_value = SUCCEED
+        mock_connect.return_value = None
+        mock_query_cve_host.return_value = SUCCEED, {
+            "total_count": 1,
+            "total_page": 1,
+            "result": [
+                {
+                    "host_id": 1,
+                    "host_name": "name1",
+                    "host_ip": "1.1.1.1",
+                    "host_group": "group1",
+                    "repo": "20.03-update",
+                    "last_scan": 11,
+                    "hotpatch": True
+                }
+            ]
+        }
+        response = client.post(VUL_CVE_HOST_GET, json=self.mock_args, headers=header_with_token)
+        self.assertEqual(SUCCEED, response.json.get("label"))
 
 
 class VulGetCveTaskHostTestCase(unittest.TestCase):

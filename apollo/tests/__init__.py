@@ -10,3 +10,21 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
+from unittest import TestCase
+
+import apollo
+from flask import Flask
+
+
+class BaseTestCase(TestCase):
+
+    @staticmethod
+    def create_app():
+        app = Flask("test")
+
+        for blue, api in apollo.BLUE_POINT:
+            api.init_app(app)
+            app.register_blueprint(blue)
+
+        app.testing = True
+        return app.test_client()
