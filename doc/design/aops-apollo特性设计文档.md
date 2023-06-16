@@ -1,3 +1,5 @@
+
+
 # 1、特性描述
 
 操作系统作作为所有软件的基座，代码量巨大，社区会及时修复每一个发现的安全漏洞和缺陷，如果不及时修复这些问题，可能会带来系统安全隐患和宕机的风险。当前社区存在如下问题：  
@@ -1016,11 +1018,13 @@ patch-kernel-5.10.0-60.66.0.91.oe2203-HP001-1-1.x86_64.rpm
 
 #### 3.5.3.1、全局扫描流程图
 
-![热补丁扫描（全局）](./pic/热补丁扫描（全局）.png)
+<img src="./pic/热补丁巡检.png" alt="热补丁全局扫描" style="zoom:30%;" />
 
-#### 3.5.3.2、单包扫描流程图
+#### 3.5.3.2、热补丁状态初始化
 
-![热补丁扫描（单包）](./pic/热补丁扫描（单包）.png)
+<img src="./pic/热补丁初始化.png" alt="热补丁状态初始化" style="zoom:30%;" />
+
+
 
 #### 3.5.3.3、伪代码
 
@@ -1080,7 +1084,7 @@ CVE-3:
 installed package: A-1.0
 actived hotpatch:
 
-# dnf hotpatch list
+# dnf hot-updateinfo list cves
 # 扫描得到3个cve
 CVE-1  xxx  A-hotpatch-1.0-HP001
 CVE-2  xxx  A-hotpatch-1.0-HP002
@@ -1093,7 +1097,7 @@ CVE-3  XXX  -
 installed package: A-1.0
 actived hotpatch: A-hotpatch-1.0-HP001
 
-# dnf hotpatch list
+# dnf hot-updateinfo list cves
 //hufeng:热补丁巡检，命令字list是否合适，待讨论
 # 扫描得到2个cve，CVE-1因为已被热修复故不做展示
 CVE-2  xxx  A-hotpatch-1.0-HP002
@@ -1106,7 +1110,7 @@ CVE-3  xxx  -
 installed package: A-1.0
 actived hotpatch: A-hotpatch-1.0-HP002
 
-# dnf hotpatch list
+# dnf hot-updateinfo list cves
 # 扫描得到1个cve
 CVE-3  xxx  -
 ```
@@ -1117,7 +1121,7 @@ CVE-3  xxx  -
 installed package: A-1.1
 actived hotpatch: 
 
-# dnf hotpatch list
+# dnf hot-updateinfo list cves
 # 扫描得到2个cve
 CVE-2  xxx  A-hotpatch-1.1-HP001
 CVE-3  xxx  A-hotpatch-1.1-HP002
@@ -1129,7 +1133,7 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 installed package: A-1.1
 actived hotpatch: A-hotpatch-1.1-HP001
 
-# dnf hotpatch list
+# dnf hot-updateinfo list cves
 # 扫描得到1个cve
 CVE-3  xxx  A-hotpatch-1.1-HP002
 ```
@@ -1152,19 +1156,358 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 
 实现思路为dnf插件封装syscare 相关命令，并通过对热补丁updateinfo.xml的解析，将cve信息与热补丁进行关联展示。
 
+- 热补丁状态查询
+
+<img src="./pic/热补丁状态查询.png" alt="热补丁状态查询" style="zoom:33%;" />
+
 具体命令参考：[热补丁状态管理](#5.2.3、热补丁状态管理)
 
 ## 3.6、updateinfo制作工具
 
-待补充--王光格
-
 - 创建热补丁updateinfo.xml
 - 支持指定缺陷类型/ID/描述/严重等级/缺陷id等
-- 支持updateinfo与正式补丁包的正确性检测
+- 支持updateinfo与正式补丁包的正确性检测（待实现）
+
+实现思路：
+
+
+
+<img src="./pic/updateinfo_gen_tool.png" alt="updateinfo文件生成流程" style="zoom:30%;" />
+
+
+
+
 
 ## 3.7、热补丁工具
 
 由[syscare项目](https://gitee.com/src-openeuler/syscare)实现。
+
+
+
+## 3.8、CICD热补丁流水线
+
+CICD热补丁流水线流程：
+
+![CICD门禁流程图](./pic/CICD门禁流程图.png)
+
+### 3.8.1、热补丁制作
+
+#### 3.8.1.1、源码门禁工程
+
+##### 3.8.1.1.1、创建门禁工程
+
+> 在支持热补丁制作的代码仓下单独创建工程，用来在pr下触发工程。
+
+src-openEuler/openEuler下的pr由用户评论makehotpatch后，触发热补丁制作以及热补丁issue生成，将生成的issue链接以及ci运行提示和结果评论在该pr下方。
+
+```shell
+/makerhotpatch <软件版本> <补丁名> <补丁type> <cve_issue id> <os_branch>
+```
+
+##### 3.8.1.1.2、门禁工程流程
+
+**创建issue**
+
+- 创建特定格式的热补丁issue，热补丁issue提在hotpatch_metadata仓库
+
+  标题：[HOTPATCH]/[软件-版本号]fix  issue_id
+
+  类型选择：hotpatch
+
+  描述：  	
+
+  ```
+  问题类别：cve/bugfix （从cve issue中获取）
+  热补丁元数据：https://gitee.com/wanghuan158/hot-patch_metadata/blob/master/openEuler-22.03-LTS-SP1/openssl/1.1.1m-20/hotmetadata.xml
+  
+  热补丁路径：需要在热补丁制作成功后回填
+  ```
+
+- 创建完成后在源码仓pr中返回issue链接
+
+**submit metadata**
+
+- 获取包链接：根据<软件版本>从release目录中获取对应的源码包和debuginfo链接，在HotPatch_metadata仓库中创建或更新对应的元数据，debuginfo区分架构
+
+- 生成hotmetadata.xml：
+
+  git clone HotPatch_metadata仓库，根据软件包、版本信息查找是否有hotmetadata.xml
+
+  无hotmetadata.xml：创建hotmetadata.xml
+
+  有hotmetadata.xml：拿到最新的版本号，添加hotpatch，version+1，获取上次生成的src包
+
+- 获取patch包：根据本次pr提交信息拿到patch文件
+
+- 提交pr：提交pr (patch文件、hotmetadata.xml) 到HotPatch_metadata仓库
+
+- 结果返回：源码仓pr中返回HotPatch_metadata仓库pr链接
+
+元数据格式：
+
+```xml
+<?xml version="1.0" ?>
+<ns0:hotpatchdoc xmlns:ns0="https://gitee.com/openeuler/HotPatch_metadata">
+	<DocumentTitle xml:lang="en">Managing Hot Patch Metadata</DocumentTitle>
+	<HotPatchList>
+		<Package name="openssl-1.1.1m-20">
+			<hotpatch version="1" type="cve">
+				<SRC_RPM>download_link</SRC_RPM>
+				<Debug_RPM_X86_64>download_link</Debug_RPM_X86_64>
+				<Debug_RPM_Aarch64>download_link</Debug_RPM_Aarch64>
+				<patch>0001-PEM-read-bio-ret-failure.patch</patch>
+				<issue id="CVE-2023-33203" hotpatch_issue_href="https://gitee.com/src-openeuler/kernel/issues/I75ZRL"/>
+				<hotpatch_issue_link>https://gitee.com/wanghuan158/hot-patch_metadata/issues/I7AE5F</hotpatch_issue_link>
+			</hotpatch>
+			<hotpatch version="2" type="cve">
+				<SRC_RPM>download_link</SRC_RPM>
+				<Debug_RPM_X86_64> download_link</Debug_RPM_X86_64>
+				<Debug_RPM_Aarch64>download_link</Debug_RPM_Aarch64>
+				<patch>0001-PEM-read-bio-ret-failure.patch</patch>
+				<issue id="CVE-2023-33203" hotpatch_issue_href="https://gitee.com/src-openeuler/kernel/issues/I75ZRL"/>
+				<hotpatch_issue_link>https://gitee.com/wanghuan158/hot-patch_metadata/issues/I7AE5P</hotpatch_issue_link>
+			</hotpatch>
+		</Package>
+	</HotPatchList>
+</ns0:hotpatchdoc>
+```
+
+> 注意：download_link均为repo仓正式的归档链接
+>
+> 热补丁当前只考虑演进，version 2 基于version 1的src继续构建
+
+HotPatch_Metadata仓库目录格式：
+
+```
+HotPatch_Metadata
+|22.03-LTS
+|_kernel
+|  |_4.19
+|    |_hotmetadata.xml
+|    |_patch1
+|    |_patch2
+|    |_patch3
+|  |_5.10
+|    |_hotmetadata.xml
+|    |_patch1
+|    |_patch2
+|    |_patch3
+|22.03-LTS-sp1
+|_openssl
+```
+
+#### 3.8.1.2、热补丁制作工程
+
+> 创建工程，用来在HotPatch_metadata仓库pr下触发制作热补丁工程
+>
+> 触发条件：提交pr、评论 /retest
+>
+
+##### 3.8.1.2.1、下载包
+
+- 通过pr下载需要制作热补丁的src包、debuginfo包、patch包
+- 通过hotmetadata.xml拿到本次编译的热补丁版本号
+
+##### 3.8.1.2.2、解析获取依赖包
+
+- 通过解压src.rpm包获取spec文件，解析获取依赖包
+
+##### 3.8.1.2.3、syscare build编译
+
+> syscare build不支持docker，只支持物理机/虚拟机
+>
+> 环境要求：配置repo源、环境隔离、环境复用
+
+- 编译环境
+
+只配置一个虚拟机，设置多个chroot（4个），从工程层面判断软件包使用哪个chroot，有4个chroot占满其它任务排队等待；
+
+环境复用，同一个pr使用同一个chroot环境，根据issue判断，需要提供打包环境功能
+
+- 编译命令：
+
+
+门禁环境kjob为8，设置4个changeroot，入参--kjob 2
+
+```shell
+syscare build --patch-name {补丁包路径} --source {src包路径} --debuginfo {debuginfo包路径} --output hotpatch {patch文件}
+```
+
+- 返回编译结果至pr中
+
+##### 3.8.1.2.4、创建热补丁信息文件
+
+- 热补丁制作成功后，调用updateinfo文件生成工具，生成hotpatch.xml文件，用于展示热补丁信息
+
+>  x86、aarch64、source包都需要生成hotpatch.xml文件，统一归档sysacre build编译后x86架构生成的source包
+
+调用说明：
+
+```shell
+gen_updateinfo "security" 【门禁这边根据reference-type生成，{cve:security, bugfix:bugfix, feature:enhancement}】\
+			   "fix 0001-PEM-read-bio-ret-failure.patch" 【热补丁issue的标题】\
+			   CVE-2021-32675 【如果reference-type为cve，就是CVE-XXX-XXX的格式；要不直接用issue-id】\
+			   --reference-type cve 【reference-type】\
+			   --reference-id CVE-2021-32675 【如果reference-type为cve，就是CVE-XXX-XXX的格式；要不直接用issue-id】\
+			   --reference-href "https://gitee.com/src-openeuler/kernel/issues/I75ZRL?from=project-issue" 【issue-id所对应的issue链接】\
+			   --issued-date 2023-01-01 【热补丁Issue的创建时间】\
+			   --package-dir ./hotpatch_pkg 【门禁生成的热补丁的目录】\
+			   --output-path ./hotpatch.xml 【hotpatch.xml的生成路径】
+						  
+```
+
+##### 3.8.1.2.5、热补丁相关文件归档
+
+- 拷贝热补丁包、source、updateinfo.xml到文件服务器
+
+
+- 热补丁结果拷贝到远程文件服务器
+
+
+CI 文件服务器目录结构
+
+```
+| hotpatch
+   |hot-patch_metadata
+	 |pr_id
+		|x86_64
+			|Packages
+				|patch-kernel-4.19-1-HP001-1-1.x86_64.rpm
+			|hotpatch_xml
+				|patch-kernel-4.19-1-HP001-1-1.x86_64.xml
+		|aarch64
+			|Packages
+				|patch-kernel-4.19-1-HP001-1-1.x86_64.rpm
+			|hotpatch_xml
+				|patch-kernel-4.19-1-HP001-1-1.x86_64.xml
+		|source
+			|Packages
+				|kernel-4.19-1-HP001-1-1.src.rpm
+			|hotpatch_xml
+				|kernel-4.19-1-HP001-1-1.src.xml
+```
+
+#### 3.8.1.3、手动触发热补丁制作
+
+- 开发者阅读readme根据热补丁issue模版创建热补丁
+- fork HotPatch_Metadata仓库，在对应的软件包和版本的文件夹下修改/新增patch、创建或更新对应的元数据，提交pr
+- CICD重新触发制作热补丁
+
+### 3.8.2、热补丁审阅
+
+**同意pr合入**
+
+> 触发热补丁相关文件归档、热补丁Issue信息回填
+
+- 根据pr变更内容拿到本次pr的软件包、版本、热补丁名称等信息
+- 删除提pr生成的临时分支
+- 从远程服务器对应目录拷贝热补丁包、updateinfo.xml到门禁环境
+- 拷贝热补丁包、updateinfo.xml到dailybuild服务器
+- 远程登录dailybuild机器，执行命令：
+
+```shell
+createrepo --update -d ${pkg_path}/$arch
+```
+
+```
+热补丁地址：http://121.36.84.172/hotpatch/{branch}/{arch}/Packages
+```
+
+- 热补丁路径、updateinfo.xml路径回填到issue中
+
+dailybuild目录结构：
+
+```
+| 22.03-LTS-SP1
+	|x86_64
+		|packages
+			|patch-kernel-4.19-1-HP001-1-1.x86_64.rpm
+			|patch-kernel-4.19-1-HP002-1-1.x86_64.rpm
+			|patch-redis-4.19-1-HP002-1-1.x86_64.rpm
+		|repodata
+			xxx
+		|hotpatch_xml
+			|patch-kernel-4.19-1-HP001-1-1.x86_64.xml
+			|patch-kernel-4.19-1-HP002-1-1.x86_64.xml
+			|patch-redis-4.19-1-HP002-1-1.x86_64.xml
+	|source
+		|packages
+			|kernel-4.19-1-HP001-1-1.src.rpm
+			|kernel-4.19-1-HP002-1-1.src.rpm
+			|redis-4.19-1-HP002-1-1.src.rpm
+		|repodata
+			xxx
+		|hotpatch_xml
+			|patch-kernel-4.19-1-HP001-1-1.src.xml
+			|patch-kernel-4.19-1-HP002-1-1.src.xml
+			|patch-redis-4.19-1-HP002-1-1.src.xml
+```
+
+### 3.8.3、热补丁发布
+
+#### 3.8.3.1、release-management仓收集issue
+
+- 每周三触发start-update命令，补丁issue在指定的仓库以hotpatch标签查找，默认查找已经关闭的补丁issue
+
+#### 3.8.3.2、生成安全公告热补丁信息
+
+- 在生成安全公告的同时生成hotpatch字段补丁，过滤已经发布的漏洞
+- 在安全公告文件新增HotPatchTree字段，记录和公告相关漏洞的热补丁，每个补丁按架构和CVE字段区分（Type=ProductName 记录分支，Type=ProductArch 记录补丁具体的rpm包）
+
+#### 3.8.3.3、Majun平台上传文件到openEuler官网，同步生成updateinfo.xml文件
+
+- 根据热补丁issue增量生成updateinfo.xml文件
+
+updateinfo.xml文件格式：
+
+```xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <updates>
+            <update from="openeuler.org" type="security" status="stable">
+                <id>openEuler-SA-2022-1</id>
+                <title>An update for mariadb is now available for openEuler-22.03-LTS</title>
+                <severity>Important</severity>
+                <release>openEuler</release>
+                <issued date="2022-04-16"></issued>
+                <references>
+                    <reference href="https://nvd.nist.gov/vuln/detail/CVE-2021-1111" id="CVE-2021-1111" title="CVE-2021-1111" type="cve"></reference>
+                    <reference href="https://nvd.nist.gov/vuln/detail/CVE-2021-1112" id="CVE-2021-1112" title="CVE-2021-1112" type="cve"></reference>
+                </references>
+                <description>patch-redis-6.2.5-1-HP001.(CVE-2022-24048)</description>
+                <pkglist>
+                <hot_patch_collection>
+                    <name>openEuler</name>
+                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP001" release="1" version="1" id="CVE-2021-1111" >
+                        <filename>patch-redis-6.2.5-1-HP001-1-1.aarch64.rpm</filename>
+                    </package>
+                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP001" release="1" version="1" id="CVE-2021-1111">
+                        <filename>patch-redis-6.2.5-1-HP001-1-1.x86_64.rpm</filename>
+                    </package>
+                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP002" release="1" version="1" id="CVE-2021-1111,CVE-2021-1112">
+                        <filename>patch-redis-6.2.5-1-HP002-1-1.aarch64.rpm</filename>
+                    </package>
+                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP002" release="1" version="1" id="CVE-2021-1111,CVE-2021-1112">
+                        <filename>patch-redis-6.2.5-1-HP002-1-1.x86_64.rpm</filename>
+                    </package>
+                </hot_patch_collection>
+                </pkglist>
+            </update>
+            ...
+        </updates>
+```
+
+- openEuler官网展示热补丁信息
+
+- 新增子标签页“更新的热补丁”，子标签页体现CVE和热补丁
+
+子标签页结构：
+
+![子标签页内容](./pic/子标签内容.png)
+
+#### 3.8.3.4、热补丁文件同步至repo源下update_hotpatch目录
+
+- 拉取dailybuild相关热补丁文件
+- obs上拉取updateinfo文件
 
 # 4、质量属性设计
 
@@ -1231,7 +1574,7 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 ### 5.2.1、热补丁扫描
 
 ```shell
-dnf hotinfo [--summary | --list | --info] [--cve [cve_id]]
+dnf hot-updateinfo [--summary | --list | --info] [--cve [cve_id]]
 
 General DNF options:
   -q, --quiet           quiet operation
@@ -1247,10 +1590,10 @@ command-specific options:
   --info       show info of advisories
 ```
 
-- `--summary`
+- `--summary`       (待实现)
 
   ```shell
-  [root@localhost dnf]# dnf hotinfo --summary
+  [root@localhost dnf]# dnf hot-updateinfo --summary
   Hotpatch Information Summary: installed
       145 Security notice(s)
            22 Critical Security notice(s)
@@ -1262,7 +1605,7 @@ command-specific options:
 - `--list`
 
     ```shell
-    [root@localhost dnf]# dnf hotinfo --list
+    [root@localhost dnf]# dnf hot-updateinfo --list
     # cve-id   level    cold-patch   hot-patch
     CVE-2022-3080  Important/Sec.  bind-libs-9.16.23-10.oe2203.aarch64   patch-bind-libs-9.16.23-09-name-1-111
     CVE-2021-25220 Moderate/Sec.   bind-9.16.23-10.oe2203.aarch64        -
@@ -1270,10 +1613,10 @@ command-specific options:
     CVE-2022-1725  Low/Sec.        vim-minimal-8.2-58.oe2203.aarch64     patch-vim-minimal-8.2-57-name-2-11
     ```
     
-- `--info`
+- `--info`    (待实现)
 
     ```shell
-    [root@localhost dnf]# dnf hotinfo --info
+    [root@localhost dnf]# dnf hot-updateinfo --info
     # 展示全量公告信息
     ===============================================================================
       An update for vim is now available for openEuler-22.03-LTS
@@ -1301,7 +1644,7 @@ command-specific options:
     ===============================================================================
     
     
-    [root@localhost dnf]# dnf hotinfo info --cve CVE-2022-47024
+    [root@localhost dnf]# dnf hot-updateinfo info --cve CVE-2022-47024
     # 只展示指定cve相关的安全公告信息
     ===============================================================================
       An update for vim is now available for openEuler-22.03-LTS
@@ -1390,7 +1733,7 @@ command-specific options:
 - `--list`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch list
+    [root@localhost dnf]# dnf hotpatch --list
     # 列出已安装的热补丁和状态
     base-pkg/hotpatch        status
     A-1.1-1/HP1             ACCEPT
@@ -1398,12 +1741,12 @@ command-specific options:
     C-1.1-1/HP1             ACTIVED
     D-1.1-1/HP1             NOT_APPLIED
     
-    [root@localhost dnf]# dnf hotpatch list --cve CVE-1
+    [root@localhost dnf]# dnf hotpatch --list --cve CVE-1
     # 根据cve id筛选出已安装的热补丁和状态
     base-pkg/hotpatch        status
     A-1.1-1/HP1             ACCEPT
     
-    [root@localhost dnf]# dnf hotpatch list cves
+    [root@localhost dnf]# dnf hotpatch --list cves
     # 列出已安装的热补丁和状态，同时列出其修复的cve。其中一个热补丁可能修复了多个cve
     CVE id   base-pkg/hotpatch        status
     CVE-1    A-1.1-1/HP1             ACCEPT
@@ -1417,7 +1760,7 @@ command-specific options:
 - `--apply`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch apply bind-libs-hotpatch
+    [root@localhost dnf]# dnf hotpatch --apply bind-libs-hotpatch
     # NOT_APPLIED状态下，安装并激活热补丁, 状态变为ACCTIVED
     ```
 
@@ -1425,14 +1768,14 @@ command-specific options:
 - `--active`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch active bind-libs-hotpatch
+    [root@localhost dnf]# dnf hotpatch --active bind-libs-hotpatch
     # DEACCTIVED状态下激活热补丁, 状态变为ACCTIVED
     ```
 
 - `--deactive`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch deactive bind-libs-hotpatch
+    [root@localhost dnf]# dnf hotpatch --deactive bind-libs-hotpatch
     # ACCTIVED/ACCEPT状态下去激活热补丁, 状态变为DEACCTIVED
     ```
 
@@ -1441,7 +1784,7 @@ command-specific options:
     这里需注意dnf hotpatch remove 与 dnf remove的区别
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch remove bind-libs-hotpatch
+    [root@localhost dnf]# dnf hotpatch --remove bind-libs-hotpatch
     # ACTIVED/DEACTIVED/ACCEPT状态下,移除热补丁, 状态变为NOT_APPLIED
     
     [root@localhost dnf]# dnf remove patch-A-1.1-1.x86_64  
@@ -1451,12 +1794,98 @@ command-specific options:
 - `--accept`
 
     ```shell
-    [root@localhost dnf]# dnf hotpatch accept bind-libs-hotpatch
+    [root@localhost dnf]# dnf hotpatch --accept bind-libs-hotpatch
     # ACTIVED状态下接收热补丁。重启后由于syscare服务的设置，ACCEPT状态的热补丁会自动应用且状态为ACCEPT，而ACTIVED的热补丁重启后则会变为NOT_APPLIED
     ```
 
+## 5.3、updateinfo工具接口清单
+
+
+```shell
+[root@openEuler ~]# gen_updateinfo -h
+usage: gen_updateinfo [-h] --reference-type {cve,bugfix,feature} --reference-id REFERENCE_ID [REFERENCE_ID ...]
+                      [--description DESCRIPTION] [--severity {Critical,Important,Moderate,Low}]
+                      [--reference-href REFERENCE_HREF [REFERENCE_HREF ...]] [--update-status UPDATE_STATUS]
+                      [--issued-date ISSUED_DATE] --package-dir PACKAGE_DIR [-i INPUT_PATH] [-o OUTPUT_PATH]
+                      {security,bugfix,enhancement} title id
+
+generate updateinfo.xml
+
+positional arguments:
+  {security,bugfix,enhancement}
+                        (security/bugfix/enhancement)
+  title
+  id
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --reference-type {cve,bugfix,feature}
+                        (cve/bugfix/feature)
+  --reference-id REFERENCE_ID [REFERENCE_ID ...]
+  --description DESCRIPTION
+  --severity {Critical,Important,Moderate,Low}
+                        (Critical/Important/Moderate/Low)
+  --reference-href REFERENCE_HREF [REFERENCE_HREF ...]
+                        (Corresponding to the reference-id)
+  --update-status UPDATE_STATUS
+                        (Default: stable)
+  --issued-date ISSUED_DATE
+  --package-dir PACKAGE_DIR
+                        (Collect rpm package information from the package directory.)
+  -i INPUT_PATH, --input-path INPUT_PATH
+                        (If input path is not none, the new advisory will be appended and written to the output path.)
+  -o OUTPUT_PATH, --output-path OUTPUT_PATH
+                        (Default: ./updateinfo.xml)
+```
+
+使用案例
+
+```shell
+gen_updateinfo "security"  \
+							 "An update for redis is now available for openEuler-22.03-LTS-SP1" \
+							 "openEuler-SA-2023-1001" \
+							 --description "description" \
+							 --severity "Critical" \
+							 --issued-date "2023-01-01" \
+							 --update-status stable \
+							 --reference-type cve \
+							 --reference-id "CVE-2021-32675" "CVE-2021-32676" \
+							 --package-dir ./ \
+							 --output-path ./out-updateinfo.xml
+```
+
+输出格式
+
+```xml
+<?xml version="1.0" ?>
+<updates>
+        <update from="openeuler.org" type="security" status="stable">
+                <id>openEuler-SA-2023-1001</id>
+                <title>An update for redis is now available for openEuler-22.03-LTS-SP1</title>
+                <severity>Critical</severity>
+                <release>openEuler</release>
+                <issued date="2023-01-01"/>
+                <references>
+                        <reference id="CVE-2021-32675" title="CVE-2021-32675" type="cve"/>
+                        <reference id="CVE-2021-32676" title="CVE-2021-32676" type="cve"/>
+                </references>
+                <description>description</description>
+                <pkglist>
+                        <collection>
+                                <package arch="x86_64" name="patch-redis-6.2.5-1-HP002" version="1" release="1">
+                                        <filename>patch-redis-6.2.5-1-HP002-1-1.x86_64.rpm</filename>
+                                </package>
+                                <package arch="x86_64" name="patch-redis-6.2.5-1-HP001" version="1" release="1">
+                                        <filename>patch-redis-6.2.5-1-HP001-1-1.x86_64.rpm</filename>
+                                </package>
+                        </collection>
+                </pkglist>
+        </update>
+</updates>
+```
 
 # 6、数据库设计
+
 [aops-apollo数据库设计.sql](aops-apollo数据库设计.sql)
 
 ## **遗留问题**
@@ -1469,15 +1898,15 @@ command-specific options:
 
 # 7、修改日志
 
-| 版本  | 发布说明                                                     | 修改人        | 修改时间    |
-| :---- | :----------------------------------------------------------- | ------------- | ------------- |
+| 版本  | 发布说明                                                     | 修改人        | 修改时间   |
+| :---- | :----------------------------------------------------------- | ------------- | ---------- |
 | 1.0.0 | 初稿，完成部分模块设计                                       | 罗盛炜/朱云成 | 2021/10/15 |
 | 2.0.0 | 任务管理模块重构，由ansible改为zeus服务统一命令下发          | 罗盛炜        | 2022/10/30 |
 | 2.0.1 | 1.任务管理：cve扫描做修改，目前cve扫描不会作为一个任务存入数据库，并且逻辑为收集目标主机rpm信息、cve信息，通过callback返回，在服务端解析rpm信息得出不受影响cve，直接存入数据库。 | 罗盛炜        | 2022/11/15 |
-| 2.1.0 | 1.cve扫描逻辑做调整，返回参数修改，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式<br />3.新增热补丁插件相关视图<br />4.更新热补丁接口清单<br />5.每个版本需求列表更新 | 胡峰/罗盛炜   | 2023/2/20 |
-| 2.1.1 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4.新增热补丁流水线 | 胡峰          | 2023/5/11 |
-| 2.1.2 | 1.增加22.03-LTS-SP2需求<br />2.新增热补丁插件部分命令描述和设计 |      朱云成      |      2023/5/18      |
-
+| 2.1.0 | 1.cve扫描逻辑做调整，返回参数修改，支持存储已修复cve；<br />2.cve修复任务作调整，支持选择热补丁修复方式<br />3.新增热补丁插件相关视图<br />4.更新热补丁接口清单<br />5.每个版本需求列表更新 | 胡峰/罗盛炜   | 2023/2/20  |
+| 2.1.1 | 1.需求分析，补充角色分析<br />2.热补丁状态补充accept状态，用于管理重启生效<br />3.增加告警特性<br />4.新增热补丁流水线 | 胡峰          | 2023/5/11  |
+| 2.1.2 | 1.增加22.03-LTS-SP2需求<br />2.新增热补丁插件部分命令描述和设计 | 朱云成        | 2023/5/18  |
+| 2.1.3 | 1.增加updateinfo.xml生成工具描述和设计<br />2.增加CICD热补丁门禁模块设计<br />3.修改dnf巡检、状态查询命令部分描述和设计                      | 王光格        | 2023/6/16  |
 
 # 8、参考目录
 
