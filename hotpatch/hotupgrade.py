@@ -65,7 +65,8 @@ class HotupgradeCommand(dnf.cli.Command):
             self.hp_list = cve_pkgs + advisory_pkgs
         else:
             self.hp_list = self.upgrade_all()
-            logger.info(_("Gonna apply these hot patches:%s"), self.hp_list)
+            if self.hp_list:
+                logger.info(_("Gonna apply these hot patches:%s"), self.hp_list)
 
         hp_target_map = self._get_available_hotpatches(self.hp_list)
         if not hp_target_map:
@@ -273,7 +274,7 @@ class HotupgradeCommand(dnf.cli.Command):
 
     def get_hot_updateinfo_list(self):
         """
-        Find all hotpatches and upgrade all
+        Find all hotpatches and return hotpatch list
         use  command : dnf hot-updateinfo list cves
         Last metadata expiration check: 0:48:26 ago on 2023年06月01日 星期四 20时29分55秒.
         CVE-2023-3332  Low/Sec.       -   -
@@ -301,7 +302,10 @@ class HotupgradeCommand(dnf.cli.Command):
         upgrade all exist cve and hot patches
 
         Return:
-             find all patches and return patches list
+             use get_hot_updateinfo_list() to find all patches and then select highest version
+             in the hot patch corresponding to the same software package.
+             For example, the hot patches corresponding to redis are patch-redis-6.2.5-1-HP1-1-1.x86 64
+             and patch-redis-6.2.5-1-HP2-1-1.x86 64. Select the later version patch-redis-6.2.5-1-HP2-1-1.x86 64
             e.g.:
             ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
         """
@@ -315,9 +319,8 @@ class HotupgradeCommand(dnf.cli.Command):
 
         hp_list.sort(reverse=True)
         res_hp_list = list()
-        res_hp_list.append(hp_list[0])
-        pkg_name = hp_list[0].split("-")[1]
-        for hp in hp_list[1:]:
+        pkg_name=None
+        for hp in hp_list:
             pkg_name_tmp = hp.split("-")[1]
             if pkg_name_tmp == pkg_name:
                 continue
