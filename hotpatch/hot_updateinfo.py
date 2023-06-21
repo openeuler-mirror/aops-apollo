@@ -2,8 +2,9 @@ import dnf
 from dnf.i18n import _
 from dnf.cli.commands.updateinfo import UpdateInfoCommand
 import hawkey
-from .hotpatch_updateinfo import HotpatchUpdateInfo
 from dataclasses import dataclass
+
+from hotpatch.hotpatch_updateinfo import HotpatchUpdateInfo
 
 
 @dataclass
