@@ -319,7 +319,7 @@ class HotupgradeCommand(dnf.cli.Command):
 
         hp_list.sort(reverse=True)
         res_hp_list = list()
-        pkg_name=None
+        pkg_name = None
         for hp in hp_list:
             pkg_name_tmp = hp.split("-")[1]
             if pkg_name_tmp == pkg_name:
