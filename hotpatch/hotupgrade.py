@@ -20,8 +20,9 @@ from dnf.cli.option_parser import OptionParser
 from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
-from .syscare import Syscare, cmd_output, SUCCEED
-from .hotpatch_updateinfo import HotpatchUpdateInfo
+from hotpatch.syscare import Syscare
+from hotpatch.hotpatch_updateinfo import HotpatchUpdateInfo
+from hotpatch.hot_updateinfo import HotUpdateinfoCommand
 
 EMPTY_TAG = "-"
 
@@ -64,7 +65,8 @@ class HotupgradeCommand(dnf.cli.Command):
             self.hp_list = cve_pkgs + advisory_pkgs
         else:
             self.hp_list = self.upgrade_all()
-            logger.info(_("Gonna apply these hot patches:%s"), self.hp_list)
+            if self.hp_list:
+                logger.info(_("Gonna apply these hot patches:%s"), self.hp_list)
 
         hp_target_map = self._get_available_hotpatches(self.hp_list)
         if not hp_target_map:
@@ -270,10 +272,9 @@ class HotupgradeCommand(dnf.cli.Command):
             hp_list += hp
         return list(set(hp_list))
 
-    @staticmethod
-    def get_hot_updateinfo_list():
+    def get_hot_updateinfo_list(self):
         """
-        Find all hotpatches and upgrade all
+        Find all hotpatches and return hotpatch list
         use  command : dnf hot-updateinfo list cves
         Last metadata expiration check: 0:48:26 ago on 2023年06月01日 星期四 20时29分55秒.
         CVE-2023-3332  Low/Sec.       -   -
@@ -281,23 +282,19 @@ class HotupgradeCommand(dnf.cli.Command):
         CVE-2023-1112  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
         CVE-2023-1111  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
 
-        return:list
-        [["CVE-2023-3332","Low/Sec.", "-" ,"-"]]
+        return:list e.g.
+        ['patch-redis-6.2.5-1-HP002-1-1.x86_64', '-', '-']
 
         """
-        cmd = ["dnf", "hot-updateinfo", "list", "cves"]
-
-        output, return_code = cmd_output(cmd)
-        if return_code != SUCCEED:
-            return []
-
-        content = output.split('\n')
-        if len(content) <= 2:
-            return []
-        result = []
-        for item in content[1:-1]:
-            tmp = item.split()
-            result.append(tmp)
+        hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
+        hot_updateinfo = HotUpdateinfoCommand(self.cli)
+        hot_updateinfo.opts = self.opts
+        hot_updateinfo.hp_hawkey = hp_hawkey
+        hot_updateinfo.filter_cves = None
+        all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
+        result = list()
+        for display_line in all_cves.display_lines:
+            result.append(display_line[3])
         return result
 
     def upgrade_all(self):
@@ -305,13 +302,29 @@ class HotupgradeCommand(dnf.cli.Command):
         upgrade all exist cve and hot patches
 
         Return:
-             find all patches and return patches list
+             use get_hot_updateinfo_list() to find all patches and then select highest version
+             in the hot patch corresponding to the same software package.
+             For example, the hot patches corresponding to redis are patch-redis-6.2.5-1-HP1-1-1.x86 64
+             and patch-redis-6.2.5-1-HP2-1-1.x86 64. Select the later version patch-redis-6.2.5-1-HP2-1-1.x86 64
             e.g.:
             ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
         """
         hotpatchs_info = self.get_hot_updateinfo_list()
-        hp_list = []
+        hp_list = list()
         for item in hotpatchs_info:
-            if item[-1] != EMPTY_TAG:
-                hp_list.append(item[-1])
-        return list(set(hp_list))
+            if item != EMPTY_TAG:
+                hp_list.append(item)
+        if len(hp_list) == 0 or len(hp_list) == 1:
+            return hp_list
+
+        hp_list.sort(reverse=True)
+        res_hp_list = list()
+        pkg_name = None
+        for hp in hp_list:
+            pkg_name_tmp = hp.split("-")[1]
+            if pkg_name_tmp == pkg_name:
+                continue
+            else:
+                res_hp_list.append(hp)
+                pkg_name = hp.split("-")[1]
+        return res_hp_list
