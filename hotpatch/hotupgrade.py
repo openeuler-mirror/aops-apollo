@@ -20,9 +20,9 @@ from dnf.cli.option_parser import OptionParser
 from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
-from .syscare import Syscare
-from .hotpatch_updateinfo import HotpatchUpdateInfo
-from .hot_updateinfo import HotUpdateinfoCommand
+from hotpatch.syscare import Syscare
+from hotpatch.hotpatch_updateinfo import HotpatchUpdateInfo
+from hotpatch.hot_updateinfo import HotUpdateinfoCommand
 
 EMPTY_TAG = "-"
 
