@@ -31,7 +31,7 @@ class UpgradeTestCase(unittest.TestCase):
     @mock.patch.object(HotUpdateinfoCommand, "get_formatting_parameters_and_display_lines")
     def test_get_hot_updateinfo_list(self, mock_cve):
         self.cmd.cli.base = dnf.cli.cli.BaseCli()
-        self.cmd.cli.base._sack = dnf.sack.Sack()
+        self.cmd.cli.base._sack = mock.MagicMock()
 
         self.cmd.opts = mock.MagicMock()
         self.cmd.hp_hawkey = HotpatchUpdateInfo(self.cmd.cli.base, self.cmd.cli)
