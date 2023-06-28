@@ -36,16 +36,6 @@ class HotpatchTestCase(unittest.TestCase):
         self.assertEqual(self.cmd.base.output.term.bold.call_args_list[1][0][0],
                          target_patch[0])
 
-    # def test_operate_hot_patches_when_func_return_succeed(self):
-    #     target_patch = ["redis-6.2.5-1/HP2"]
-    #     operate = "apply"
-    #     func = mock.MagicMock()
-    #     func.return_value = ("", SUCCEED)
-    #     self.assertIsNone(self.cmd.operate_hot_patches(target_patch, operate, func))
-    #     func.assert_called_once_with(target_patch[0])
-    #     self.assertEqual(self.cmd.base.output.term.bold.call_args_list[1][0][0],
-    #                      target_patch[0])
-
     def test_operate_hot_patches_should_return_None_when_target_patch_is_none(self):
         target_patch = []
         operate = "apply"
