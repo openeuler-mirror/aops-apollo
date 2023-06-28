@@ -1,8 +1,20 @@
+#!/usr/bin/python3
+# ******************************************************************************
+# Copyright (c) Huawei Technologies Co., Ltd. 2023-2023. All rights reserved.
+# licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# ******************************************************************************/
 import unittest
 from unittest import mock
 
-from hotpatch.syscare import Syscare, cmd_output
-from hotpatch.syscare import SUCCEED, FAIL
+from .syscare import Syscare, cmd_output
+from .syscare import SUCCEED, FAIL
 
 
 class SyscareTestCase(unittest.TestCase):
@@ -36,61 +48,67 @@ class SyscareTestCase(unittest.TestCase):
         self.assertEqual(result, expected_res)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_status_return_correct_result(self, mock_cmd):
+    def test_status_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "ACTIVED", SUCCEED
-        result, status_code = Syscare().status("redis-6.2.5-1/HP2")
+        patch_name = mock.MagicMock()
+        result, status_code = Syscare().status(patch_name)
         expected_res = "ACTIVED"
         expected_code = SUCCEED
         self.assertEqual(result, expected_res)
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_apply_return_correct_result(self, mock_cmd):
+    def test_apply_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
-        result, status_code = Syscare().apply("redis-6.2.5-1/HP2")
+        patch_name = mock.MagicMock()
+        result, status_code = Syscare().apply(patch_name)
         expected_res = ""
         expected_code = SUCCEED
         self.assertEqual(result, expected_res)
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_active_return_correct_result(self, mock_cmd):
+    def test_active_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
-        result, status_code = Syscare().active("redis-6.2.5-1/HP2")
+        patch_name = mock.MagicMock()
+        result, status_code = Syscare().active(patch_name)
         expected_res = ""
         expected_code = SUCCEED
         self.assertEqual(result, expected_res)
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_deactive_return_correct_result(self, mock_cmd):
+    def test_deactive_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
-        result, status_code = Syscare().deactive("redis-6.2.5-1/HP2")
+        patch_name = mock.MagicMock()
+        result, status_code = Syscare().deactive(patch_name)
         expected_res = ""
         expected_code = SUCCEED
         self.assertEqual(result, expected_res)
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_accept_return_correct_result(self, mock_cmd):
+    def test_accept_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
-        result, status_code = Syscare().accept("redis-6.2.5-1/HP2")
+        patch_name = mock.MagicMock()
+        result, status_code = Syscare().accept(patch_name)
         expected_res = ""
         expected_code = SUCCEED
         self.assertEqual(result, expected_res)
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_remove_return_correct_result(self, mock_cmd):
+    def test_remove_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
-        result, status_code = Syscare().remove("redis-6.2.5-1/HP2")
+        patch_name = mock.MagicMock()
+        result, status_code = Syscare().remove(patch_name)
         expected_res = ""
         expected_code = SUCCEED
         self.assertEqual(result, expected_res)
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_save_return_correct_result(self, mock_cmd):
+    def test_save_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
         result, status_code = Syscare().save()
         expected_res = ""
@@ -99,7 +117,7 @@ class SyscareTestCase(unittest.TestCase):
         self.assertEqual(status_code, expected_code)
 
     @mock.patch("hotpatch.syscare.cmd_output")
-    def test_restore_return_correct_result(self, mock_cmd):
+    def test_restore_should_return_correct(self, mock_cmd):
         mock_cmd.return_value = "", SUCCEED
         result, status_code = Syscare().restore()
         expected_res = ""
@@ -108,7 +126,7 @@ class SyscareTestCase(unittest.TestCase):
         self.assertEqual(status_code, expected_code)
 
     @mock.patch('subprocess.Popen')
-    def test_cmd_output_success(self, mock_popen):
+    def test_cmd_output_should_return_correct_when_Popen_return_success(self, mock_popen):
         expected_output = "Hello"
         expected_returncode = SUCCEED
         mock_process = mock_popen.return_value
@@ -119,18 +137,14 @@ class SyscareTestCase(unittest.TestCase):
         self.assertEqual(returncode, expected_returncode)
 
     @mock.patch('subprocess.Popen')
-    def test_cmd_output_fail(self, mock_popen):
+    def test_cmd_output_should_raise_exception_when__Popen_excute_fail(self, mock_popen):
         expected_output = "-bash: hello：command not found"
         expected_returncode = FAIL
-
-        mock_process = mock_popen.return_value
-        mock_process.stdout.read.return_value = expected_output.encode('utf-8')
-        mock_process.stderr.read.return_value = expected_output.encode('utf-8')
-        mock_process.returncode = expected_returncode
-        output, returncode = cmd_output(['hello'])
+        mock_popen.side_effect = Exception('-bash: hello：command not found')
+        cmd = mock.MagicMock()
+        output, returncode = cmd_output(cmd)
         self.assertEqual(output, expected_output)
         self.assertEqual(returncode, expected_returncode)
-        self.assertRaises(Exception)
 
 
 if __name__ == '__main__':
