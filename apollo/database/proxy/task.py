@@ -3224,8 +3224,9 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         """
 
         try:
-            exists_cve_count = self.session.query(CveHostAssociation).filter(
-                CveHostAssociation.cve_id.in_(cve_id)).count()
+            exists_cve_count = self.session.query(CveHostAssociation.cve_id).filter(
+                CveHostAssociation.cve_id.in_(cve_id)).distinct().count()
+
 
             return True if exists_cve_count == len(cve_id) else False
         except SQLAlchemyError as error:
