@@ -251,7 +251,7 @@ class HotupgradeCommand(dnf.cli.Command):
         cve_hp_dict = updateinfo.get_hotpatches_from_cve(cves)
         for cve, hp in cve_hp_dict.items():
             if not hp:
-                logger.info(_("The cve's hot patch doesn't exist: %s"), cve)
+                logger.info(_("The cve doesn't exist or cannot be fixed by hotpatch: %s"), cve)
                 continue
             hp_list += hp
         return list(set(hp_list))

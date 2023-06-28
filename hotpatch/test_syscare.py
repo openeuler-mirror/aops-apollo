@@ -126,7 +126,7 @@ class SyscareTestCase(unittest.TestCase):
         self.assertEqual(status_code, expected_code)
 
     @mock.patch('subprocess.Popen')
-    def test_cmd_output_should_return_correct_when_Popen_return_success(self, mock_popen):
+    def test_cmd_output_should_return_correct_when_popen_return_success(self, mock_popen):
         expected_output = "Hello"
         expected_returncode = SUCCEED
         mock_process = mock_popen.return_value
@@ -137,7 +137,7 @@ class SyscareTestCase(unittest.TestCase):
         self.assertEqual(returncode, expected_returncode)
 
     @mock.patch('subprocess.Popen')
-    def test_cmd_output_should_raise_exception_when__Popen_excute_fail(self, mock_popen):
+    def test_cmd_output_should_raise_exception_when_popen_excute_fail(self, mock_popen):
         expected_output = "-bash: hello：command not found"
         expected_returncode = FAIL
         mock_popen.side_effect = Exception('-bash: hello：command not found')

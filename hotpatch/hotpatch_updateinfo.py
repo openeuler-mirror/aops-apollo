@@ -42,7 +42,7 @@ class HotpatchUpdateInfo(object):
         self.init_hotpatch_info()
 
     def init_hotpatch_info(self):
-        """ 
+        """
         Initialize hotpatch information
         """
         self._get_installed_pkgs()
@@ -171,7 +171,7 @@ class HotpatchUpdateInfo(object):
 
     def _store_advisory_info(self, advisory_kwargs: dict()):
         """
-        Instantiate Cve, Hotpatch and Advisory object according to the advisory kwargs 
+        Instantiate Cve, Hotpatch and Advisory object according to the advisory kwargs
         """
         advisory_references = advisory_kwargs.pop('references')
         advisory_hotpatches = advisory_kwargs.pop('hotpatches')
@@ -303,7 +303,7 @@ class HotpatchUpdateInfo(object):
         Get hotpatches from specified cve. If there are several hotpatches for the same source package for a cve, only return the
         hotpatch with the highest version.
 
-        Args: 
+        Args:
             cves: [cve_id_1, cve_id_2]
 
         Returns:
@@ -319,10 +319,18 @@ class HotpatchUpdateInfo(object):
                 continue
             # find the hotpatch with the highest version for the same source package
             mapping_src_pkg_to_hotpatches = dict()
+            # check whether the cve is fixed
+            is_cve_fixed = False
             for hotpatch in self.hotpatch_cves[cve_id].hotpatches:
+                if hotpatch.state == self.INSTALLED:
+                    is_cve_fixed = True
                 if hotpatch.state == self.INSTALLABLE:
                     mapping_src_pkg_to_hotpatches.setdefault(hotpatch.src_pkg, []).append(
-                        [hotpatch.hotpatch_name, hotpatch])
+                        [hotpatch.hotpatch_name, hotpatch]
+                    )
+            # do not return the releated hotpatches if the cve is fixed
+            if is_cve_fixed:
+                continue
             for src_pkg, hotpatches in mapping_src_pkg_to_hotpatches.items():
                 # extract the number in HPxxx and sort hotpatches in descending order according to the number
                 hotpatches = sorted(hotpatches, key=lambda x: int(re.findall("\d+", x[0])[0]), reverse=True)
@@ -338,7 +346,7 @@ class HotpatchUpdateInfo(object):
             advisories: [advisory_id_1, advisory_id_2]
 
         Return:
-        {   
+        {
             advisory_id_1: [hotpatch1],
             advisory_id_2: []
         }

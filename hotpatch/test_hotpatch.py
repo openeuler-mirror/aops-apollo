@@ -22,7 +22,7 @@ class HotpatchTestCase(unittest.TestCase):
         self.cli = mock.MagicMock()
         self.cmd = HotpatchCommand(self.cli)
 
-    def test_operate_hot_patches_should_return_None(self):
+    def test_operate_hot_patches_should_return_none(self):
         target_patch = ["patch1"]
         operate = mock.MagicMock()
         func = mock.MagicMock()
@@ -36,7 +36,7 @@ class HotpatchTestCase(unittest.TestCase):
         self.assertEqual(self.cmd.base.output.term.bold.call_args_list[1][0][0],
                          target_patch[0])
 
-    def test_operate_hot_patches_should_return_None_when_target_patch_is_none(self):
+    def test_operate_hot_patches_should_return_none_when_target_patch_is_none(self):
         target_patch = []
         operate = "apply"
         func = mock.MagicMock()
