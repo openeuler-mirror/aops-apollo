@@ -212,7 +212,7 @@ class HotpatchUpdateInfo(object):
                     hp_vere = '%s-%s' % (src_pkg_version, src_pkg_release)
                     if hp_vere != inst_pkg_vere:
                         continue
-                    elif self._get_hotpatch_status_in_syscare(hotpatch) == 'ACTIVED':
+                    elif self._get_hotpatch_status_in_syscare(hotpatch) in ('ACTIVED', "ACCEPTED"):
                         hotpatch.state = self.INSTALLED
                     else:
                         hotpatch.state = self.INSTALLABLE
