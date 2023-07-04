@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # ******************************************************************************
-# Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2022-2023. All rights reserved.
 # licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -10,27 +10,9 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-"""
-Time:
-Author:
-Description: 
-"""
 
+from apollo.cron.timed_scan_task import TimedScanTask
+from apollo.cron.timed_correct_manager import TimedCorrectTask
+from apollo.cron.download_sa_manager import TimedDownloadSATask
 
-class TimedTaskBase():
-    """
-        Base class for timed tasks
-    """
-
-    def __init__(self, **kwargs):
-        self._parameters = dict(kwargs)
-
-    @property
-    def parameters(self):
-        return self._parameters
-
-    @staticmethod
-    def task_enter():
-        """
-        Entry function for scheduled task execution.
-        """
+task_meta = {"cve_scan": TimedScanTask, "data_correct": TimedCorrectTask, "sa_download": TimedDownloadSATask}

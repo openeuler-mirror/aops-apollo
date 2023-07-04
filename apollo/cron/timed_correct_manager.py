@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # ******************************************************************************
-# Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2021-2023. All rights reserved.
 # licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -18,35 +18,26 @@ Description:
 import datetime
 import time
 import sqlalchemy
-from apollo.conf import configuration
-from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
-from apollo.cron import TimedTaskBase
-from apollo.cron.manager import get_timed_task_config_info
-from apollo.database.proxy.task import TaskProxy
+
+from vulcanus.timed import TimedTask
 from vulcanus.log.log import LOGGER
-from vulcanus.database.proxy import ElasticsearchProxy
+from vulcanus.conf.constant import TIMEOUT
+from apollo.database.proxy.task import TaskProxy
 
 
-class TimedCorrectTask(TimedTaskBase):
+class TimedCorrectTask(TimedTask):
     """
     Timed correct data tasks
     """
-    config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
-    SERVICE_TIMEOUT_THRESHOLD_MIN = config_info.get(
-        "correct_data").get("service_timeout_threshold_min", 15)
 
-    @staticmethod
-    def task_enter():
+    def execute(self):
         """
         Start the correct after the specified time of day.
         """
-        LOGGER.info("Begin to correct the whole host in %s.",
-                    str(datetime.datetime.now()))
+        LOGGER.info("Begin to correct the whole host in %s.", str(datetime.datetime.now()))
         try:
-            with TaskProxy(configuration) as proxy:
-                proxy.connect()
-                abnormal_task_list, abnormal_host_list = TimedCorrectTask.get_abnormal_task(
-                    proxy)
+            with TaskProxy() as proxy:
+                abnormal_task_list, abnormal_host_list = self.get_abnormal_task(proxy)
                 proxy.update_repo_task_status(abnormal_task_list)
                 proxy.update_cve_host_task_status(abnormal_task_list)
                 proxy.update_host_status(abnormal_host_list)
@@ -54,7 +45,19 @@ class TimedCorrectTask(TimedTaskBase):
             LOGGER.error("Connect to database fail.")
 
     @staticmethod
-    def get_abnormal_task(proxy: TaskProxy):
+    def _abnormal_task(tasks):
+        abnormal_tasks = []
+        if not tasks:
+            return abnormal_tasks
+
+        current_time = int(time.time())
+        for task_id, create_time in tasks:
+            if current_time - int(create_time) >= TIMEOUT:
+                abnormal_tasks.append(task_id)
+
+        return abnormal_tasks
+
+    def get_abnormal_task(self, proxy: TaskProxy):
         """
         Get abnormal tasks based on set thresholds and task creation time
 
@@ -65,19 +68,9 @@ class TimedCorrectTask(TimedTaskBase):
             list: The element of each list is the task ID
             list: The element of each list is the host ID
         """
-        running_task_list, host_info_list = proxy.get_task_create_time()
+        running_tasks, hosts = proxy.get_task_create_time()
 
-        abnormal_task_list = []
-        abnormal_host_list = []
-        current_time = int(time.time())
-        if running_task_list:
-            for task_id, task_type, create_time in running_task_list:
-                if current_time - int(create_time) >= int(TimedCorrectTask.SERVICE_TIMEOUT_THRESHOLD_MIN) * 60:
-                    abnormal_task_list.append(task_id)
+        abnormal_tasks = self._abnormal_task(running_tasks)
+        abnormal_hosts = self._abnormal_task(hosts)
 
-        if host_info_list:
-            for host_id, last_scan in host_info_list:
-                if current_time - int(last_scan) >= int(TimedCorrectTask.SERVICE_TIMEOUT_THRESHOLD_MIN) * 60:
-                    abnormal_host_list.append(host_id)
-
-        return abnormal_task_list, abnormal_host_list
+        return abnormal_tasks, abnormal_hosts
