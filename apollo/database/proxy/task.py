@@ -26,7 +26,7 @@ from elasticsearch import ElasticsearchException
 from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import REPO_FILE, TASK_INDEX, HOST_STATUS, TaskType
+from apollo.conf.constant import REPO_FILE, TASK_INDEX, CveProgressSettingMethod, HostStatus, TaskStatus, TaskType
 from apollo.database.table import Cve, Repo, Task, TaskCveHostAssociation, TaskHostRepoAssociation, \
     CveTaskAssociation, CveHostAssociation, CveAffectedPkgs
 from apollo.function.customize_exception import EsOperationError
@@ -194,7 +194,7 @@ class TaskMysqlProxy(MysqlProxy):
         """
         try:
             status = task_info["status"]
-            if status != "succeed":
+            if status != TaskStatus.SUCCEED:
                 LOGGER.info(f"scan result failed with status {status}.")
                 return WRONG_DATA
 
@@ -328,11 +328,11 @@ class TaskMysqlProxy(MysqlProxy):
         """
         if update_type == "init":
             update_dict = {
-                Host.status: HOST_STATUS.SCANNING,
+                Host.status: HostStatus.SCANNING,
                 Host.last_scan: int(
                     time())}
         elif update_type == "finish":
-            update_dict = {Host.status: HOST_STATUS.DONE}
+            update_dict = {Host.status: HostStatus.DONE}
         else:
             LOGGER.error("Given host scan update type '%s' is not in default type list "
                          "['init', 'finish']." % update_type)
@@ -610,7 +610,7 @@ class TaskMysqlProxy(MysqlProxy):
     @staticmethod
     def _get_status_result():
         def status_dict():
-            return {"succeed": 0, "fail": 0, "running": 0, "unknown": 0}
+            return {TaskStatus.SUCCEED: 0, TaskStatus.FAIL: 0, TaskStatus.RUNNING: 0, TaskStatus.UNKNOWN: 0}
 
         return defaultdict(status_dict)
 
@@ -676,13 +676,13 @@ class TaskMysqlProxy(MysqlProxy):
         Returns:
             str
         """
-        if "running" in status_set:
-            return "running"
-        if "unknown" in status_set:
-            return "unknown"
-        if "fail" in status_set:
-            return "fail"
-        return "succeed"
+        if TaskStatus.RUNNING in status_set:
+            return TaskStatus.RUNNING
+        if TaskStatus.UNKNOWN in status_set:
+            return TaskStatus.UNKNOWN
+        if TaskStatus.FAIL in status_set:
+            return TaskStatus.FAIL
+        return TaskStatus.SUCCEED
 
     def _get_repo_task_progress(self, task_list):
         """
@@ -701,14 +701,14 @@ class TaskMysqlProxy(MysqlProxy):
 
         task_query = self._query_repo_task_host(task_list)
         for row in task_query:
-            if row.status == "succeed":
-                result[row.task_id]["succeed"] += 1
-            elif row.status == "fail":
-                result[row.task_id]["fail"] += 1
-            elif row.status == "running":
-                result[row.task_id]["running"] += 1
-            elif row.status == "unknown":
-                result[row.task_id]["unknown"] += 1
+            if row.status == TaskStatus.SUCCEED:
+                result[row.task_id][TaskStatus.SUCCEED:] += 1
+            elif row.status == TaskStatus.FAIL:
+                result[row.task_id][TaskStatus.FAIL] += 1
+            elif row.status == TaskStatus.RUNNING:
+                result[row.task_id][TaskStatus.RUNNING] += 1
+            elif row.status == TaskStatus.UNKNOWN:
+                result[row.task_id][TaskStatus.UNKNOWN] += 1
             else:
                 LOGGER.error(
                     "Unknown repo task's host status '%s'" %
@@ -1330,7 +1330,7 @@ class TaskMysqlProxy(MysqlProxy):
         cve_list = []
         for cve_id, status_set in status_dict.items():
             cve_status = self._get_cve_task_status(status_set)
-            if cve_status in ["succeed", "fail"]:
+            if cve_status in [TaskStatus.SUCCEED, TaskStatus.FAIL]:
                 cve_list.append(cve_id)
 
         return cve_list
@@ -1493,7 +1493,7 @@ class TaskMysqlProxy(MysqlProxy):
         status_query.one().status = status
         return SUCCEED
 
-    def set_cve_progress(self, task_id, cve_list, method='add'):
+    def set_cve_progress(self, task_id, cve_list, method=CveProgressSettingMethod.ADD):
         """
         Everytime a task completed, update the progress, add 1 or fill up
 
@@ -1530,16 +1530,16 @@ class TaskMysqlProxy(MysqlProxy):
 
         progress_query = self.session.query(CveTaskAssociation).filter(*filters)
 
-        if method == "add":
+        if method == CveProgressSettingMethod.ADD:
             progress_query.update({CveTaskAssociation.progress:
                                    case([(CveTaskAssociation.progress + 1 < CveTaskAssociation.host_num,
                                           CveTaskAssociation.progress + 1)],
                                         else_=CveTaskAssociation.host_num)},
                                   synchronize_session=False)
-        elif method == "fill":
+        elif method == CveProgressSettingMethod.FILL:
             progress_query.update({CveTaskAssociation.progress: CveTaskAssociation.host_num},
                                   synchronize_session=False)
-        elif method == "zero":
+        elif method == CveProgressSettingMethod.ZERO:
             progress_query.update({CveTaskAssociation.progress: 0}, synchronize_session=False)
         else:
             LOGGER.error("Set cve progress with unknown method '%s'." % method)
@@ -1583,7 +1583,7 @@ class TaskMysqlProxy(MysqlProxy):
         status_query = self.session.query(
             TaskCveHostAssociation).filter(*filters)
         status_query.update(
-            {TaskCveHostAssociation.status: "running"}, synchronize_session=False)
+            {TaskCveHostAssociation.status: TaskStatus.RUNNING}, synchronize_session=False)
 
         # set progress to 0
         filters = {CveTaskAssociation.task_id == task_id}
@@ -1628,15 +1628,15 @@ class TaskMysqlProxy(MysqlProxy):
         if task_type == TaskType.CVE_FIX or task_type == TaskType.CVE_ROLLBACK:
             host_query = self.session.query(TaskCveHostAssociation) \
                 .filter(TaskCveHostAssociation.task_id == task_id,
-                        TaskCveHostAssociation.status == "running")
+                        TaskCveHostAssociation.status == TaskStatus.RUNNING)
             host_query.update(
-                {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
+                {TaskCveHostAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
         elif task_type == TaskType.REPO_SET:
             host_query = self.session.query(TaskHostRepoAssociation) \
                 .filter(TaskHostRepoAssociation.task_id == task_id,
-                        TaskHostRepoAssociation.status == "running")
+                        TaskHostRepoAssociation.status == TaskStatus.RUNNING)
             host_query.update(
-                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
+                {TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
         else:
             LOGGER.error(
                 "Unknown task type '%s' when setting its status." %
@@ -1975,7 +1975,7 @@ class TaskMysqlProxy(MysqlProxy):
                          % (task_type, task_id))
             return True
 
-        if task_progress[task_id]["running"]:
+        if task_progress[task_id][TaskStatus.RUNNING]:
             return False
         return True
 
@@ -2093,7 +2093,7 @@ class TaskMysqlProxy(MysqlProxy):
         try:
             self._update_repo_host_status(
                 data["task_id"], hosts_id_list, data["status"])
-            if data["status"] == "succeed":
+            if data["status"] == TaskStatus.SUCCEED:
                 self._update_host_repo(data["repo_name"], hosts_id_list)
             self.session.commit()
             LOGGER.debug(
@@ -2127,7 +2127,7 @@ class TaskMysqlProxy(MysqlProxy):
                 LOGGER.warning("The cve list is empty when the cve progress is set.")
                 return DATABASE_UPDATE_ERROR
 
-            status_code = self._set_cve_progress(task_id, cve_id_list, "add")
+            status_code = self._set_cve_progress(task_id, cve_id_list, CveProgressSettingMethod.ADD)
             if status_code != SUCCEED:
                 return status_code
             self.session.commit()
@@ -2936,11 +2936,11 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         fail_list = list(set(task_list) - set(succeed_list))
         # query running tasks
         running_tasks = self.session.query(TaskCveHostAssociation.task_id)\
-            .filter(TaskCveHostAssociation.status == "running",
+            .filter(TaskCveHostAssociation.status == TaskStatus.RUNNING,
                     TaskCveHostAssociation.task_id.in_(task_list))\
             .union(self.session.query(TaskHostRepoAssociation.task_id)
                    .filter(TaskHostRepoAssociation.task_id.in_(task_list),
-                           TaskHostRepoAssociation.status == "running")).all()
+                           TaskHostRepoAssociation.status == TaskStatus.RUNNING)).all()
         running_task_id_list = [task.task_id for task in running_tasks]
 
         if fail_list:
@@ -2988,7 +2988,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             list: task id list
         """
         task_cve_query = self.session.query(TaskCveHostAssociation).filter(
-            TaskCveHostAssociation.status == "running").all()
+            TaskCveHostAssociation.status == TaskStatus.RUNNING).all()
         task_id_list = [task.task_id for task in task_cve_query]
         return task_id_list
 
@@ -3000,7 +3000,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             list: task id list
         """
         host_repo_query = self.session.query(TaskHostRepoAssociation).filter(
-            TaskHostRepoAssociation.status == "running").all()
+            TaskHostRepoAssociation.status == TaskStatus.RUNNING).all()
         task_id_list = [task.task_id for task in host_repo_query]
         return task_id_list
 
@@ -3012,7 +3012,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             list: host id list
         """
         host_info_query = self.session.query(Host).filter(
-            Host.status == HOST_STATUS.SCANNING).all()
+            Host.status == HostStatus.SCANNING).all()
         host_info_list = [(host.host_id, host.last_scan)
                           for host in host_info_query]
         return host_info_list
@@ -3049,7 +3049,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             Host.host_id.in_(host_id_list))
         try:
             host_query.update(
-                {Host.status: HOST_STATUS.UNKNOWN}, synchronize_session=False)
+                {Host.status: HostStatus.UNKNOWN}, synchronize_session=False)
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
@@ -3074,7 +3074,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             TaskCveHostAssociation.task_id.in_(task_id_list))
         try:
             cve_task_query.update(
-                {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
+                {TaskCveHostAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
@@ -3085,7 +3085,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             TaskHostRepoAssociation.task_id.in_(task_id_list))
         try:
             repo_task_query.update(
-                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
+                {TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
@@ -3111,7 +3111,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             TaskHostRepoAssociation.task_id.in_(task_id_list))
         try:
             repo_task_query.update(
-                {TaskHostRepoAssociation.status: "unknown"}, synchronize_session=False)
+                {TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
             self.session.commit()
         except SQLAlchemyError as error:
             self.session.rollback()
@@ -3135,7 +3135,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             TaskCveHostAssociation.task_id.in_(task_id_list))
         try:
             cve_task_query.update(
-                {TaskCveHostAssociation.status: "unknown"}, synchronize_session=False)
+                {TaskCveHostAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
             self.session.commit()
         except SQLAlchemyError as error:
             self.session.rollback()

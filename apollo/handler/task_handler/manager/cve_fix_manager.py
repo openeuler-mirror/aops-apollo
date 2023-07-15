@@ -17,7 +17,7 @@ Description: Task manager for cve fixing
 """
 
 from apollo.conf import configuration
-from apollo.conf.constant import CVE_HOST_STATUS, VUL_TASK_CVE_FIX_CALLBACK
+from apollo.conf.constant import CveHostStatus, VUL_TASK_CVE_FIX_CALLBACK, TaskType, CveProgressSettingMethod
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
@@ -111,18 +111,18 @@ class CveFixManager(Manager):
                      self.task_id, self.result)
 
         for host in self.result:
-            host['status'] = 'succeed'
+            host['status'] = CveHostStatus.SUCCEED
             for check_item in host['check_items']:
                 if not check_item.get('result'):
-                    host['status'] = 'fail'
+                    host['status'] = CveHostStatus.FAIL
                     break
-            if host['status'] == 'fail':
+            if host['status'] == CveHostStatus.FAIL:
                 continue
             if not host['cves']:
-                host['status'] = 'unknown'
+                host['status'] = CveHostStatus.UNKNOWN
             for cve in host['cves']:
-                if cve.get('result') is None or cve.get('result') != CVE_HOST_STATUS.FIXED:
-                    host['status'] = 'fail'
+                if cve.get('result') is None or cve.get('result') != CveHostStatus.SUCCEED:
+                    host['status'] = CveHostStatus.FAIL
                     break
         self._save_result(self.result)
         self.fault_handle()
@@ -132,5 +132,5 @@ class CveFixManager(Manager):
         When the task is completed or execute fail, fill the progress and set the
         host status to 'unknown'.
         """
-        self.proxy.set_cve_progress(self.task_id, [], 'fill')
-        self.proxy.fix_task_status(self.task_id, 'cve fix')
+        self.proxy.set_cve_progress(self.task_id, [], CveProgressSettingMethod.FILL)
+        self.proxy.fix_task_status(self.task_id, TaskType.CVE_FIX)

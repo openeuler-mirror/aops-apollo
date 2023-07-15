@@ -16,6 +16,8 @@ Author:
 Description: manager constant
 """
 import os
+
+from apollo.function.utils import ConstantBase
 from vulcanus.conf.constant import BASE_CONFIG_PATH
 
 # path of apollo configuration
@@ -31,21 +33,21 @@ TEMPLATE_REPO_STR = "[aops-update]\n" \
                     "GPG-KEY-openEuler"
 
 
-class CVE_HOST_STATUS:
-    FIXED = "succeed"
-    UNFIXED = "fail"
+class CveHostStatus:
+    SUCCEED = "succeed"
+    FAIL = "fail"
     RUNNING = "running"
     UNKNOWN = "unknown"
 
 
-class REPO_STATUS:
+class RepoStatus:
     SUCCEED = "set"
     FAIL = "unset"
     RUNNING = "running"
     UNKNOWN = "unknown"
 
 
-class HOST_STATUS:
+class HostStatus:
     ONLINE = 0
     OFFLINE = 1
     UNESTABLISHED = 2
@@ -54,14 +56,14 @@ class HOST_STATUS:
     UNKNOWN = 5
 
 
-class CVSS_SCORE:
+class CvssScore:
     HIGH = 9
     MEDIUM = 7
     LOW = 4
     NONE = 0
 
 
-class CVE_SEVERITY:
+class CveSeverity(ConstantBase):
     CRITICAL = "Critical"
     HIGH = "High"
     MEDIUM = "Medium"
@@ -69,11 +71,20 @@ class CVE_SEVERITY:
     NONE = "None"
 
 
-class TaskType:
+class TaskType(ConstantBase):
     CVE_FIX = "cve fix"
     CVE_ROLLBACK = "cve rollback"
     REPO_SET = "repo set"
 
+
+class CveProgressSettingMethod:
+    ADD = "add"
+    FILL = "fill"
+    ZERO = "zero"
+
+
+class TaskStatus(ConstantBase, CveHostStatus):
+    pass
 
 # route of repo related interface
 VUL_REPO_IMPORT = "/vulnerability/repo/import"
@@ -125,7 +136,6 @@ VUL_TASK_CVE_ROLLBACK_CALLBACK = "/vulnerability/task/callback/cve/rollback"
 # elasticsearch index
 CVE_INDEX = 'cve'
 TASK_INDEX = "task"
-
 
 # elasticsearch testcase run flag. NEVER TURN IT TO TRUE IN PRODUCTION ENVIRONMENT.
 # The test cases will remove the all the data of the es.

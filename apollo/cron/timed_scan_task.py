@@ -23,7 +23,7 @@ import sqlalchemy
 from vulcanus.timed import TimedTask
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
-from apollo.conf.constant import HOST_STATUS
+from apollo.conf.constant import HostStatus
 from apollo.database.proxy.task import TaskMysqlProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 
@@ -51,7 +51,7 @@ class TimedScanTask(TimedTask):
             return False
 
         for host in host_info:
-            if host["status"] == HOST_STATUS.SCANNING:
+            if host["status"] == HostStatus.SCANNING:
                 LOGGER.info("There are some hosts under scanning about user %s, ignore.", username)
                 return False
 

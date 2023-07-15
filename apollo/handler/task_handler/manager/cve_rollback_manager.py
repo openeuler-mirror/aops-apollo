@@ -11,7 +11,7 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 from apollo.conf import configuration
-from apollo.conf.constant import CVE_HOST_STATUS, VUL_TASK_CVE_ROLLBACK_CALLBACK
+from apollo.conf.constant import CveHostStatus, VUL_TASK_CVE_ROLLBACK_CALLBACK, CveProgressSettingMethod, TaskType
 from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_ROLLBACK
 from vulcanus.log.log import LOGGER
@@ -85,12 +85,12 @@ class CveRollbackManager(Manager):
         LOGGER.debug("Cve rollback task %s result: %s", self.task_id, self.result)
 
         for host in self.result:
-            host['status'] = 'succeed'
+            host['status'] = CveHostStatus.SUCCEED
             if not host['cves']:
-                host['status'] = 'unknown'
+                host['status'] = CveHostStatus.UNKNOWN
             for cve in host['cves']:
-                if cve.get('result') is None or cve.get('result') != CVE_HOST_STATUS.FIXED:
-                    host['status'] = 'fail'
+                if cve.get('result') is None or cve.get('result') != CveHostStatus.SUCCEED:
+                    host['status'] = CveHostStatus.FAIL
                     break
 
         self._save_result(self.result)
@@ -101,5 +101,5 @@ class CveRollbackManager(Manager):
         When the task is completed or execute fail, fill the progress and set the
         host status to 'unknown'.
         """
-        self.proxy.set_cve_progress(self.task_id, [], 'fill')
-        self.proxy.fix_task_status(self.task_id, 'cve rollback')
+        self.proxy.set_cve_progress(self.task_id, [], CveProgressSettingMethod.FILL)
+        self.proxy.fix_task_status(self.task_id, TaskType.CVE_ROLLBACK)

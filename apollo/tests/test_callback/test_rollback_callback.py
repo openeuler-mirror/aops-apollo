@@ -18,7 +18,7 @@ Description:
 import unittest
 from unittest import mock
 
-from apollo.conf.constant import CVE_HOST_STATUS
+from apollo.conf.constant import CveHostStatus
 from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.database.proxy.task import TaskMysqlProxy
 from apollo.tests.test_callback import Host, Test
@@ -62,11 +62,11 @@ class TestCveRollbackCallback(unittest.TestCase):
             "name1": {
                 "cve1": {
                     "info": "11",
-                    "status": CVE_HOST_STATUS.FIXED
+                    "status": CveHostStatus.SUCCEED
                 },
                 "cve2": {
                     "info": "13",
-                    "status": CVE_HOST_STATUS.FIXED
+                    "status": CveHostStatus.SUCCEED
                 }
             }
         }

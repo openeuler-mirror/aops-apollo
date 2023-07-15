@@ -21,7 +21,7 @@ from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import REPO_STATUS, VUL_TASK_REPO_SET_CALLBACK
+from apollo.conf.constant import RepoStatus, VUL_TASK_REPO_SET_CALLBACK, TaskType
 from apollo.handler.task_handler.manager import Manager
 from apollo.handler.task_handler.cache import TASK_CACHE
 
@@ -68,7 +68,7 @@ class RepoManager(Manager):
         Returns:
             bool
         """
-        if self.proxy.set_repo_status(self.task_id, [], REPO_STATUS.RUNNING) != SUCCEED:
+        if self.proxy.set_repo_status(self.task_id, [], RepoStatus.RUNNING) != SUCCEED:
             LOGGER.error(
                 "Init the host status in database failed, stop repo setting task %s.", self.task_id)
             return False
@@ -119,4 +119,4 @@ class RepoManager(Manager):
         """
         When the task is completed or execute fail, set the host status to 'unknown'.
         """
-        self.proxy.fix_task_status(self.task_id, 'repo set')
+        self.proxy.fix_task_status(self.task_id, TaskType.REPO_SET)

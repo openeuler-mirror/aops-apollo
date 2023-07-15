@@ -17,7 +17,7 @@ from unittest import mock
 from unittest.mock import Mock
 
 from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_CVE_FIX_CALLBACK, CVE_HOST_STATUS
+from apollo.conf.constant import VUL_TASK_CVE_FIX_CALLBACK, CveHostStatus
 from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
@@ -128,7 +128,7 @@ class CveFixManagerTestCase(unittest.TestCase):
                 {
                     "cve_id": "cve1",
                     "log": "",
-                    "result": CVE_HOST_STATUS.FIXED
+                    "result": CveHostStatus.SUCCEED
                 }
             ]
         },
@@ -139,12 +139,12 @@ class CveFixManagerTestCase(unittest.TestCase):
                     {
                         "cve_id": "cve1",
                         "log": "",
-                        "result": CVE_HOST_STATUS.FIXED
+                        "result": CveHostStatus.SUCCEED
                     },
                     {
                         "cve_id": "cve2",
                         "log": "",
-                        "result": CVE_HOST_STATUS.UNFIXED
+                        "result": CveHostStatus.FAIL
                     }
                 ]
         },
@@ -160,12 +160,12 @@ class CveFixManagerTestCase(unittest.TestCase):
                     {
                         "cve_id": "cve1",
                         "log": "",
-                        "result": CVE_HOST_STATUS.FIXED
+                        "result": CveHostStatus.SUCCEED
                     },
                     {
                         "cve_id": "cve2",
                         "log": "",
-                        "result": CVE_HOST_STATUS.FIXED
+                        "result": CveHostStatus.SUCCEED
                     }
                 ]
         }

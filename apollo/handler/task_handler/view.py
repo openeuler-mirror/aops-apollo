@@ -22,7 +22,7 @@ from typing import Dict, Tuple
 
 from flask import request
 
-from apollo.conf.constant import HOST_STATUS, TaskType
+from apollo.conf.constant import HostStatus, TaskType
 from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
@@ -66,7 +66,7 @@ class VulScanHost(BaseResponse):
         # but the actual host list should not be empty.
         host_list = []
         for host in actual_host_list:
-            if host['status'] == HOST_STATUS.SCANNING:
+            if host['status'] == HostStatus.SCANNING:
                 return False
             host_list.append(host['host_id'])
 
