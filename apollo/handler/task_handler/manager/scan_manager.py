@@ -23,6 +23,7 @@ from email.mime.text import MIMEText
 from io import BytesIO
 
 from apollo.conf import configuration
+from apollo.conf.constant import VUL_TASK_CVE_SCAN_CALLBACK
 from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
 from vulcanus.log.log import LOGGER
@@ -68,7 +69,7 @@ class ScanManager(Manager):
             "total_hosts": self.host_list,
             "check_items": [],
             "tasks": host_info_list,
-            "callback": "/vulnerability/task/callback/cve/scan"
+            "callback": VUL_TASK_CVE_SCAN_CALLBACK
         }
 
         _, self.last_scan_result = self.proxy.query_host_cve_info(self.username)

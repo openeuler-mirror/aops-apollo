@@ -43,3 +43,34 @@ def make_download_response(file_path, file_name):
     response.headers['Content-Disposition'] = "application;file_name='{}'".format(
         file_name)
     return response
+
+
+class ConstantBase:
+    """
+        Base class for constant classes
+
+        Note: The values of these attributes should be initialized in a subclass
+    """
+
+    @classmethod
+    def get_attributes(cls):
+        """
+        output all attributes
+
+        Returns:
+            a list containing all attributes
+
+        """
+        return [attr for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")]
+
+    @classmethod
+    def get_attributes_values(cls):
+        """
+        output all values of attributes
+
+        Returns:
+            a list containing values of all attributes
+        """
+        return [
+            getattr(cls, attr) for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")
+        ]

@@ -18,7 +18,7 @@ Description: parse unaffected cve xml file, insert into database
 from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
 
-from apollo.conf.constant import CVE_SEVERITY, CVSS_SCORE
+from apollo.conf.constant import CveSeverity, CvssScore
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.handler.cve_handler.manager.parse_advisory import etree_to_dict
 
@@ -129,14 +129,14 @@ def parse_cve_severity(cve_score: str) -> str:
         cve severity
     """
     cvss_score = float(cve_score)
-    if cvss_score >= CVSS_SCORE.HIGH:
-        severity = CVE_SEVERITY.CRITICAL
-    elif cvss_score >= CVSS_SCORE.MEDIUM:
-        severity = CVE_SEVERITY.HIGH
-    elif cvss_score >= CVSS_SCORE.LOW:
-        severity = CVE_SEVERITY.MEDIUM
-    elif cvss_score > CVSS_SCORE.NONE:
-        severity = CVE_SEVERITY.LOW
+    if cvss_score >= CvssScore.HIGH:
+        severity = CveSeverity.CRITICAL
+    elif cvss_score >= CvssScore.MEDIUM:
+        severity = CveSeverity.HIGH
+    elif cvss_score >= CvssScore.LOW:
+        severity = CveSeverity.MEDIUM
+    elif cvss_score > CvssScore.NONE:
+        severity = CveSeverity.LOW
     else:
-        severity = CVE_SEVERITY.NONE
+        severity = CveSeverity.NONE
     return severity

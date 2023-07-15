@@ -19,6 +19,7 @@ from marshmallow import Schema
 from marshmallow import fields
 from marshmallow import validate
 from vulcanus.restful.serialize.validate import PaginationSchema
+from apollo.conf.constant import CveSeverity
 
 class CveListFilterSchema(Schema):
     """
@@ -26,7 +27,7 @@ class CveListFilterSchema(Schema):
     """
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
     severity = fields.List(fields.String(
-        validate=validate.OneOf(["Critical", "High", "Medium", "Low", "Unknown"])), required=False)
+        validate=validate.OneOf(CveSeverity.get_attributes_values())), required=False)
     affected = fields.Boolean(required=False, default=True)
     fixed = fields.Boolean(required=True, default=True, validate=validate.OneOf([True, False]))
 

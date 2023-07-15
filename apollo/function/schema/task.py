@@ -19,7 +19,7 @@ from marshmallow import Schema
 from marshmallow import fields
 from marshmallow import validate
 
-from apollo.conf.constant import TaskType
+from apollo.conf.constant import TaskType, TaskStatus
 from vulcanus.restful.serialize.validate import PaginationSchema
 
 class TaskListFilterSchema(Schema):
@@ -28,7 +28,7 @@ class TaskListFilterSchema(Schema):
     """
     task_name = fields.String(required=False, validate=lambda s: len(s) > 0)
     task_type = fields.List(fields.String(
-        validate=validate.OneOf([getattr(TaskType,p) for p in dir(TaskType) if p.isupper()])), required=False)
+        validate=validate.OneOf(TaskType.get_attributes_values())), required=False)
 
 
 class GetTaskListSchema(PaginationSchema):
@@ -101,7 +101,7 @@ class CveTaskInfoFilterSchema(Schema):
     cve_id = fields.String(required=False, validate=lambda s: len(s) > 0)
     reboot = fields.Boolean(required=False)
     status = fields.List(fields.String(validate=validate.OneOf(
-        ["succeed", "fail", "running", "unknown"])), required=False)
+        TaskStatus.get_attributes_values())), required=False)
 
 
 class GetCveTaskInfoSchema(PaginationSchema):
@@ -162,7 +162,7 @@ class RepoTaskInfoFilterSchema(Schema):
     """
     host_name = fields.String(required=False, validate=lambda s: len(s) > 0)
     status = fields.List(fields.String(
-        validate=validate.OneOf(["succeed", "fail", "running", "unknown"])),
+        validate=validate.OneOf(TaskStatus.get_attributes_values())),
         required=False)
 
 
