@@ -1,5 +1,16 @@
+#!/usr/bin/python3
+# ******************************************************************************
+# Copyright (c) Huawei Technologies Co., Ltd. 2023-2023. All rights reserved.
+# licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# ******************************************************************************/
 import dnf
-from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
 from .syscare import Syscare
@@ -78,18 +89,18 @@ class HotpatchCommand(dnf.cli.Command):
         # print title
         if self.opts.list in ['cve', 'cves']:
             print('%-*s %-*s %s' %
-                      (idw, title[0], naw, title[1], title[2]))
+                  (idw, title[0], naw, title[1], title[2]))
         else:
             print('%-*s %s' %
-                      (naw, title[1], title[2]))
+                  (naw, title[1], title[2]))
 
         for format_line in sorted(format_lines, key=lambda x: (x[1], x[0])):
             if self.opts.list in ['cve', 'cves']:
                 print('%-*s %-*s %s' %
-                          (idw, format_line[0], naw, format_line[1], format_line[2]))
+                      (idw, format_line[0], naw, format_line[1], format_line[2]))
             else:
                 print('%-*s %s' %
-                          (naw, format_line[1], format_line[2]))
+                      (naw, format_line[1], format_line[2]))
 
     def display(self):
         """
@@ -110,7 +121,7 @@ class HotpatchCommand(dnf.cli.Command):
                 echo_lines.append(echo_line)
 
         self._filter_and_format_list_output(echo_lines)
-    
+
     def operate_hot_patches(self, target_patch: list, operate, func) -> None:
         """
         operate hotpatch using syscare command
@@ -128,9 +139,7 @@ class HotpatchCommand(dnf.cli.Command):
 
         output, status = func(target_patch)
         if status:
-            logger.info(_("%s hot patch '%s' failed, remain original status."), operate,
+            logger.error(_("%s hot patch '%s' failed, remain original status."), operate,
                         self.base.output.term.bold(target_patch))
         else:
             logger.info(_("%s hot patch '%s' succeed"), operate, self.base.output.term.bold(target_patch))
-
-

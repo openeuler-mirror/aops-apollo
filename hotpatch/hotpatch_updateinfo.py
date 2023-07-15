@@ -1,11 +1,23 @@
-from .baseclass import Hotpatch, Cve, Advisory
-from .syscare import Syscare
+#!/usr/bin/python3
+# ******************************************************************************
+# Copyright (c) Huawei Technologies Co., Ltd. 2023-2023. All rights reserved.
+# licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# ******************************************************************************/
 import os
-from typing import Optional
 import gzip
 import xml.etree.ElementTree as ET
 import datetime
 import re
+
+from .baseclass import Hotpatch, Cve, Advisory
+from .syscare import Syscare
 
 
 class HotpatchUpdateInfo(object):
@@ -30,7 +42,7 @@ class HotpatchUpdateInfo(object):
         self.init_hotpatch_info()
 
     def init_hotpatch_info(self):
-        """ 
+        """
         Initialize hotpatch information
         """
         self._get_installed_pkgs()
@@ -159,7 +171,7 @@ class HotpatchUpdateInfo(object):
 
     def _store_advisory_info(self, advisory_kwargs: dict()):
         """
-        Instantiate Cve, Hotpatch and Advisory object according to the advisory kwargs 
+        Instantiate Cve, Hotpatch and Advisory object according to the advisory kwargs
         """
         advisory_references = advisory_kwargs.pop('references')
         advisory_hotpatches = advisory_kwargs.pop('hotpatches')
@@ -182,7 +194,7 @@ class HotpatchUpdateInfo(object):
             hotpatch.cves = hotpatch_ref_id
 
             advisory.add_hotpatch(hotpatch)
-            
+
             for ref_id in hotpatch_ref_id:
                 advisory_cves[ref_id].add_hotpatch(hotpatch)
 
@@ -208,7 +220,7 @@ class HotpatchUpdateInfo(object):
                     continue
                 for inst_pkg in inst_pkgs:
                     inst_pkg_vere = '%s-%s' % (inst_pkg.version,
-                                                inst_pkg.release)
+                                               inst_pkg.release)
                     hp_vere = '%s-%s' % (src_pkg_version, src_pkg_release)
                     if hp_vere != inst_pkg_vere:
                         continue
@@ -216,7 +228,7 @@ class HotpatchUpdateInfo(object):
                         hotpatch.state = self.INSTALLED
                     else:
                         hotpatch.state = self.INSTALLABLE
-    
+
     def _parse_and_store_from_xml(self, updateinfoxml):
         """
         Parse and store hotpatch update information from xxx-updateinfo.xml.gz
@@ -276,7 +288,7 @@ class HotpatchUpdateInfo(object):
         self._hotpatch_state = {}
         for hotpatch_info in self._hotpatch_status:
             self._hotpatch_state[hotpatch_info['Name']
-                                 ] = hotpatch_info['Status']
+            ] = hotpatch_info['Status']
 
     def _get_hotpatch_status_in_syscare(self, hotpatch: Hotpatch) -> str:
         """
@@ -334,7 +346,7 @@ class HotpatchUpdateInfo(object):
             advisories: [advisory_id_1, advisory_id_2]
 
         Return:
-        {   
+        {
             advisory_id_1: [hotpatch1],
             advisory_id_2: []
         }
@@ -348,6 +360,5 @@ class HotpatchUpdateInfo(object):
             for hotpatch in advisory.hotpatches:
                 if hotpatch.state == self.INSTALLABLE:
                     mapping_advisory_hotpatches[advisory_id].append(
-                            hotpatch.nevra)
+                        hotpatch.nevra)
         return mapping_advisory_hotpatches
-
