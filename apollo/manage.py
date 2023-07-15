@@ -21,18 +21,16 @@ import sqlalchemy
 from flask import Flask
 from redis import RedisError
 
+from vulcanus.timed import TimedTaskManager
+from vulcanus.database.proxy import ElasticsearchProxy, RedisProxy
+from vulcanus.log.log import LOGGER
 from apollo import BLUE_POINT
 from apollo.conf import configuration
 from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
-from apollo.cron.download_sa_manager import TimedDownloadSATask
-from apollo.cron.manager import TimedTaskManager, get_timed_task_config_info
-from apollo.cron.timed_correct_manager import TimedCorrectTask
-from apollo.cron.timed_scan_task import TimedScanTask
+from apollo.cron import task_meta
 from apollo.database import ENGINE
 from apollo.database.mapping import MAPPINGS
 from apollo.database.table import create_vul_tables
-from vulcanus.database.proxy import ElasticsearchProxy, RedisProxy
-from vulcanus.log.log import LOGGER
 
 
 def init_mysql():
@@ -96,15 +94,19 @@ def init_timed_task(app):
     Args:
         app:flask.Application
     """
-    config_info = get_timed_task_config_info(TIMED_TASK_CONFIG_PATH)
+    timed_task = TimedTaskManager(app=app, config_path=TIMED_TASK_CONFIG_PATH)
+    if not timed_task.timed_config:
+        LOGGER.warning("If you want to start a scheduled task, please add a timed config.")
+        return
 
-    TimedTaskManager().init_app(app)
-    TimedTaskManager().add_task(TimedScanTask.task_enter, **config_info.get("cve_scan"))
-    TimedTaskManager().add_task(TimedCorrectTask.task_enter,
-                                **config_info.get("correct_data"))
-    TimedTaskManager().add_task(TimedDownloadSATask.task_enter,
-                                **config_info.get("download_sa"))
-    TimedTaskManager().start_task()
+    for task_info in timed_task.timed_config.values():
+        task_type = task_info.get('type')
+        if task_type not in task_meta:
+            continue
+        meta_class = task_meta[task_type]
+        timed_task.add_job(meta_class(timed_config=task_info))
+
+    timed_task.start()
 
 
 def init_redis_connect():

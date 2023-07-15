@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # ******************************************************************************
-# Copyright (c) Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2021-2023. All rights reserved.
 # licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -13,22 +13,22 @@
 """
 Time:
 Author:
-Description: 
+Description:
 """
 import datetime
 import uuid
 import sqlalchemy
 
-from apollo.conf import configuration
-from apollo.conf.constant import HOST_STATUS
-from apollo.cron import TimedTaskBase
-from apollo.database.proxy.task import TaskMysqlProxy
-from apollo.handler.task_handler.manager.scan_manager import ScanManager
+
+from vulcanus.timed import TimedTask
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
+from apollo.conf.constant import HOST_STATUS
+from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.handler.task_handler.manager.scan_manager import ScanManager
 
 
-class TimedScanTask(TimedTaskBase):
+class TimedScanTask(TimedTask):
     """
     Timed scanning tasks
     """
@@ -47,29 +47,25 @@ class TimedScanTask(TimedTaskBase):
             bool: check result
         """
         if len(host_info) == 0:
-            LOGGER.info(
-                "There is no host info about user %s, ignore.", username)
+            LOGGER.info("There is no host info about user %s, ignore.", username)
             return False
 
         for host in host_info:
             if host["status"] == HOST_STATUS.SCANNING:
-                LOGGER.info(
-                    "There are some hosts under scanning about user %s, ignore.", username)
+                LOGGER.info("There are some hosts under scanning about user %s, ignore.", username)
                 return False
 
         return True
 
-    @staticmethod
-    def task_enter():
+    def execute(self):
         """
         Start the scan after the specified time of day.
         """
-        LOGGER.info("Begin to scan the whole host in %s.",
-                    str(datetime.datetime.now()))
+        LOGGER.info("Begin to scan the whole host in %s.", str(datetime.datetime.now()))
 
         # get the total host info first.
         try:
-            with TaskMysqlProxy(configuration) as proxy:
+            with TaskMysqlProxy() as proxy:
                 status, host_info_dict = proxy.get_total_host_info()
                 if status != SUCCEED:
                     LOGGER.error("Query for host info failed, stop scanning.")
@@ -77,13 +73,12 @@ class TimedScanTask(TimedTaskBase):
 
                 # create works
                 for username, host_info in host_info_dict['host_infos'].items():
-                    if not TimedScanTask._check_host_info(username, host_info):
+                    if not self._check_host_info(username, host_info):
                         continue
 
                     task_id = str(uuid.uuid1()).replace('-', '')
                     # init status
-                    cve_scan_manager = ScanManager(
-                        task_id, proxy, host_info, username, True)
+                    cve_scan_manager = ScanManager(task_id, proxy, host_info, username, True)
                     cve_scan_manager.create_task()
                     if not cve_scan_manager.pre_handle():
                         continue
