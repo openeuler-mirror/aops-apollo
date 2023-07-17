@@ -29,7 +29,7 @@ class TaskListFilterSchema(Schema):
     """
 
     task_name = fields.String(required=False, validate=lambda s: len(s) > 0)
-    task_type = fields.List(fields.String(validate=validate.OneOf(TaskType.get_attributes_values())), required=False)
+    task_type = fields.List(fields.String(validate=validate.OneOf(TaskType.attribute())), required=False)
 
 
 class GetTaskListSchema(PaginationSchema):
@@ -106,7 +106,7 @@ class CveTaskInfoFilterSchema(Schema):
 
     cve_id = fields.String(required=False, validate=lambda s: len(s) > 0)
     reboot = fields.Boolean(required=False)
-    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.get_attributes_values())), required=False)
+    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
 
 
 class GetCveTaskInfoSchema(PaginationSchema):
@@ -173,7 +173,7 @@ class RepoTaskInfoFilterSchema(Schema):
     """
 
     host_name = fields.String(required=False, validate=lambda s: len(s) > 0)
-    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.get_attributes_values())), required=False)
+    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
 
 
 class GetRepoTaskInfoSchema(PaginationSchema):

@@ -29,7 +29,7 @@ class CveListFilterSchema(Schema):
     """
 
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
-    severity = fields.List(fields.String(validate=validate.OneOf(CveSeverity.get_attributes_values())), required=False)
+    severity = fields.List(fields.String(validate=validate.OneOf(CveSeverity.attribute())), required=False)
     affected = fields.Boolean(required=False, default=True)
     fixed = fields.Boolean(required=True, default=True, validate=validate.OneOf([True, False]))
 
