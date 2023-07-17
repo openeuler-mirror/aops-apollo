@@ -37,8 +37,7 @@ def unzip(file_path, max_size=20 * 1024 * 1024, max_num=100):
     file_num = len(srcfile.infolist())
     if file_num > max_num:
         os.remove(file_path)
-        LOGGER.error("The number of decompressed file exceeds the limit: %d > %d"
-                     % (file_num, max_num))
+        LOGGER.error("The number of decompressed file exceeds the limit: %d > %d" % (file_num, max_num))
         srcfile.close()
         return ""
 
@@ -47,8 +46,7 @@ def unzip(file_path, max_size=20 * 1024 * 1024, max_num=100):
         total_size += info.file_size
     if total_size > max_size:
         os.remove(file_path)
-        LOGGER.error("The size of decompressed file exceeds the limit: %d > %d"
-                     % (total_size, max_size))
+        LOGGER.error("The size of decompressed file exceeds the limit: %d > %d" % (total_size, max_size))
         srcfile.close()
         return ""
 

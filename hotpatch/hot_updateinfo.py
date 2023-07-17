@@ -10,11 +10,12 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import dnf
-from dnf.i18n import _
-from dnf.cli.commands.updateinfo import UpdateInfoCommand
-import hawkey
 from dataclasses import dataclass
+
+import dnf
+import hawkey
+from dnf.cli.commands.updateinfo import UpdateInfoCommand
+from dnf.i18n import _
 
 from .hotpatch_updateinfo import HotpatchUpdateInfo
 
@@ -23,7 +24,7 @@ from .hotpatch_updateinfo import HotpatchUpdateInfo
 class DisplayItem:
     """
     Class for storing the formatting parameters and display lines.
-    
+
     idw: the width of 'cve_id'
     tiw: the width of 'adv_type'
     ciw: the width of 'coldpatch'
@@ -31,6 +32,7 @@ class DisplayItem:
             [cve_id, adv_type, coldpatch, hotpatch],
         ]
     """
+
     idw: int
     tiw: int
     ciw: int
@@ -52,12 +54,10 @@ class HotUpdateinfoCommand(dnf.cli.Command):
     def set_argparser(parser):
 
         spec_action_cmds = ['list']
-        parser.add_argument('spec_action', nargs=1, choices=spec_action_cmds,
-                            help=_('show updateinfo list'))
+        parser.add_argument('spec_action', nargs=1, choices=spec_action_cmds, help=_('show updateinfo list'))
 
         with_cve_cmds = ['cve', 'cves']
-        parser.add_argument('with_cve', nargs=1, choices=with_cve_cmds,
-                            help=_('show cves'))
+        parser.add_argument('with_cve', nargs=1, choices=with_cve_cmds, help=_('show cves'))
 
     def configure(self):
         demands = self.cli.demands
@@ -97,8 +97,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         updateinfo.opts.availability = 'available'
         self.updateinfo = updateinfo
 
-        apkg_adv_insts = updateinfo.available_apkg_adv_insts(
-            updateinfo.opts.spec)
+        apkg_adv_insts = updateinfo.available_apkg_adv_insts(updateinfo.opts.spec)
 
         mapping_nevra_cve = dict()
         for apkg, advisory, _ in apkg_adv_insts:
@@ -106,8 +105,10 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             for ref in advisory.references:
                 if ref.type != hawkey.REFERENCE_CVE:
                     continue
-                mapping_nevra_cve.setdefault((nevra, advisory.updated), dict())[
-                    ref.id] = (advisory.type, advisory.severity)
+                mapping_nevra_cve.setdefault((nevra, advisory.updated), dict())[ref.id] = (
+                    advisory.type,
+                    advisory.severity,
+                )
 
         return mapping_nevra_cve
 
@@ -139,10 +140,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         # sort format_lines according to the coldpatch and the hotpatch name
         format_lines = sorted(format_lines, key=lambda x: (x[2], x[3]))
 
-        display_item = DisplayItem(idw=idw,
-                                   tiw=tiw,
-                                   ciw=ciw,
-                                   display_lines=format_lines)
+        display_item = DisplayItem(idw=idw, tiw=tiw, ciw=ciw, display_lines=format_lines)
 
         return display_item
 
@@ -155,7 +153,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                 [cve_id, adv_type, coldpatch, hotpatch]
             ]
 
-        Returns: 
+        Returns:
             DisplayItem
         """
 
@@ -204,8 +202,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                     echo_line = [cve_id, hotpatch.advisory.severity + '/Sec.', '-', hotpatch.nevra]
                 echo_lines.append(echo_line)
 
-        display_item = self._filter_and_format_list_output(
-            echo_lines, fixed_cve_id)
+        display_item = self._filter_and_format_list_output(echo_lines, fixed_cve_id)
 
         return display_item
 
@@ -216,5 +213,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         display_item = self.get_formatting_parameters_and_display_lines()
         idw, tiw, ciw, display_lines = display_item.idw, display_item.tiw, display_item.ciw, display_item.display_lines
         for display_line in display_lines:
-            print('%-*s %-*s %-*s %s' %
-                  (idw, display_line[0], tiw, display_line[1], ciw, display_line[2], display_line[3]))
+            print(
+                '%-*s %-*s %-*s %s'
+                % (idw, display_line[0], tiw, display_line[1], ciw, display_line[2], display_line[3])
+            )

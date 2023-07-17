@@ -23,6 +23,7 @@ class TaskCache(LRUCache):
     A task cache based on LRU, offers some function to transfer host info to certain format
     in addtion to cache.
     """
+
     @staticmethod
     def make_cve_info(info):
         """

@@ -15,7 +15,9 @@ Time:
 Author:
 Description: Manager that start aops-manager
 """
-from gevent import monkey; monkey.patch_all(thread=False)
+from gevent import monkey
+
+monkey.patch_all(thread=False)
 import redis
 import sqlalchemy
 from flask import Flask
@@ -61,9 +63,7 @@ def init_es():
 
     LOGGER.info("create elasticsearch index succeed")
     # update es settings
-    config = {
-        "max_result_window": configuration.elasticsearch.get('MAX_ES_QUERY_NUM')
-    }
+    config = {"max_result_window": configuration.elasticsearch.get('MAX_ES_QUERY_NUM')}
     proxy.update_settings(**config)
 
 

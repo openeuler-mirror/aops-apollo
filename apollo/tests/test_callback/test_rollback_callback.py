@@ -19,27 +19,14 @@ import unittest
 from unittest import mock
 
 from apollo.conf.constant import CveHostStatus
-from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.tests.test_callback import Host, Test
 
 
 class TestCveRollbackCallback(unittest.TestCase):
     def setUp(self):
-        task_info = {
-            "cve": {
-                "cve1": 1,
-                "cve2": 2
-            },
-            "host": {
-                "name1": {
-                    "host_id": 1
-                },
-                "name2": {
-                    "host_id": 2
-                }
-            }
-        }
+        task_info = {"cve": {"cve1": 1, "cve2": 2}, "host": {"name1": {"host_id": 1}, "name2": {"host_id": 2}}}
         proxy = TaskMysqlProxy()
         self.call = CveRollbackCallback('1', proxy, task_info)
 
@@ -60,14 +47,8 @@ class TestCveRollbackCallback(unittest.TestCase):
 
         expected_res = {
             "name1": {
-                "cve1": {
-                    "info": "11",
-                    "status": CveHostStatus.SUCCEED
-                },
-                "cve2": {
-                    "info": "13",
-                    "status": CveHostStatus.SUCCEED
-                }
+                "cve1": {"info": "11", "status": CveHostStatus.SUCCEED},
+                "cve2": {"info": "13", "status": CveHostStatus.SUCCEED},
             }
         }
         self.assertDictEqual(expected_res, self.call.result)

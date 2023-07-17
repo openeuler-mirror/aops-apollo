@@ -11,15 +11,9 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 class Hotpatch(object):
-    __slots__ = ['_name', '_version', '_cves',
-                 '_advisory', '_arch', '_filename', '_state']
+    __slots__ = ['_name', '_version', '_cves', '_advisory', '_arch', '_filename', '_state']
 
-    def __init__(self,
-                 name,
-                 version,
-                 arch,
-                 filename,
-                 release=''):
+    def __init__(self, name, version, arch, filename, release=''):
         """
         name: str
         version: str
@@ -58,10 +52,10 @@ class Hotpatch(object):
     def src_pkg(self):
         """
         If the hotpatch need to be installed, the source package must be installed
-        
+
         src_pkg: name-version-release
         """
-        src_pkg = self.name[self.name.index('-')+1:self.name.rindex('-')]
+        src_pkg = self.name[self.name.index('-') + 1 : self.name.rindex('-')]
         return src_pkg
 
     @property
@@ -75,8 +69,11 @@ class Hotpatch(object):
         src_pkg = self.src_pkg
         release_pos = src_pkg.rindex('-')
         version_pos = src_pkg.rindex('-', 0, release_pos)
-        src_pkg_name, src_pkg_version, src_pkg_release = src_pkg[
-            0:version_pos], src_pkg[version_pos+1:release_pos], src_pkg[release_pos+1:]
+        src_pkg_name, src_pkg_version, src_pkg_release = (
+            src_pkg[0:version_pos],
+            src_pkg[version_pos + 1 : release_pos],
+            src_pkg[release_pos + 1 :],
+        )
         return src_pkg_name, src_pkg_version, src_pkg_release
 
     @property
@@ -86,14 +83,14 @@ class Hotpatch(object):
 
         nevra: name-version-release.arch
         """
-        return self.filename[0:self.filename.rindex('.')]
+        return self.filename[0 : self.filename.rindex('.')]
 
     @property
     def hotpatch_name(self):
         """
         The 'hotpatch_name' is defined as HPxxx, which is used for hotpatch status querying in syscare
         """
-        hotpatch_name = self.name[self.name.rindex('-')+1:]
+        hotpatch_name = self.name[self.name.rindex('-') + 1 :]
         return hotpatch_name
 
     @property
@@ -129,9 +126,7 @@ class Hotpatch(object):
 class Cve(object):
     __slots__ = ['_cve_id', '_hotpatches']
 
-    def __init__(self,
-                 id,
-                 **kwargs):
+    def __init__(self, id, **kwargs):
         """
         id: str
         """
@@ -151,17 +146,9 @@ class Cve(object):
 
 
 class Advisory(object):
-    __slots__ = ['_id', '_adv_type', '_title', '_severity',
-                 '_description', '_updated', '_hotpatches', '_cves']
+    __slots__ = ['_id', '_adv_type', '_title', '_severity', '_description', '_updated', '_hotpatches', '_cves']
 
-    def __init__(self,
-                 id,
-                 adv_type,
-                 title,
-                 severity,
-                 description,
-                 updated="1970-01-01 08:00:00",
-                 **kwargs):
+    def __init__(self, id, adv_type, title, severity, description, updated="1970-01-01 08:00:00", **kwargs):
         """
         id: str
         adv_type: str
@@ -217,4 +204,3 @@ class Advisory(object):
 
     def add_hotpatch(self, hotpatch: Hotpatch):
         self._hotpatches.append(hotpatch)
-

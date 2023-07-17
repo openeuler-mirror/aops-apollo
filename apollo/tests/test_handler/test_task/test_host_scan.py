@@ -19,12 +19,12 @@ import unittest
 from unittest import mock
 
 from flask import Flask
+from vulcanus.restful.resp.state import PARAM_ERROR, SUCCEED
+from vulcanus.restful.response import BaseResponse
 
 from apollo import BLUE_POINT
 from apollo.conf.constant import VUL_HOST_SCAN
 from apollo.handler.task_handler.view import VulScanHost
-from vulcanus.restful.resp.state import PARAM_ERROR, SUCCEED
-from vulcanus.restful.response import BaseResponse
 
 
 class TestHostScanView(unittest.TestCase):
@@ -49,24 +49,15 @@ class TestHostScanView(unittest.TestCase):
             "filter": {
                 "host_name": "b",
                 "host_group": [],
-            }
+            },
         }
-        response = self.client.post(
-            VUL_HOST_SCAN, json=args, headers=self.headers)
+        response = self.client.post(VUL_HOST_SCAN, json=args, headers=self.headers)
         res = response.json
         expected_res = StatusCode.make_response(SUCCEED)
         self.assertDictEqual(res, expected_res)
 
-        args = {
-            "host_list": [1],
-            "filter": {
-                "host_name": 111,
-                "host_group": [],
-                "bb": 1
-            }
-        }
-        response = self.client.post(
-            VUL_HOST_SCAN, json=args, headers=self.headers)
+        args = {"host_list": [1], "filter": {"host_name": 111, "host_group": [], "bb": 1}}
+        response = self.client.post(VUL_HOST_SCAN, json=args, headers=self.headers)
         res = response.json
         expected_res = StatusCode.make_response(PARAM_ERROR)
         self.assertDictEqual(res, expected_res)
@@ -78,21 +69,11 @@ class TestHostScanView(unittest.TestCase):
         res = interface._verify_param(host_list, actual_host_list)
         self.assertEqual(res, False)
 
-        actual_host_list = [
-            {
-                "host_id": 1,
-                "status": "aa"
-            }
-        ]
+        actual_host_list = [{"host_id": 1, "status": "aa"}]
         res = interface._verify_param(host_list, actual_host_list)
         self.assertEqual(res, True)
 
         host_list = [1, 2]
-        actual_host_list = [
-            {
-                "host_id": 2,
-                "status": "b"
-            }
-        ]
+        actual_host_list = [{"host_id": 2, "status": "b"}]
         res = interface._verify_param(host_list, actual_host_list)
         self.assertEqual(res, False)

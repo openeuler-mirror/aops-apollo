@@ -21,27 +21,31 @@ import uuid
 from typing import Dict, Tuple
 
 from flask import request
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import (
+    REPEAT_TASK_EXECUTION,
+    SUCCEED,
+    PARAM_ERROR,
+    DATABASE_UPDATE_ERROR,
+    PARTIAL_SUCCEED,
+)
+from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import HostStatus, TaskType
 from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
-from apollo.function.schema.task import GenerateCveRollbackTaskSchema
 from apollo.function.schema.task import CveRollbackCallbackSchema
+from apollo.function.schema.task import GenerateCveRollbackTaskSchema
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.config import configuration
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
+from apollo.handler.task_handler.manager.cve_rollback_manager import CveRollbackManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
-from apollo.handler.task_handler.manager.cve_rollback_manager import CveRollbackManager
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import \
-    REPEAT_TASK_EXECUTION, SUCCEED, PARAM_ERROR, \
-    DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED
-from vulcanus.restful.response import BaseResponse
 
 
 class VulScanHost(BaseResponse):
@@ -104,8 +108,7 @@ class VulScanHost(BaseResponse):
         host_list = args['host_list']
         host_info = proxy.get_scan_host_info(username, host_list)
         if not self._verify_param(host_list, host_info):
-            LOGGER.error(
-                "There are some host in %s that can not be scanned.", host_list)
+            LOGGER.error("There are some host in %s that can not be scanned.", host_list)
             return PARAM_ERROR
         task_id = str(uuid.uuid1()).replace('-', '')
         # init status
@@ -260,8 +263,7 @@ class VulGenerateCveTask(BaseResponse):
         args['create_time'] = int(time.time())
         status_code = task_proxy.generate_cve_task(args)
         if status_code != SUCCEED:
-            LOGGER.error(
-                "Generate cve fix task fail, fail to save task info to database.")
+            LOGGER.error("Generate cve fix task fail, fail to save task info to database.")
             return status_code, result
 
         result['task_id'] = task_id
@@ -468,8 +470,9 @@ class VulGenerateRepoTask(BaseResponse):
             dict: body including task id
         """
         task_id = str(uuid.uuid1()).replace('-', '')
-        task_info = dict(task_id=task_id, task_type=TaskType.REPO_SET,
-                         create_time=int(time.time()), username=args["username"])
+        task_info = dict(
+            task_id=task_id, task_type=TaskType.REPO_SET, create_time=int(time.time()), username=args["username"]
+        )
         task_info.update(args)
 
         # save task info to database
@@ -549,10 +552,11 @@ class VulExecuteTask(BaseResponse):
     """
     Restful interface for executing task.
     """
+
     type_map = {
         TaskType.CVE_FIX: "_handle_cve_fix",
         TaskType.REPO_SET: "_handle_repo",
-        TaskType.CVE_ROLLBACK: "_handle_cve_rollback"
+        TaskType.CVE_ROLLBACK: "_handle_cve_rollback",
     }
 
     @staticmethod
@@ -695,8 +699,7 @@ class VulDeleteTask(BaseResponse):
     def _handle(task_proxy, args):
         status_code, running_tasks = task_proxy.delete_task(args)
         if status_code == PARTIAL_SUCCEED:
-            LOGGER.warning(
-                "A running task has not been deleted, task id: %s." % " ".join(running_tasks))
+            LOGGER.warning("A running task has not been deleted, task id: %s." % " ".join(running_tasks))
 
         return status_code, dict(running_task=running_tasks)
 
@@ -762,8 +765,7 @@ class VulRepoSetTaskCallback(BaseResponse):
         Returns:
             int: status code
         """
-        task_info = dict(
-            status=args["status"], repo_name=args["repo_name"], host_id=args["host_id"])
+        task_info = dict(status=args["status"], repo_name=args["repo_name"], host_id=args["host_id"])
 
         repo_set_callback = RepoSetCallback(proxy)
         return repo_set_callback.callback(args['task_id'], task_info)
@@ -821,8 +823,9 @@ class VulGenerateCveRollback(BaseResponse):
             dict: body including task id
         """
         task_id = str(uuid.uuid1()).replace('-', '')
-        task_info = dict(task_id=task_id, task_type=TaskType.CVE_ROLLBACK,
-                         create_time=int(time.time()), username=args["username"])
+        task_info = dict(
+            task_id=task_id, task_type=TaskType.CVE_ROLLBACK, create_time=int(time.time()), username=args["username"]
+        )
         task_info.update(args)
 
         # save task info to database

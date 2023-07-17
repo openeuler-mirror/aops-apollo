@@ -23,7 +23,7 @@ REQUIRES = [
     'PyYAML',
     'retrying',
     'lxml',
-    'gevent'
+    'gevent',
 ]
 
 setup(
@@ -38,5 +38,5 @@ setup(
         ('/usr/lib/systemd/system', ['aops-apollo.service']),
     ],
     scripts=['aops-apollo'],
-    zip_safe=False
+    zip_safe=False,
 )

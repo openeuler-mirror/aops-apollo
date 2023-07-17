@@ -22,14 +22,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from io import BytesIO
 
-from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_CVE_SCAN_CALLBACK
-from apollo.handler.task_handler.manager import Manager
 from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_SCAN
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
 from vulcanus.restful.response import BaseResponse
 from vulcanus.send_email import Email
+
+from apollo.conf import configuration
+from apollo.conf.constant import VUL_TASK_CVE_SCAN_CALLBACK
+from apollo.handler.task_handler.manager import Manager
 
 
 class ScanManager(Manager):
@@ -53,15 +54,12 @@ class ScanManager(Manager):
 
     def create_task(self):
         """
-       Returns:
-           int: status code
-       """
+        Returns:
+            int: status code
+        """
         host_info_list = []
         for host_id in self.host_list:
-            host_info_list.append({
-                "host_id": host_id,
-                "check": False
-            })
+            host_info_list.append({"host_id": host_id, "check": False})
 
         self.task = {
             "task_id": self.task_id,
@@ -69,7 +67,7 @@ class ScanManager(Manager):
             "total_hosts": self.host_list,
             "check_items": [],
             "tasks": host_info_list,
-            "callback": VUL_TASK_CVE_SCAN_CALLBACK
+            "callback": VUL_TASK_CVE_SCAN_CALLBACK,
         }
 
         _, self.last_scan_result = self.proxy.query_host_cve_info(self.username)
@@ -84,8 +82,7 @@ class ScanManager(Manager):
             bool
         """
         if self.proxy.update_host_scan("init", self.host_list, self.username) != SUCCEED:
-            LOGGER.error(
-                "Init the host status in database failed, stop scanning.")
+            LOGGER.error("Init the host status in database failed, stop scanning.")
             return False
 
         return True
@@ -95,26 +92,22 @@ class ScanManager(Manager):
         Execute cve scan task.
         """
         LOGGER.info("Scanning task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (configuration.zeus.get('IP'),
-                                    configuration.zeus.get('PORT'),
-                                    EXECUTE_CVE_SCAN)
-        header = {
-            "access_token": self.token,
-            "Content-Type": "application/json; charset=UTF-8"
-        }
+        manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_CVE_SCAN)
+        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
         if self._timed:
-            header.update({
-                "exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
-                "local_account": self.username})
+            header.update(
+                {
+                    "exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
+                    "local_account": self.username,
+                }
+            )
 
-        response = BaseResponse.get_response(
-            'POST', manager_url, self.task, header)
+        response = BaseResponse.get_response('POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:
             LOGGER.error("Cve scan task %s execute failed.", self.task_id)
             return
         self.result = response.get("data", dict()).get("task_result")
-        LOGGER.info(
-            "Cve scan task %s end, begin to handle result.", self.task_id)
+        LOGGER.info("Cve scan task %s end, begin to handle result.", self.task_id)
 
     def post_handle(self):
         """
@@ -123,16 +116,15 @@ class ScanManager(Manager):
 
         if self.result:
             for host_info in self.result:
-                LOGGER.debug(
-                    f"{host_info['host_id']} scan status is {host_info.get('status')}")
+                LOGGER.debug(f"{host_info['host_id']} scan status is {host_info.get('status')}")
         else:
             LOGGER.info(f"cve scan result is null")
         self.fault_handle()
 
     def fault_handle(self):
         """
-            When the task is completed or execute fail, set the host status to 'done'.
-            then send a email to notify the user.
+        When the task is completed or execute fail, set the host status to 'done'.
+        then send a email to notify the user.
         """
         self.proxy.update_host_scan("finish", self.host_list)
         if configuration.email.get("ENABLED"):
@@ -144,7 +136,7 @@ class ScanManager(Manager):
 
     def send_email_to_user(self) -> None:
         """
-            send email to user with cve scan result
+        send email to user with cve scan result
         """
         # Get config info
         server = configuration.email.get("SERVER")
@@ -182,8 +174,7 @@ class ScanManager(Manager):
             return message
 
         # set email subject
-        message['Subject'] = f'{time.strftime("【%Y-%m-%d", time.localtime())}' \
-                             f' A-OPS】CVE扫描结果'
+        message['Subject'] = f'{time.strftime("【%Y-%m-%d", time.localtime())}' f' A-OPS】CVE扫描结果'
         message['From'] = f'A-OPS<{sender}>'
         message['To'] = receivers
 
@@ -191,10 +182,12 @@ class ScanManager(Manager):
         file, table_data = self._generate_cve_info_file(rows)
 
         body_head = "<p>下表为各主机CVE扫描结果简略统计表：</p>"
-        body_tail = f'<p>详细CVE信息请查看附件。</p>' \
-                    f'<a href="http://{configuration.hermes.get("IP")}:' \
-                    f'{configuration.hermes.get("PORT")}/' \
-                    f'leaks/host-leak-list">点击跳转AOPS</a>'
+        body_tail = (
+            f'<p>详细CVE信息请查看附件。</p>'
+            f'<a href="http://{configuration.hermes.get("IP")}:'
+            f'{configuration.hermes.get("PORT")}/'
+            f'leaks/host-leak-list">点击跳转AOPS</a>'
+        )
         table_title = ["序号", "主机名", "主机IP", "CVE个数"]
         html = f"{body_head}{Email.turn_data_to_table_html(table_title, table_data)}{body_tail}"
         text_content = MIMEText(html, "html", "utf-8")
@@ -202,8 +195,8 @@ class ScanManager(Manager):
 
         file_content = MIMEApplication(file.read())
         file_content.add_header(
-            'Content-Disposition', 'attachment',
-            filename=f"CVE_{time.strftime('%Y_%m_%d', time.localtime())}.csv")
+            'Content-Disposition', 'attachment', filename=f"CVE_{time.strftime('%Y_%m_%d', time.localtime())}.csv"
+        )
         message.attach(file_content)
 
         return message
@@ -226,21 +219,24 @@ class ScanManager(Manager):
         for row in rows:
             if row.host_ip in tmp:
                 tmp[row.host_ip]["count"] += 1
-                file_content += f"{excel_row_num},{row.cve_id},{row.host_ip}," \
-                                f"{row.host_name},{row.cvss_score},{row.severity},{'是' if row.support_hp else '否'}\n"
+                file_content += (
+                    f"{excel_row_num},{row.cve_id},{row.host_ip},"
+                    f"{row.host_name},{row.cvss_score},{row.severity},{'是' if row.support_hp else '否'}\n"
+                )
                 excel_row_num += 1
             else:
                 if row.cve_id is not None:
                     tmp[row.host_ip] = {"count": 1, "host_name": row.host_name}
-                    file_content += f"{excel_row_num},{row.cve_id},{row.host_ip}," \
-                                    f"{row.host_name},{row.cvss_score},{row.severity}\n"
+                    file_content += (
+                        f"{excel_row_num},{row.cve_id},{row.host_ip},"
+                        f"{row.host_name},{row.cvss_score},{row.severity}\n"
+                    )
                     excel_row_num += 1
                 else:
                     tmp[row.host_ip] = {"count": 0, "host_name": row.host_name}
 
         for num, host_ip in enumerate(tmp.keys(), 1):
-            chart_data.append(
-                [num, tmp[host_ip].get("host_name"), host_ip, tmp[host_ip].get("count")])
+            chart_data.append([num, tmp[host_ip].get("host_name"), host_ip, tmp[host_ip].get("count")])
 
         return self._generate_file_object(file_content), chart_data
 

@@ -17,8 +17,9 @@ Description: mysql tables
 """
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.sql.sqltypes import Boolean, Integer, String
-from vulcanus.database.table import Base, MyBase
 from vulcanus.database.helper import create_tables
+from vulcanus.database.table import Base, MyBase
+
 from apollo.database import ENGINE
 
 
@@ -27,22 +28,24 @@ class CveHostAssociation(Base, MyBase):
     cve and vulnerability_host tables' association table, record the cve and host matching
     relationship for fixing cve task
     """
+
     __tablename__ = "cve_host_match"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     cve_id = Column(String(20))
-    host_id = Column(Integer, ForeignKey(
-        'host.host_id', ondelete="CASCADE"), index=True)
+    host_id = Column(Integer, ForeignKey('host.host_id', ondelete="CASCADE"), index=True)
     affected = Column(Boolean)
     fixed = Column(Boolean)
     support_hp = Column(Boolean, default=None)
     fixed_by_hp = Column(Boolean, default=None)
     hp_status = Column(String(20))
 
+
 class CveAffectedPkgs(Base, MyBase):
     """
     record the affected packages of cves. A cve may affect multiple packages.
     """
+
     __tablename__ = "cve_affected_pkgs"
 
     cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
@@ -56,11 +59,11 @@ class CveTaskAssociation(Base, MyBase):
     """
     cve and task tables' association table, record cve info
     """
+
     __tablename__ = "cve_task"
 
     cve_id = Column(String(20), primary_key=True)
-    task_id = Column(String(32), ForeignKey(
-        'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     reboot = Column(Boolean)
     progress = Column(Integer, default=0)
     host_num = Column(Integer, nullable=False)
@@ -71,10 +74,10 @@ class TaskCveHostAssociation(Base, MyBase):
     cve, task and host tables' association table, record cve, host and task's matching
     relationship for fixing cve task
     """
+
     __tablename__ = "task_cve_host"
 
-    task_id = Column(String(32), ForeignKey(
-        'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     cve_id = Column(String(20), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
@@ -89,10 +92,10 @@ class TaskHostRepoAssociation(Base, MyBase):
     task, host and repo tables' association table, record repo, host and task's matching
     relationship for setting repo task
     """
+
     __tablename__ = "task_host_repo"
 
-    task_id = Column(String(32), ForeignKey(
-        'vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
     host_id = Column(Integer, primary_key=True)
     host_name = Column(String(20), nullable=False)
     host_ip = Column(String(16), nullable=False)
@@ -105,6 +108,7 @@ class Cve(Base, MyBase):
     """
     Cve table
     """
+
     __tablename__ = "cve"
 
     cve_id = Column(String(20), nullable=False, primary_key=True)
@@ -118,6 +122,7 @@ class Repo(Base, MyBase):
     """
     Repo Table
     """
+
     __tablename__ = "repo"
 
     repo_id = Column(Integer, autoincrement=True, primary_key=True)
@@ -132,6 +137,7 @@ class Task(Base, MyBase):
     """
     Task info Table
     """
+
     __tablename__ = "vul_task"
 
     task_id = Column(String(32), primary_key=True, nullable=False)
@@ -153,6 +159,7 @@ class AdvisoryDownloadRecord(Base, MyBase):
     """
     Download and parse advisory's record
     """
+
     __tablename__ = "parse_advisory_record"
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     advisory_year = Column(String(4), nullable=False)
@@ -170,8 +177,16 @@ def create_vul_tables(engine=ENGINE):
 
     """
     # pay attention, the sequence of list is important. Base table need to be listed first.
-    tables = [Cve, CveHostAssociation, Task, Repo, AdvisoryDownloadRecord,
-              CveTaskAssociation, TaskHostRepoAssociation, TaskCveHostAssociation, CveAffectedPkgs]
-    tables_objects = [Base.metadata.tables[table.__tablename__]
-                      for table in tables]
+    tables = [
+        Cve,
+        CveHostAssociation,
+        Task,
+        Repo,
+        AdvisoryDownloadRecord,
+        CveTaskAssociation,
+        TaskHostRepoAssociation,
+        TaskCveHostAssociation,
+        CveAffectedPkgs,
+    ]
+    tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]
     create_tables(Base, engine, tables=tables_objects)

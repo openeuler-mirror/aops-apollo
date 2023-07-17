@@ -17,17 +17,14 @@ Description:
 """
 import unittest
 from unittest import mock
-from flask import Flask
 
+from flask import Flask
+from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, PARAM_ERROR, StatusCode, SUCCEED, REPEAT_TASK_EXECUTION
 from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, NO_DATA, PARAM_ERROR, StatusCode, SUCCEED, REPEAT_TASK_EXECUTION
+
 from apollo import BLUE_POINT
-from apollo.conf import *
 from apollo.conf.constant import VUL_TASk_EXECUTE
-from apollo.database.proxy.task import TaskProxy, TaskMysqlProxy
-from apollo.handler.task_handler.cache import TaskCache
-from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
-from apollo.handler.task_handler.manager.repo_manager import RepoManager
+from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.view import VulExecuteTask
 
 
@@ -48,20 +45,14 @@ class TestExecuteTaskView(unittest.TestCase):
     def test_schema(self, mock_verify_token, mock_handle):
         mock_verify_token.return_value = SUCCEED
         mock_handle.return_value = SUCCEED
-        args = {
-            "task_id": "a"
-        }
-        response = self.client.post(
-            VUL_TASk_EXECUTE, json=args, headers=self.headers)
+        args = {"task_id": "a"}
+        response = self.client.post(VUL_TASk_EXECUTE, json=args, headers=self.headers)
         res = response.json
         expected_res = StatusCode.make_response(SUCCEED)
         self.assertDictEqual(res, expected_res)
 
-        args = {
-            "task": "a"
-        }
-        response = self.client.post(
-            VUL_TASk_EXECUTE, json=args, headers=self.headers)
+        args = {"task": "a"}
+        response = self.client.post(VUL_TASk_EXECUTE, json=args, headers=self.headers)
         res = response.json
         expected_res = StatusCode.make_response(PARAM_ERROR)
         self.assertDictEqual(res, expected_res)
@@ -78,10 +69,7 @@ class TestExecuteTaskView(unittest.TestCase):
         self.assertEqual(res, DATABASE_CONNECT_ERROR)
 
         # test check task type fail
-        args = {
-            "task_id": "1",
-            "username": "a"
-        }
+        args = {"task_id": "1", "username": "a"}
         mock_connect.return_value = True
         mock_get_task_type.return_value = 'a'
         res = interface._handle(args)

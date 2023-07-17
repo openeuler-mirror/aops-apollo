@@ -15,15 +15,23 @@ Time:
 Author:
 Description: Host table operation
 """
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func
-
-from vulcanus.log.log import LOGGER
+from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import judge_return_code
 from vulcanus.database.proxy import MysqlProxy
-from vulcanus.restful.resp.state import DATABASE_DELETE_ERROR, DATABASE_INSERT_ERROR, NO_DATA, \
-    DATABASE_QUERY_ERROR, DATABASE_UPDATE_ERROR, DATA_EXIST, SUCCEED, DATA_DEPENDENCY_ERROR
 from vulcanus.database.table import Host
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import (
+    DATABASE_DELETE_ERROR,
+    DATABASE_INSERT_ERROR,
+    NO_DATA,
+    DATABASE_QUERY_ERROR,
+    DATABASE_UPDATE_ERROR,
+    DATA_EXIST,
+    SUCCEED,
+    DATA_DEPENDENCY_ERROR,
+)
+
 from apollo.database.table import Repo
 
 
@@ -92,8 +100,11 @@ class RepoProxy(MysqlProxy):
         Returns:
             bool
         """
-        repo_count = self.session.query(func.count(Repo.repo_id)) \
-            .filter(Repo.repo_name == repo_name, Repo.username == username).scalar()
+        repo_count = (
+            self.session.query(func.count(Repo.repo_id))
+            .filter(Repo.repo_name == repo_name, Repo.username == username)
+            .scalar()
+        )
 
         return True if repo_count else False
 
@@ -137,16 +148,14 @@ class RepoProxy(MysqlProxy):
         username = data["username"]
 
         if not self._if_repo_name_exists(repo_name, username):
-            LOGGER.debug(
-                "Update repo failed due to repo '%s' doesn't exist." % repo_name)
+            LOGGER.debug("Update repo failed due to repo '%s' doesn't exist." % repo_name)
             return NO_DATA
 
         repo_data = data["repo_data"]
         # mock repo attr. Will get from request in the future
         repo_attr = ""
 
-        repo_info = self.session.query(Repo) \
-            .filter(Repo.username == username, Repo.repo_name == repo_name).one()
+        repo_info = self.session.query(Repo).filter(Repo.username == username, Repo.repo_name == repo_name).one()
         repo_info.repo_data = repo_data
         repo_info.repo_attr = repo_attr
 
@@ -212,8 +221,7 @@ class RepoProxy(MysqlProxy):
         fail_list = list(set(repo_list) - set(succeed_list))
 
         if fail_list:
-            LOGGER.debug(
-                "No data found when getting the info of repo: %s." % fail_list)
+            LOGGER.debug("No data found when getting the info of repo: %s." % fail_list)
 
         status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
         status_code = judge_return_code(status_dict, NO_DATA)
@@ -244,7 +252,7 @@ class RepoProxy(MysqlProxy):
                 "repo_id": row.repo_id,
                 "repo_name": row.repo_name,
                 "repo_data": row.repo_data,
-                "repo_attr": row.repo_attr
+                "repo_attr": row.repo_attr,
             }
             result.append(repo_info)
         return result
@@ -290,14 +298,12 @@ class RepoProxy(MysqlProxy):
 
         fail_list = self._get_repo_in_use(username, repo_list)
         if fail_list:
-            LOGGER.debug(
-                "Repos are still in use when deleting repo: %s." % fail_list)
+            LOGGER.debug("Repos are still in use when deleting repo: %s." % fail_list)
             return DATA_DEPENDENCY_ERROR
 
         # query and delete.
         # delete() is not applicable to 'in_' method without synchronize_session=False
-        self._query_repo_list_info(username, repo_list).delete(
-            synchronize_session=False)
+        self._query_repo_list_info(username, repo_list).delete(synchronize_session=False)
         return SUCCEED
 
     def _get_repo_in_use(self, username, repo_list):
@@ -310,9 +316,11 @@ class RepoProxy(MysqlProxy):
         Returns:
             list
         """
-        repo_in_use_query = self.session.query(Host.repo_name) \
-            .filter(Host.repo_name.in_(repo_list)) \
-            .filter(Host.user == username) \
+        repo_in_use_query = (
+            self.session.query(Host.repo_name)
+            .filter(Host.repo_name.in_(repo_list))
+            .filter(Host.user == username)
             .group_by(Host.repo_name)
+        )
         repo_in_use = [row.repo_name for row in repo_in_use_query]
         return repo_in_use

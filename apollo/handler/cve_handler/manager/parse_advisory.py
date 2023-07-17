@@ -118,16 +118,19 @@ def parse_cvrf_dict(cvrf_dict):
         if info["Title"] == "Affected Component":
             srcpackage_list = info["text"].split(",")
             break
-    srcpackage_list = [SRC_PACKAGES_WHITE_LIST[package] if package in SRC_PACKAGES_WHITE_LIST else package
-                       for package in srcpackage_list]
+    srcpackage_list = [
+        SRC_PACKAGES_WHITE_LIST[package] if package in SRC_PACKAGES_WHITE_LIST else package
+        for package in srcpackage_list
+    ]
     if isinstance(cve_info_list, dict):
         cve_info_list = [cve_info_list]
 
     package_info_list = cvrf_dict["cvrfdoc"].get("ProductTree", "").get("Branch")
 
     try:
-        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(cve_info_list, srcpackage_list,
-                                                                       package_info_list)
+        cve_table_rows, cve_pkg_rows, cve_description = parse_cve_info(
+            cve_info_list, srcpackage_list, package_info_list
+        )
         es_cve_pkg_docs = parse_arch_info(cve_description)
     except (KeyError, TypeError, ParseAdvisoryError) as error:
         LOGGER.error(error)
@@ -217,15 +220,18 @@ def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):
             "publish_time": cve_info["ReleaseDate"],
             "severity": cve_info["Threats"]["Threat"]["Description"],
             "cvss_score": cve_info["CVSSScoreSets"]["ScoreSet"]["BaseScore"],
-            "reboot": False
+            "reboot": False,
         }
         for os_version, srcpackage in package_os_version.items():
-            cve_pkg_rows.append({"cve_id": cve_id,
-                                 "package": srcpackage,
-                                 "package_version": "",
-                                 "os_version": os_version,
-                                 "affected": True
-                                 })
+            cve_pkg_rows.append(
+                {
+                    "cve_id": cve_id,
+                    "package": srcpackage,
+                    "package_version": "",
+                    "os_version": os_version,
+                    "affected": True,
+                }
+            )
 
         # some cve may not have the 'text' key, which is description
         description = cve_info["Notes"]["Note"].get("text", "")

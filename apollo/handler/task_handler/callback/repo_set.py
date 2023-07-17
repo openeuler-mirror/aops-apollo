@@ -15,9 +15,10 @@ Time:
 Author:
 Description: callback function of the repo setting task.
 """
-from apollo.handler.task_handler.callback import TaskCallback
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
+
+from apollo.handler.task_handler.callback import TaskCallback
 
 
 class RepoSetCallback(TaskCallback):
@@ -37,14 +38,14 @@ class RepoSetCallback(TaskCallback):
         """
         # it means it's a task for setting repo.
         host_ids = [task_info["host_id"]]
-        data = dict(task_id=task_id,
-                    status=task_info['status'], repo_name=task_info['repo_name'])
-        status_code = self.proxy.update_repo_host_status_and_host_reponame(
-            data, host_ids)
+        data = dict(task_id=task_id, status=task_info['status'], repo_name=task_info['repo_name'])
+        status_code = self.proxy.update_repo_host_status_and_host_reponame(data, host_ids)
 
         if status_code != SUCCEED:
             LOGGER.debug(
-                f"Setting repo name to hosts and upate repo host state failed, repo name: {task_info['repo_name']}, task id: {task_id}.")
+                "Setting repo name to hosts and upate repo host state failed, "
+                f"repo name: {task_info['repo_name']}, task id: {task_id}."
+            )
             return DATABASE_UPDATE_ERROR
 
         return SUCCEED

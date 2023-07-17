@@ -19,14 +19,14 @@ Description:
 import unittest
 from unittest import mock
 
+from vulcanus.restful.resp.state import DATABASE_QUERY_ERROR, SUCCEED, DATABASE_UPDATE_ERROR
+
 from apollo.cron.timed_scan_task import TimedScanTask
 from apollo.database.proxy.task import TaskMysqlProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
-from vulcanus.restful.resp.state import DATABASE_QUERY_ERROR, SUCCEED, DATABASE_UPDATE_ERROR
 
 
 class TestTimedScanTask(unittest.TestCase):
-
     def test_check_host_info_should_return_False_when_host_info_is_null(self):
         username = "admin"
         host_info = []
@@ -47,16 +47,13 @@ class TestTimedScanTask(unittest.TestCase):
         self.assertEqual(TimedScanTask()._check_host_info(username, host_info), True)
 
     @mock.patch.object(TaskMysqlProxy, "connect")
-    def test_task_enter_should_return_None_when_connect_error(self,
-                                                              mock_connect):
+    def test_task_enter_should_return_None_when_connect_error(self, mock_connect):
         mock_connect.return_value = False
         self.assertEqual(TimedScanTask().task_enter(), None)
 
     @mock.patch.object(TaskMysqlProxy, "connect")
     @mock.patch.object(TaskMysqlProxy, "get_total_host_info")
-    def test_task_enter_should_return_None_when_get_total_host_info_fail(self,
-                                                                         mock_get_total_host_info,
-                                                                         mock_connect):
+    def test_task_enter_should_return_None_when_get_total_host_info_fail(self, mock_get_total_host_info, mock_connect):
         mock_connect.return_value = True
         mock_get_total_host_info.return_value = DATABASE_QUERY_ERROR, {"host_infos": {}}
         self.assertEqual(TimedScanTask().task_enter(), None)
@@ -66,20 +63,15 @@ class TestTimedScanTask(unittest.TestCase):
     @mock.patch.object(TimedScanTask, "_check_host_info")
     @mock.patch.object(ScanManager, "create_task")
     @mock.patch.object(ScanManager, "pre_handle")
-    def test_task_enter_should_return_DATABASE_UPDATE_ERROR_when_pre_handle_fail(self,
-                                                                                 mock_pre_handle,
-                                                                                 mock_create_task,
-                                                                                 mock__check_host_info,
-                                                                                 mock_get_total_host_info,
-                                                                                 mock_connect):
+    def test_task_enter_should_return_DATABASE_UPDATE_ERROR_when_pre_handle_fail(
+        self, mock_pre_handle, mock_create_task, mock__check_host_info, mock_get_total_host_info, mock_connect
+    ):
         mock_connect.return_value = True
-        mock_get_total_host_info.return_value = SUCCEED, {"host_infos":
-            {"admin": [{
-                "host_id": 1,
-                "host_name": "host name",
-                "host_ip": "127.0.0.0",
-                "status": "done"
-            }]}}
+        mock_get_total_host_info.return_value = SUCCEED, {
+            "host_infos": {
+                "admin": [{"host_id": 1, "host_name": "host name", "host_ip": "127.0.0.0", "status": "done"}]
+            }
+        }
         mock__check_host_info.return_value = True
         mock_create_task.return_value = True
         mock_pre_handle.return_value = False
@@ -90,20 +82,15 @@ class TestTimedScanTask(unittest.TestCase):
     @mock.patch.object(TimedScanTask, "_check_host_info")
     @mock.patch.object(ScanManager, "create_task")
     @mock.patch.object(ScanManager, "pre_handle")
-    def test_task_enter_should_return_None_when_task_enter_succeed(self,
-                                                                   mock_pre_handle,
-                                                                   mock_create_task,
-                                                                   mock__check_host_info,
-                                                                   mock_get_total_host_info,
-                                                                   mock_connect):
+    def test_task_enter_should_return_None_when_task_enter_succeed(
+        self, mock_pre_handle, mock_create_task, mock__check_host_info, mock_get_total_host_info, mock_connect
+    ):
         mock_connect.return_value = True
-        mock_get_total_host_info.return_value = SUCCEED, {"host_infos":
-            {"admin": [{
-                "host_id": 1,
-                "host_name": "host name",
-                "host_ip": "127.0.0.0",
-                "status": "done"
-            }]}}
+        mock_get_total_host_info.return_value = SUCCEED, {
+            "host_infos": {
+                "admin": [{"host_id": 1, "host_name": "host name", "host_ip": "127.0.0.0", "status": "done"}]
+            }
+        }
         mock__check_host_info.return_value = True
         mock_create_task.return_value = True
         mock_pre_handle.return_value = True

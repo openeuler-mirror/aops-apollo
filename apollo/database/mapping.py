@@ -21,31 +21,15 @@ MAPPINGS = {
     TASK_INDEX: {
         "mappings": {
             "properties": {
-                "task_id": {
-                    "type": "keyword",
-                    "ignore_above": 256
-                },
-                "log": {
-                    "type": "text"
-                },
-                "username": {
-                    "type": "keyword",
-                    "ignore_above": 256
-                }
+                "task_id": {"type": "keyword", "ignore_above": 256},
+                "log": {"type": "text"},
+                "username": {"type": "keyword", "ignore_above": 256},
             }
         }
     },
     CVE_INDEX: {
         "mappings": {
-            "properties": {
-                "cve_id": {
-                    "type": "keyword",
-                    "ignore_above": 256
-                },
-                "description": {
-                    "type": "text"
-                }
-            }
+            "properties": {"cve_id": {"type": "keyword", "ignore_above": 256}, "description": {"type": "text"}}
         }
-    }
+    },
 }

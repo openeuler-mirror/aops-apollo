@@ -16,6 +16,7 @@ Author:
 Description: Handle about repo related operation
 """
 from io import BytesIO, StringIO
+
 from flask import Response
 
 from apollo.conf.constant import TEMPLATE_REPO_STR

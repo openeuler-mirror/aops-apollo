@@ -15,9 +15,10 @@ Time:
 Author:
 Description: callback function of the cve scanning task.
 """
-from apollo.handler.task_handler.callback import TaskCallback
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
+
+from apollo.handler.task_handler.callback import TaskCallback
 
 
 class CveScanCallback(TaskCallback):
@@ -62,7 +63,8 @@ class CveScanCallback(TaskCallback):
         if status_code != SUCCEED:
             LOGGER.error(
                 f"cve scan to hosts and update cve host state failed, status: {task_info['status']},"
-                f" task id: {task_info['task_id']}.")
+                f" task id: {task_info['task_id']}."
+            )
             return DATABASE_UPDATE_ERROR
 
         return SUCCEED

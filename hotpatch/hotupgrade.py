@@ -12,17 +12,17 @@
 # ******************************************************************************/
 from __future__ import print_function
 
-import hawkey
 import dnf.base
 import dnf.exceptions
+import hawkey
 from dnf.cli import commands
 from dnf.cli.option_parser import OptionParser
 from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
-from .syscare import Syscare
-from .hotpatch_updateinfo import HotpatchUpdateInfo
 from .hot_updateinfo import HotUpdateinfoCommand
+from .hotpatch_updateinfo import HotpatchUpdateInfo
+from .syscare import Syscare
 
 EMPTY_TAG = "-"
 
@@ -37,9 +37,13 @@ class HotupgradeCommand(dnf.cli.Command):
 
     @staticmethod
     def set_argparser(parser):
-        parser.add_argument('packages', nargs='*', help=_('Package to upgrade'),
-                            action=OptionParser.ParseSpecGroupFileCallback,
-                            metavar=_('PACKAGE'))
+        parser.add_argument(
+            'packages',
+            nargs='*',
+            help=_('Package to upgrade'),
+            action=OptionParser.ParseSpecGroupFileCallback,
+            metavar=_('PACKAGE'),
+        )
 
     def configure(self):
         """Verify that conditions are met so that this command can run.
@@ -104,8 +108,9 @@ class HotupgradeCommand(dnf.cli.Command):
 
     def _apply_hp(self, hp_full_name):
         pkg_info = self._parse_hp_name(hp_full_name)
-        hp_full_name = "-".join([pkg_info["name"], pkg_info["version"], pkg_info["release"]]) \
-                       + '/' + pkg_info["hp_name"]
+        hp_full_name = (
+            "-".join([pkg_info["name"], pkg_info["version"], pkg_info["release"]]) + '/' + pkg_info["hp_name"]
+        )
         output, status = self.syscare.apply(hp_full_name)
         if status:
             logger.info(_('Apply hot patch failed: %s.'), hp_full_name)
@@ -135,25 +140,32 @@ class HotupgradeCommand(dnf.cli.Command):
                 continue
 
             parsed_nevra = parsed_nevras[0]
-            available_hp = query.available().filter(name=parsed_nevra.name, version=parsed_nevra.version,
-                                                    release=parsed_nevra.release, arch=parsed_nevra.arch)
+            available_hp = query.available().filter(
+                name=parsed_nevra.name,
+                version=parsed_nevra.version,
+                release=parsed_nevra.release,
+                arch=parsed_nevra.arch,
+            )
             if not available_hp:
                 logger.info(_('No match for argument: %s'), self.base.output.term.bold(pkg_spec))
                 continue
 
             # check the hot patch's target package installed or not
             pkg_info = self._parse_hp_name(pkg_spec)
-            installed_pkg = installed_packages.filter(name=pkg_info["name"],
-                                                      version=pkg_info["version"],
-                                                      release=pkg_info["release"]).run()
+            installed_pkg = installed_packages.filter(
+                name=pkg_info["name"], version=pkg_info["version"], release=pkg_info["release"]
+            ).run()
             if not installed_pkg:
-                logger.info(_("The hot patch's target package is not installed: %s"),
-                            self.base.output.term.bold(pkg_spec))
+                logger.info(
+                    _("The hot patch's target package is not installed: %s"), self.base.output.term.bold(pkg_spec)
+                )
                 continue
 
             if len(installed_pkg) != 1:
-                logger.info(_("The hot patch '%s' has multiple target packages, please check."),
-                            self.base.output.term.bold(pkg_spec))
+                logger.info(
+                    _("The hot patch '%s' has multiple target packages, please check."),
+                    self.base.output.term.bold(pkg_spec),
+                )
                 continue
             target = "-".join([pkg_info["name"], pkg_info["version"], pkg_info["release"]])
             hp_target_map[pkg_spec] = target
@@ -173,9 +185,11 @@ class HotupgradeCommand(dnf.cli.Command):
         for hp_info in hps_info:
             target, hp_name = hp_info["Name"].split('/')
             if target in targets and hp_info["Status"] != "NOT-APPLIED":
-                logger.info(_("The target package '%s' has a hotpatch '%s' applied"),
-                            self.base.output.term.bold(target),
-                            self.base.output.term.bold(hp_name))
+                logger.info(
+                    _("The target package '%s' has a hotpatch '%s' applied"),
+                    self.base.output.term.bold(target),
+                    self.base.output.term.bold(hp_name),
+                )
                 target_patch_map[target] = hp_info["Name"]
         return target_patch_map
 
@@ -191,8 +205,10 @@ class HotupgradeCommand(dnf.cli.Command):
             logger.info(_("Remove hot patch %s."), hp_name)
             output, status = self.syscare.remove(hp_name)
             if status:
-                logger.info(_("Remove hot patch '%s' failed, roll back to original status."),
-                            self.base.output.term.bold(hp_name))
+                logger.info(
+                    _("Remove hot patch '%s' failed, roll back to original status."),
+                    self.base.output.term.bold(hp_name),
+                )
                 output, status = self.syscare.restore()
                 if status:
                     raise dnf.exceptions.Error(_('Roll back failed.'))
@@ -212,8 +228,12 @@ class HotupgradeCommand(dnf.cli.Command):
         """
         splitted_hp_filename = hp_filename.split('-')
         try:
-            rpm_info = {"release": splitted_hp_filename[-4], "version": splitted_hp_filename[-5],
-                        "name": "-".join(splitted_hp_filename[1:-5]), "hp_name": splitted_hp_filename[-3]}
+            rpm_info = {
+                "release": splitted_hp_filename[-4],
+                "version": splitted_hp_filename[-5],
+                "name": "-".join(splitted_hp_filename[1:-5]),
+                "hp_name": splitted_hp_filename[-3],
+            }
         except IndexError as e:
             raise dnf.exceptions.Error(_('Parse hot patch name failed. Please insert correct hot patch name.'))
         return rpm_info
@@ -232,8 +252,7 @@ class HotupgradeCommand(dnf.cli.Command):
             try:
                 self.base.install(pkg_spec)
             except dnf.exceptions.MarkingError as e:
-                logger.info(_('No match for argument: %s.'),
-                            self.base.output.term.bold(pkg_spec))
+                logger.info(_('No match for argument: %s.'), self.base.output.term.bold(pkg_spec))
                 success = False
         return success
 

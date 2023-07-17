@@ -21,10 +21,7 @@ apollo = {
     "HOST_VAULT_DIR": "/opt/aops",
 }
 
-cve = {
-    "CVE_FIX_FUNCTION": "yum",
-    "CVE_SCAN_TIME": 2
-}
+cve = {"CVE_FIX_FUNCTION": "yum", "CVE_SCAN_TIME": 2}
 
 mysql = {
     "IP": "127.0.0.1",
@@ -32,26 +29,13 @@ mysql = {
     "DATABASE_NAME": "aops",
     "ENGINE_FORMAT": "mysql+pymysql://@%s:%s/%s",
     "POOL_SIZE": 100,
-    "POOL_RECYCLE": 7200
+    "POOL_RECYCLE": 7200,
 }
 
-elasticsearch = {
-    "IP": "127.0.0.1",
-    "PORT": 9200,
-    "MAX_ES_QUERY_NUM": 10000000
-}
+elasticsearch = {"IP": "127.0.0.1", "PORT": 9200, "MAX_ES_QUERY_NUM": 10000000}
 
-zeus = {
-    "IP": "127.0.0.1",
-    "PORT": 11111
-}
+zeus = {"IP": "127.0.0.1", "PORT": 11111}
 
-redis = {
-    "IP": "127.0.0.1",
-    "PORT": 6379
-}
+redis = {"IP": "127.0.0.1", "PORT": 6379}
 
-hermes = {
-    "IP": "127.0.0.1",
-    "PORT": 8000
-}
+hermes = {"IP": "127.0.0.1", "PORT": 8000}

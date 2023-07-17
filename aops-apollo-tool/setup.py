@@ -12,8 +12,7 @@ VERSION = "1.2.1"
 # prerequisite: setuptools
 # http://pypi.python.org/pypi/setuptools
 
-REQUIRES = [
-]
+REQUIRES = []
 
 setup(
     name=NAME,
@@ -24,8 +23,6 @@ setup(
     data_files=[
         ('/etc/aops_apollo_tool', ['updateinfo_config.ini']),
     ],
-    entry_points={
-        "console_scripts": ['gen-updateinfo=aops_apollo_tool.gen_updateinfo:main']
-            },
-    zip_safe=False
+    entry_points={"console_scripts": ['gen-updateinfo=aops_apollo_tool.gen_updateinfo:main']},
+    zip_safe=False,
 )

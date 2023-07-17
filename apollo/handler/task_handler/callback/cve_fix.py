@@ -40,6 +40,5 @@ class CveFixCallback(TaskCallback):
         Returns:
             int: status code
         """
-        status_code = self.proxy.update_cve_status_and_set_cve_progress(
-            task_id, host_id, cves)
+        status_code = self.proxy.update_cve_status_and_set_cve_progress(task_id, host_id, cves)
         return status_code

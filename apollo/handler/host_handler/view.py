@@ -16,11 +16,11 @@ Author:
 Description: Handle about host related operation
 """
 
+from vulcanus.restful.response import BaseResponse
+
 from apollo.conf import configuration
 from apollo.database.proxy.host import HostProxy, HostMysqlProxy
-from apollo.function.schema.host import GetHostStatusSchema, GetHostListSchema, \
-    GetHostInfoSchema, GetHostCvesSchema
-from vulcanus.restful.response import BaseResponse
+from apollo.function.schema.host import GetHostStatusSchema, GetHostListSchema, GetHostInfoSchema, GetHostCvesSchema
 
 
 class VulGetHostStatus(BaseResponse):

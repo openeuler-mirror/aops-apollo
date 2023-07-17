@@ -50,6 +50,4 @@ class DeleteYumRepoSchema(Schema):
     validators for parameter of /vulnerability/repo/delete
     """
 
-    repo_name_list = fields.List(
-        fields.String(), required=True, validate=lambda s: len(s) > 0
-    )
+    repo_name_list = fields.List(fields.String(), required=True, validate=lambda s: len(s) > 0)

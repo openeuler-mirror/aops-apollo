@@ -17,20 +17,23 @@ Description: manager constant
 """
 import os
 
-from apollo.function.utils import ConstantBase
 from vulcanus.conf.constant import BASE_CONFIG_PATH
+
+from apollo.function.utils import ConstantBase
 
 # path of apollo configuration
 CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'apollo.ini')
 
 # template repo for downloading
-TEMPLATE_REPO_STR = "[aops-update]\n" \
-                    "name=update\n" \
-                    "baseurl=https://repo.openeuler.org/openEuler-22.03-LTS/update/$basearch/\n" \
-                    "enabled=1\n" \
-                    "gpgcheck=1\n" \
-                    "gpgkey=https://repo.openeuler.org/openEuler-22.03-LTS/OS/$basearch/RPM-" \
-                    "GPG-KEY-openEuler"
+TEMPLATE_REPO_STR = (
+    "[aops-update]\n"
+    "name=update\n"
+    "baseurl=https://repo.openeuler.org/openEuler-22.03-LTS/update/$basearch/\n"
+    "enabled=1\n"
+    "gpgcheck=1\n"
+    "gpgkey=https://repo.openeuler.org/openEuler-22.03-LTS/OS/$basearch/RPM-"
+    "GPG-KEY-openEuler"
+)
 
 
 class CveHostStatus:
@@ -85,6 +88,7 @@ class CveProgressSettingMethod:
 
 class TaskStatus(ConstantBase, CveHostStatus):
     pass
+
 
 # route of repo related interface
 VUL_REPO_IMPORT = "/vulnerability/repo/import"

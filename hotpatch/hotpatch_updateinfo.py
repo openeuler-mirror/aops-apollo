@@ -10,11 +10,11 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import os
-import gzip
-import xml.etree.ElementTree as ET
 import datetime
+import gzip
+import os
 import re
+import xml.etree.ElementTree as ET
 
 from .baseclass import Hotpatch, Cve, Advisory
 from .syscare import Syscare
@@ -69,8 +69,7 @@ class HotpatchUpdateInfo(object):
         kernel_q = sack.query().filterm(empty=True)
         kernel = sack.get_running_kernel()
         if kernel:
-            kernel_q = kernel_q.union(
-                sack.query().filterm(sourcerpm=kernel.sourcerpm))
+            kernel_q = kernel_q.union(sack.query().filterm(sourcerpm=kernel.sourcerpm))
         q = q.union(kernel_q.installed())
         q = q.apply()
 
@@ -96,8 +95,7 @@ class HotpatchUpdateInfo(object):
                     # the hotpatch relevant updateinfo is recorded in xxx-updateinfo.xml.gz
                     if "updateinfo" in xml_file:
                         repo_name = file.rsplit("-")[0]
-                        cache_updateinfo_xml_path = os.path.join(
-                            repodata_path, xml_file)
+                        cache_updateinfo_xml_path = os.path.join(repodata_path, xml_file)
                         map_repo_updateinfoxml[repo_name] = cache_updateinfo_xml_path
 
         # only hotpatch relevant updateinfo from enabled repos are parsed and stored
@@ -142,8 +140,7 @@ class HotpatchUpdateInfo(object):
         """
         if datetime_str.isdigit() and len(datetime_str) == 10:
             datetime_str = int(datetime_str)
-            datetime_str = datetime.datetime.fromtimestamp(
-                datetime_str).strftime("%Y-%m-%d %H:%M:%S")
+            datetime_str = datetime.datetime.fromtimestamp(datetime_str).strftime("%Y-%m-%d %H:%M:%S")
         try:
             datetime.datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
             return datetime_str
@@ -158,8 +155,7 @@ class HotpatchUpdateInfo(object):
         advisory = {}
         for node in update:
             if node.tag == 'datetime':
-                advisory[node.tag] = self._verify_date_str_lawyer(
-                    update.find(node.tag).text)
+                advisory[node.tag] = self._verify_date_str_lawyer(update.find(node.tag).text)
             elif node.tag == 'references':
                 advisory[node.tag] = self._parse_references(node)
             elif node.tag == 'pkglist':
@@ -219,8 +215,7 @@ class HotpatchUpdateInfo(object):
                 if not inst_pkgs:
                     continue
                 for inst_pkg in inst_pkgs:
-                    inst_pkg_vere = '%s-%s' % (inst_pkg.version,
-                                               inst_pkg.release)
+                    inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
                     hp_vere = '%s-%s' % (src_pkg_version, src_pkg_release)
                     if hp_vere != inst_pkg_vere:
                         continue
@@ -287,8 +282,7 @@ class HotpatchUpdateInfo(object):
 
         self._hotpatch_state = {}
         for hotpatch_info in self._hotpatch_status:
-            self._hotpatch_state[hotpatch_info['Name']
-            ] = hotpatch_info['Status']
+            self._hotpatch_state[hotpatch_info['Name']] = hotpatch_info['Status']
 
     def _get_hotpatch_status_in_syscare(self, hotpatch: Hotpatch) -> str:
         """
@@ -359,6 +353,5 @@ class HotpatchUpdateInfo(object):
             advisory = self._hotpatch_advisories[advisory_id]
             for hotpatch in advisory.hotpatches:
                 if hotpatch.state == self.INSTALLABLE:
-                    mapping_advisory_hotpatches[advisory_id].append(
-                        hotpatch.nevra)
+                    mapping_advisory_hotpatches[advisory_id].append(hotpatch.nevra)
         return mapping_advisory_hotpatches

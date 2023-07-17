@@ -16,15 +16,14 @@ Author:
 Description: Handle about repo related operation
 """
 from flask import jsonify
-
-from apollo.database.proxy.repo import RepoProxy
-from apollo.function.schema.repo import ImportYumRepoSchema, UpdateYumRepoSchema, \
-    GetYumRepoSchema, DeleteYumRepoSchema
-from apollo.handler.repo_handler.helper import get_template_stream_response
 from vulcanus.restful.resp import make_response
 from vulcanus.restful.resp.state import SUCCEED
 from vulcanus.restful.response import BaseResponse
+
 from apollo.conf import configuration
+from apollo.database.proxy.repo import RepoProxy
+from apollo.function.schema.repo import ImportYumRepoSchema, UpdateYumRepoSchema, GetYumRepoSchema, DeleteYumRepoSchema
+from apollo.handler.repo_handler.helper import get_template_stream_response
 
 
 class VulImportYumRepo(BaseResponse):
@@ -32,7 +31,7 @@ class VulImportYumRepo(BaseResponse):
     Restful interface for importing yum repo
     """
 
-    @BaseResponse.handle(schema=ImportYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    @BaseResponse.handle(schema=ImportYumRepoSchema, proxy=RepoProxy, config=configuration)
     def post(self, callback: RepoProxy, **params):
         """
         Import repo into database
@@ -54,7 +53,7 @@ class VulUpdateYumRepo(BaseResponse):
     Restful interface for updating yum repo
     """
 
-    @BaseResponse.handle(schema=UpdateYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    @BaseResponse.handle(schema=UpdateYumRepoSchema, proxy=RepoProxy, config=configuration)
     def post(self, callback: RepoProxy, **params):
         """
         Update repo info in database
@@ -76,7 +75,7 @@ class VulGetYumRepo(BaseResponse):
     Restful interface for getting yum repo
     """
 
-    @BaseResponse.handle(schema=GetYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    @BaseResponse.handle(schema=GetYumRepoSchema, proxy=RepoProxy, config=configuration)
     def post(self, callback: RepoProxy, **params):
         """
         Get repo from database
@@ -97,7 +96,7 @@ class VulDeleteYumRepo(BaseResponse):
     Restful interface for deleting yum repo
     """
 
-    @BaseResponse.handle(schema=DeleteYumRepoSchema,  proxy=RepoProxy, config=configuration)
+    @BaseResponse.handle(schema=DeleteYumRepoSchema, proxy=RepoProxy, config=configuration)
     def delete(self, callback: RepoProxy, **params):
         """
         Delete repo from database
