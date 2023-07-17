@@ -17,11 +17,12 @@ Description:
 """
 import datetime
 import time
-import sqlalchemy
 
-from vulcanus.timed import TimedTask
-from vulcanus.log.log import LOGGER
+import sqlalchemy
 from vulcanus.conf.constant import TIMEOUT
+from vulcanus.log.log import LOGGER
+from vulcanus.timed import TimedTask
+
 from apollo.database.proxy.task import TaskProxy
 
 

@@ -25,9 +25,7 @@ cve_fix_func = configuration.cve.get("CVE_FIX_FUNCTION")
 cve_scan_time = configuration.cve.get("CVE_SCAN_TIME")
 
 
-CVE_CHECK_ITEMS = [
-]
+CVE_CHECK_ITEMS = []
 
 
-REPO_CHECK_ITEMS = [
-]
+REPO_CHECK_ITEMS = []

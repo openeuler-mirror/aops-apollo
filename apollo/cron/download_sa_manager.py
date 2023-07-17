@@ -10,20 +10,21 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import os
 import datetime
+import os
 import re
 import shutil
-import urllib.request
 import urllib.error
+import urllib.request
+
 import gevent
 import retrying
-from retrying import retry
 import sqlalchemy
-
-from vulcanus.timed import TimedTask
+from retrying import retry
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.timed import TimedTask
+
 from apollo.conf.constant import ADVISORY_SAVED_PATH
 from apollo.database.proxy.cve import CveProxy
 from apollo.function.customize_exception import ParseAdvisoryError

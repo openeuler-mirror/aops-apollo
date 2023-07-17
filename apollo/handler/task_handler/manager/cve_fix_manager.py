@@ -16,14 +16,15 @@ Author:
 Description: Task manager for cve fixing
 """
 
+from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
+from vulcanus.restful.response import BaseResponse
+
 from apollo.conf import configuration
 from apollo.conf.constant import CveHostStatus, VUL_TASK_CVE_FIX_CALLBACK, TaskType, CveProgressSettingMethod
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager import Manager
-from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 
 
 class CveFixManager(Manager):
@@ -64,13 +65,11 @@ class CveFixManager(Manager):
             bool: succeed or fail
         """
         if self.proxy.init_cve_task(self.task_id, []) != SUCCEED:
-            LOGGER.error(
-                "Init the host status in database failed, stop cve fixing task %s.", self.task_id)
+            LOGGER.error("Init the host status in database failed, stop cve fixing task %s.", self.task_id)
             return False
 
         if self.proxy.update_task_execute_time(self.task_id, self.cur_time) != SUCCEED:
-            LOGGER.warning(
-                "Update latest execute time for cve fix task %s failed.", self.task_id)
+            LOGGER.warning("Update latest execute time for cve fix task %s failed.", self.task_id)
 
         return True
 
@@ -79,25 +78,17 @@ class CveFixManager(Manager):
         Executing cve fix task.
         """
         LOGGER.info("Cve fixing task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (configuration.zeus.get('IP'),
-                                    configuration.zeus.get('PORT'),
-                                    EXECUTE_CVE_FIX)
-        header = {
-            "access_token": self.token,
-            "Content-Type": "application/json; charset=UTF-8"
-        }
+        manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_CVE_FIX)
+        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
         pyload = self.task
 
-        response = BaseResponse.get_response(
-            'POST', manager_url, pyload, header)
+        response = BaseResponse.get_response('POST', manager_url, pyload, header)
         if response.get('label') != SUCCEED or not response.get("data", dict()):
             LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
             return
 
-        LOGGER.info(
-            "Cve fixing task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("data", dict()).get(
-            "result", {}).get("task_result") or []
+        LOGGER.info("Cve fixing task %s end, begin to handle result.", self.task_id)
+        self.result = response.get("data", dict()).get("result", {}).get("task_result") or []
 
     def post_handle(self):
         """
@@ -107,8 +98,7 @@ class CveFixManager(Manager):
         if not self.result:
             self.fault_handle()
             return
-        LOGGER.debug("Cve fixing task %s result: %s",
-                     self.task_id, self.result)
+        LOGGER.debug("Cve fixing task %s result: %s", self.task_id, self.result)
 
         for host in self.result:
             host['status'] = CveHostStatus.SUCCEED

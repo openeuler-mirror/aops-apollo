@@ -31,12 +31,8 @@ class TestHostCveGet(BaseTestCase):
     client = BaseTestCase.create_app()
 
     def setUp(self) -> None:
-        self.header = {
-            "Content-Type": "application/json; charset=UTF-8"
-        }
-        self.mock_args = {
-            "host_id": 1
-        }
+        self.header = {"Content-Type": "application/json; charset=UTF-8"}
+        self.mock_args = {"host_id": 1}
         self.mock_host_cve_info = {
             "total_count": 1,
             "total_page": 1,
@@ -47,9 +43,9 @@ class TestHostCveGet(BaseTestCase):
                     "severity": "high",
                     "description": "a long description",
                     "cvss_score": "7.2",
-                    "hotpatch": True
+                    "hotpatch": True,
                 }
-            ]
+            ],
         }
 
     @mock.patch.object(HostProxy, "__exit__")
@@ -57,7 +53,8 @@ class TestHostCveGet(BaseTestCase):
     @mock.patch.object(HostProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_token")
     def test_host_cve_get_should_return_cve_list_of_host_when_all_is_right(
-            self, mock_verify_token, mock_connect, mock_host_cve_info, mock_close):
+        self, mock_verify_token, mock_connect, mock_host_cve_info, mock_close
+    ):
         mock_verify_token.return_value = state.SUCCEED
         mock_connect.return_value = None
         mock_host_cve_info.return_value = state.SUCCEED, self.mock_host_cve_info
@@ -67,7 +64,8 @@ class TestHostCveGet(BaseTestCase):
 
     @mock.patch.object(BaseResponse, "verify_token")
     def test_host_cve_get_should_return_token_error_when_request_with_incorrect_token_or_without_token(
-            self, mock_verify_token):
+        self, mock_verify_token
+    ):
         mock_verify_token.return_value = state.TOKEN_ERROR
         response = self.client.post(VUL_HOST_CVE_GET, data=json.dumps(self.mock_args), headers=self.header)
         self.assertEqual(state.TOKEN_ERROR, response.json.get("label"), response.json)
@@ -87,7 +85,8 @@ class TestHostCveGet(BaseTestCase):
     @mock.patch.object(HostProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_token")
     def test_host_cve_get_should_return_database_connect_error_when_connect_database_failed(
-            self, mock_token, mock_connect):
+        self, mock_token, mock_connect
+    ):
         mock_token.return_value = state.SUCCEED
         mock_connect.side_effect = sqlalchemy.exc.SQLAlchemyError("Connection error")
         response = self.client.post(VUL_HOST_CVE_GET, data=json.dumps(self.mock_args), headers=self.header)

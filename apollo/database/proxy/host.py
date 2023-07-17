@@ -15,16 +15,16 @@ Time:
 Author:
 Description: Host table operation
 """
+from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import func, case, or_, and_
-
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy
 from vulcanus.database.table import Host
-from apollo.database.table import Cve, CveHostAssociation
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
+
 from apollo.database.proxy.cve import CveEsProxy
+from apollo.database.table import Cve, CveHostAssociation
 
 
 class HostMysqlProxy(MysqlProxy):
@@ -91,11 +91,7 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             dict
         """
-        result = {
-            "total_count": 0,
-            "total_page": 1,
-            "result": []
-        }
+        result = {"total_count": 0, "total_page": 1, "result": []}
 
         filters = self._get_host_list_filters(data.get("filter"), data.get("username"))
         host_query = self._query_host_list(filters)
@@ -141,13 +137,21 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        return self.session.query(
-            Host.host_id, Host.host_name, Host.host_ip, Host.host_group_name, Host.repo_name, Host.last_scan,
-            func.COUNT(func.IF(CveHostAssociation.fixed == True, 1, None)).label("fixed_cve_num"),
-            func.COUNT(func.IF(CveHostAssociation.fixed == False, 1, None)).label("unfixed_cve_num")) \
-            .outerjoin(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
-            .group_by(Host.host_id) \
+        return (
+            self.session.query(
+                Host.host_id,
+                Host.host_name,
+                Host.host_ip,
+                Host.host_group_name,
+                Host.repo_name,
+                Host.last_scan,
+                func.COUNT(func.IF(CveHostAssociation.fixed == True, 1, None)).label("fixed_cve_num"),
+                func.COUNT(func.IF(CveHostAssociation.fixed == False, 1, None)).label("unfixed_cve_num"),
+            )
+            .outerjoin(CveHostAssociation, Host.host_id == CveHostAssociation.host_id)
+            .group_by(Host.host_id)
             .filter(*filters)
+        )
 
     @staticmethod
     def _host_list_row2dict(rows):
@@ -161,7 +165,7 @@ class HostMysqlProxy(MysqlProxy):
                 "repo": row.repo_name,
                 "unfixed_cve_num": row.unfixed_cve_num,
                 "fixed_cve_num": row.fixed_cve_num,
-                "last_scan": row.last_scan
+                "last_scan": row.last_scan,
             }
             result.append(host_info)
         return result
@@ -187,15 +191,13 @@ class HostMysqlProxy(MysqlProxy):
             return filters
 
         if filter_dict.get("host_name"):
-            filters.add(Host.host_name.like(
-                "%" + filter_dict["host_name"] + "%"))
+            filters.add(Host.host_name.like("%" + filter_dict["host_name"] + "%"))
         if filter_dict.get("host_group"):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
         if filter_dict.get("repo"):
             repos = [repo if repo else None for repo in filter_dict["repo"]]
             if None in repos:
-                filters.add(or_(Host.repo_name.is_(None),
-                                Host.repo_name.in_(repos)))
+                filters.add(or_(Host.repo_name.is_(None), Host.repo_name.in_(repos)))
             else:
                 filters.add(Host.repo_name.in_(repos))
 
@@ -256,8 +258,7 @@ class HostMysqlProxy(MysqlProxy):
 
         fail_list = list(set(host_list) - set(succeed_list))
         if fail_list:
-            LOGGER.debug(
-                "No data found when getting the status of host: %s." % fail_list)
+            LOGGER.debug("No data found when getting the status of host: %s." % fail_list)
 
         status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
         status_code = judge_return_code(status_dict, NO_DATA)
@@ -278,8 +279,7 @@ class HostMysqlProxy(MysqlProxy):
         if host_list:
             filters.add(Host.host_id.in_(host_list))
 
-        hosts_status_query = self.session.query(
-            Host.host_id, Host.status).filter(*filters)
+        hosts_status_query = self.session.query(Host.host_id, Host.status).filter(*filters)
         return hosts_status_query
 
     def get_host_info(self, data):
@@ -337,8 +337,7 @@ class HostMysqlProxy(MysqlProxy):
 
         host_info_query = self._query_host_info(username, host_id)
         if not host_info_query.count():
-            LOGGER.debug(
-                "No data found when getting the info of host: %s." % host_id)
+            LOGGER.debug("No data found when getting the info of host: %s." % host_id)
             return NO_DATA, {"result": {}}
 
         # raise exception when multiple record found
@@ -357,14 +356,26 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        return self.session.query(
-            Host.host_id, Host.host_name, Host.host_ip, Host.host_group_name, Host.repo_name, Host.last_scan,
-            func.COUNT(func.IF(CveHostAssociation.fixed == True, 1, None)).label("fixed_cve_num"),
-            func.COUNT(func.IF(and_(CveHostAssociation.fixed == False, CveHostAssociation.affected == True), 1, None) ).label("affected_cve_num"), \
-            func.COUNT(func.IF(and_(CveHostAssociation.fixed == False, CveHostAssociation.affected == False), 1, None) ).label("unaffected_cve_num")) \
-            .outerjoin(CveHostAssociation, Host.host_id == CveHostAssociation.host_id) \
-            .group_by(Host.host_id) \
+        return (
+            self.session.query(
+                Host.host_id,
+                Host.host_name,
+                Host.host_ip,
+                Host.host_group_name,
+                Host.repo_name,
+                Host.last_scan,
+                func.COUNT(func.IF(CveHostAssociation.fixed == True, 1, None)).label("fixed_cve_num"),
+                func.COUNT(
+                    func.IF(and_(CveHostAssociation.fixed == False, CveHostAssociation.affected == True), 1, None)
+                ).label("affected_cve_num"),
+                func.COUNT(
+                    func.IF(and_(CveHostAssociation.fixed == False, CveHostAssociation.affected == False), 1, None)
+                ).label("unaffected_cve_num"),
+            )
+            .outerjoin(CveHostAssociation, Host.host_id == CveHostAssociation.host_id)
+            .group_by(Host.host_id)
             .filter(Host.user == username, Host.host_id == host_id)
+        )
 
     @staticmethod
     def _host_info_row2dict(row):
@@ -376,7 +387,7 @@ class HostMysqlProxy(MysqlProxy):
             "affected_cve_num": row.affected_cve_num,
             "unaffected_cve_num": row.unaffected_cve_num,
             "last_scan": row.last_scan,
-            "fixed_cve_num": row.fixed_cve_num
+            "fixed_cve_num": row.fixed_cve_num,
         }
         return host_info
 
@@ -466,32 +477,23 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             int: status code
             dict: processed query result
         """
-        result = {
-            "total_count": 0,
-            "total_page": 1,
-            "result": []
-        }
+        result = {"total_count": 0, "total_page": 1, "result": []}
 
         host_id = data["host_id"]
         filters = self._get_host_cve_filters(data.get("filter", {}))
-        host_cve_query = self._query_host_cve(
-            data["username"], host_id, filters, data.get("filter", {}))
+        host_cve_query = self._query_host_cve(data["username"], host_id, filters, data.get("filter", {}))
 
         total_count = host_cve_query.count()
         if not total_count:
             return SUCCEED, result
 
         sort_column = getattr(Cve, data['sort']) if "sort" in data else None
-        direction, page, per_page = data.get(
-            'direction'), data.get('page'), data.get('per_page')
+        direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
 
-        processed_query, total_page = sort_and_page(host_cve_query, sort_column,
-                                                    direction, per_page, page)
-        description_dict = self._get_cve_description(
-            [row.cve_id for row in processed_query])
+        processed_query, total_page = sort_and_page(host_cve_query, sort_column, direction, per_page, page)
+        description_dict = self._get_cve_description([row.cve_id for row in processed_query])
 
-        result['result'] = self._host_cve_row2dict(
-            processed_query, description_dict)
+        result['result'] = self._host_cve_row2dict(processed_query, description_dict)
         result['total_page'] = total_page
         result['total_count'] = total_count
 
@@ -515,16 +517,15 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             set
         """
         # when fixed does not have a value, the query data is not meaningful
-        # the default query is unfixed CVE information 
+        # the default query is unfixed CVE information
         fixed = filter_dict.get("fixed", False)
         filters = {CveHostAssociation.fixed == fixed}
-        
+
         if not filter_dict:
             return filters
 
         if filter_dict.get("cve_id"):
-            filters.add(CveHostAssociation.cve_id.like(
-                "%" + filter_dict["cve_id"] + "%"))
+            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
         if filter_dict.get("hotpatch") and fixed is True:
@@ -552,22 +553,32 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             sqlalchemy.orm.query.Query
         """
 
-        host_cve_query = self.session.query(CveHostAssociation.cve_id, Cve.publish_time, Cve.severity, Cve.cvss_score,
-                                            CveHostAssociation.fixed, CveHostAssociation.support_hp,
-                                            CveHostAssociation.fixed_by_hp, CveHostAssociation.hp_status) \
-            .select_from(CveHostAssociation) \
-            .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id) \
-            .outerjoin(Host, Host.host_id == CveHostAssociation.host_id) \
-            .filter(CveHostAssociation.host_id == host_id, Host.user == username) \
+        host_cve_query = (
+            self.session.query(
+                CveHostAssociation.cve_id,
+                Cve.publish_time,
+                Cve.severity,
+                Cve.cvss_score,
+                CveHostAssociation.fixed,
+                CveHostAssociation.support_hp,
+                CveHostAssociation.fixed_by_hp,
+                CveHostAssociation.hp_status,
+            )
+            .select_from(CveHostAssociation)
+            .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id)
+            .outerjoin(Host, Host.host_id == CveHostAssociation.host_id)
+            .filter(CveHostAssociation.host_id == host_id, Host.user == username)
             .filter(*filters)
+        )
 
         if filter_dict.get("fixed"):
             if filter_dict.get("hotpatch") == [True] and filter_dict.get("hp_status"):
                 return host_cve_query.filter(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]))
-                
+
             elif len(filter_dict.get("hotpatch")) != 1 and filter_dict.get("hp_status"):
-                return host_cve_query.filter(CveHostAssociation.hp_status.in_(filter_dict["hp_status"]),
-                CveHostAssociation.fixed_by_hp == True).union(host_cve_query.filter(CveHostAssociation.fixed_by_hp == False))
+                return host_cve_query.filter(
+                    CveHostAssociation.hp_status.in_(filter_dict["hp_status"]), CveHostAssociation.fixed_by_hp == True
+                ).union(host_cve_query.filter(CveHostAssociation.fixed_by_hp == False))
         return host_cve_query
 
     @staticmethod
@@ -591,7 +602,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
                 "cvss_score": row.cvss_score,
                 "hotpatch": row.fixed_by_hp if row.fixed is True else row.support_hp,
-                "hp_status": row.hp_status
+                "hp_status": row.hp_status,
             }
             result.append(cve_info)
         return result

@@ -15,12 +15,11 @@ Time:
 Author:
 Description: url set
 """
-from apollo.handler.repo_handler import view as cve_repo_view
+from apollo.conf.constant import *
 from apollo.handler.cve_handler import view as cve_view
 from apollo.handler.host_handler import view as cve_host_view
+from apollo.handler.repo_handler import view as cve_repo_view
 from apollo.handler.task_handler import view as cve_task_view
-from apollo.conf.constant import *
-
 
 URLS = []
 
@@ -29,7 +28,7 @@ SPECIFIC_URLS = {
         (cve_repo_view.VulImportYumRepo, VUL_REPO_IMPORT),
         (cve_repo_view.VulGetYumRepo, VUL_REPO_GET),
         (cve_repo_view.VulDeleteYumRepo, VUL_REPO_DELETE),
-        (cve_repo_view.VulGetRepoTemplate, VUL_REPO_TEMPLATE_GET)
+        (cve_repo_view.VulGetRepoTemplate, VUL_REPO_TEMPLATE_GET),
     ],
     "CVE_URLS": [
         (cve_view.VulGetCveOverview, VUL_CVE_OVERVIEW),
@@ -40,7 +39,7 @@ SPECIFIC_URLS = {
         (cve_view.VulGetCveAction, VUL_CVE_ACTION_QUERY),
         (cve_view.VulUploadAdvisory, VUL_CVE_UPLOAD_ADVISORY),
         (cve_view.VulUploadUnaffected, VUL_CVE_UPLOAD_UNAFFECTED),
-        (cve_view.VulExportExcel, VUL_EXPORT_EXCEL)
+        (cve_view.VulExportExcel, VUL_EXPORT_EXCEL),
     ],
     "CVE_HOST_URLS": [
         (cve_host_view.VulGetHostStatus, VUL_HOST_STATUS_GET),
@@ -63,14 +62,14 @@ SPECIFIC_URLS = {
         (cve_task_view.VulGetRepoTaskInfo, VUL_TASK_REPO_INFO_GET),
         (cve_task_view.VulGetRepoTaskResult, VUL_TASK_REPO_RESULT_GET),
         (cve_task_view.VulDeleteTask, VUL_TASK_DELETE),
-        (cve_task_view.VulGenerateCveRollback, VUL_TASK_CVE_ROLLBACK_GENERATE)
+        (cve_task_view.VulGenerateCveRollback, VUL_TASK_CVE_ROLLBACK_GENERATE),
     ],
     "CVE_TASK_CALLBACK_URLS": [
         (cve_task_view.VulCveFixTaskCallback, VUL_TASK_CVE_FIX_CALLBACK),
         (cve_task_view.VulRepoSetTaskCallback, VUL_TASK_REPO_SET_CALLBACK),
         (cve_task_view.VulCveScanTaskCallback, VUL_TASK_CVE_SCAN_CALLBACK),
-        (cve_task_view.VulCveRollbackTaskCallback, VUL_TASK_CVE_ROLLBACK_CALLBACK)
-    ]
+        (cve_task_view.VulCveRollbackTaskCallback, VUL_TASK_CVE_ROLLBACK_CALLBACK),
+    ],
 }
 
 for _, value in SPECIFIC_URLS.items():

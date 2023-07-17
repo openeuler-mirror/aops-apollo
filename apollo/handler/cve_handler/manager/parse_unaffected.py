@@ -18,13 +18,13 @@ Description: parse unaffected cve xml file, insert into database
 from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
 
+from vulcanus.log.log import LOGGER
+
 from apollo.conf.constant import CveSeverity, CvssScore
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.handler.cve_handler.manager.parse_advisory import etree_to_dict
 
 __all__ = ["parse_unaffected_cve"]
-
-from vulcanus.log.log import LOGGER
 
 
 def parse_unaffected_cve(xml_path):
@@ -100,22 +100,21 @@ def parse_cvrf_dict(cvrf_dict):
             "publish_time": remediation["DATE"],
             "severity": severity,
             "cvss_score": cvss_score,
-            "reboot": False
+            "reboot": False,
         }
         cve_table_rows.append(cve_row)
         for os_version in product_id:
-            cve_pkg_rows.append({
-                "cve_id": cve_info["CVE"],
-                "package": remediation["Description"],
-                "package_version": "",
-                "os_version": os_version,
-                "affected": False
-            })
+            cve_pkg_rows.append(
+                {
+                    "cve_id": cve_info["CVE"],
+                    "package": remediation["Description"],
+                    "package_version": "",
+                    "os_version": os_version,
+                    "affected": False,
+                }
+            )
         description = cve_info["Notes"]["Note"].get("text", "")
-        doc_list.append({
-            "cve_id": cve_info["CVE"],
-            "description": description
-        })
+        doc_list.append({"cve_id": cve_info["CVE"], "description": description})
 
     return cve_table_rows, cve_pkg_rows, doc_list
 

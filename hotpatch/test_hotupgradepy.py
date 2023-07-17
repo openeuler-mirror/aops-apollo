@@ -12,11 +12,12 @@
 # ******************************************************************************/
 import unittest
 from unittest import mock
+
 import dnf
 
-from .hotupgrade import HotupgradeCommand
-from .hotpatch_updateinfo import HotpatchUpdateInfo
 from .hot_updateinfo import HotUpdateinfoCommand, DisplayItem
+from .hotpatch_updateinfo import HotpatchUpdateInfo
+from .hotupgrade import HotupgradeCommand
 
 
 class UpgradeTestCase(unittest.TestCase):
@@ -47,8 +48,12 @@ class UpgradeTestCase(unittest.TestCase):
 
     @mock.patch.object(HotupgradeCommand, "get_hot_updateinfo_list")
     def test_upgrade_all_should_return_correct(self, mock_patch):
-        mock_patch.return_value = ['patch-name1-6.2.5-1-HP002-1-1.x86_64', 'patch-name1-6.2.5-1-HP001-1-1.x86_64',
-                                   'patch-name2-6.2.5-1-HP001-1-1.x86_64', '-']
+        mock_patch.return_value = [
+            'patch-name1-6.2.5-1-HP002-1-1.x86_64',
+            'patch-name1-6.2.5-1-HP001-1-1.x86_64',
+            'patch-name2-6.2.5-1-HP001-1-1.x86_64',
+            '-',
+        ]
         res = self.cmd.upgrade_all()
         expected_res = ['patch-name2-6.2.5-1-HP001-1-1.x86_64', 'patch-name1-6.2.5-1-HP002-1-1.x86_64']
         self.assertEqual(res, expected_res)
@@ -61,10 +66,15 @@ class UpgradeTestCase(unittest.TestCase):
         self.cmd.opts = mock.MagicMock()
         self.cmd.hp_hawkey = HotpatchUpdateInfo(self.cmd.cli.base, self.cmd.cli)
         self.cmd.filter_cves = None
-        mock_cve.return_value = DisplayItem(idw=0, tiw=0, ciw=0,
-                                            display_lines=[('CVE-2023-3331', 'Low/Sec.', '-', '-'), (
-                                                'CVE-2023-1112', 'Important/Sec.', '-',
-                                                'patch-redis-6.2.5-1-HP001-1-1.x86_64')])
+        mock_cve.return_value = DisplayItem(
+            idw=0,
+            tiw=0,
+            ciw=0,
+            display_lines=[
+                ('CVE-2023-3331', 'Low/Sec.', '-', '-'),
+                ('CVE-2023-1112', 'Important/Sec.', '-', 'patch-redis-6.2.5-1-HP001-1-1.x86_64'),
+            ],
+        )
         res = self.cmd.get_hot_updateinfo_list()
         expected_res = ['-', 'patch-redis-6.2.5-1-HP001-1-1.x86_64']
         self.assertEqual(res, expected_res)

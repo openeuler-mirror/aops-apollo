@@ -19,22 +19,27 @@ import glob
 import os
 import shutil
 
+from vulcanus.database.helper import judge_return_code
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_INSERT_ERROR, WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
+from vulcanus.restful.response import BaseResponse
+
 from apollo.conf import configuration
 from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
-from apollo.function.schema.cve import GetCveListSchema, GetCveInfoSchema, GetCveHostsSchema, \
-    GetCveTaskHostSchema, GetCveActionSchema
+from apollo.function.schema.cve import (
+    GetCveListSchema,
+    GetCveInfoSchema,
+    GetCveHostsSchema,
+    GetCveTaskHostSchema,
+    GetCveActionSchema,
+)
 from apollo.function.utils import make_download_response
 from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
 from apollo.handler.cve_handler.manager.save_to_csv import export_csv
-from vulcanus.database.helper import judge_return_code
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, DATABASE_INSERT_ERROR, \
-    WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
-from vulcanus.restful.response import BaseResponse
 
 
 class VulGetCveOverview(BaseResponse):
@@ -207,20 +212,17 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(
-                file_path)
+            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
             os.remove(file_path)
             if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                 return WRONG_FILE_FORMAT
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
-            LOGGER.error(
-                "Some error occurred when parsing advisory '%s'." % file_name)
+            LOGGER.error("Some error occurred when parsing advisory '%s'." % file_name)
             LOGGER.error(error)
             return WRONG_FILE_FORMAT
 
-        status_code = proxy.save_security_advisory(
-            file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
+        status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
 
         return status_code
 
@@ -248,26 +250,24 @@ class VulUploadAdvisory(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(
-                    file_path)
+                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
                 if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
                 fail_list.append(file_name)
-                LOGGER.error(
-                    "Some error occurred when parsing advisory '%s'." % file_name)
+                LOGGER.error("Some error occurred when parsing advisory '%s'." % file_name)
                 LOGGER.error(error)
                 continue
             except IsADirectoryError as error:
                 fail_list.append(file_name)
-                LOGGER.error(
-                    "Folder %s cannot be parsed as an advisory." % file_name)
+                LOGGER.error("Folder %s cannot be parsed as an advisory." % file_name)
                 LOGGER.error(error)
                 continue
             # elasticsearch need 1 second to update doc
-            status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows,
-                                                       cve_pkg_docs, sa_year, sa_number)
+            status_code = proxy.save_security_advisory(
+                file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
+            )
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
@@ -321,8 +321,7 @@ class VulUploadUnaffected(BaseResponse):
             if not folder_path:
                 LOGGER.error("Unzip file '%s' failed." % file_name)
                 return WRONG_FILE_FORMAT
-            status_code = self._save_compressed_unaffected_cve(
-                proxy, folder_path)
+            status_code = self._save_compressed_unaffected_cve(proxy, folder_path)
         else:
             status_code = WRONG_FILE_FORMAT
         return status_code
@@ -346,13 +345,11 @@ class VulUploadUnaffected(BaseResponse):
             os.remove(file_path)
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
-            LOGGER.error(
-                "Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
+            LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
             LOGGER.error(error)
             return WRONG_FILE_FORMAT
 
-        status_code = proxy.save_unaffected_cve(
-            file_name, cve_rows, cve_pkg_rows, doc_list)
+        status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_rows, doc_list)
         return status_code
 
     @staticmethod
@@ -379,25 +376,21 @@ class VulUploadUnaffected(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(
-                    file_path)
+                cve_rows, cve_pkg_rows, doc_list = parse_unaffected_cve(file_path)
                 if not all([cve_rows, cve_pkg_rows, doc_list]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
                 fail_list.append(file_name)
-                LOGGER.error(
-                    "Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
+                LOGGER.error("Some error occurred when parsing unaffected cve advisory '%s'." % file_name)
                 LOGGER.error(error)
                 continue
             except IsADirectoryError as error:
                 fail_list.append(file_name)
-                LOGGER.error(
-                    "Folder %s cannot be parsed as an unaffected." % file_name)
+                LOGGER.error("Folder %s cannot be parsed as an unaffected." % file_name)
                 LOGGER.error(error)
                 continue
-            status_code = proxy.save_unaffected_cve(
-                file_name, cve_rows, cve_pkg_rows, doc_list)
+            status_code = proxy.save_unaffected_cve(file_name, cve_rows, cve_pkg_rows, doc_list)
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
@@ -406,8 +399,7 @@ class VulUploadUnaffected(BaseResponse):
 
         if fail_list:
             fail_list_str = ','.join(fail_list)
-            LOGGER.warning(
-                "The unaffected cve '%s' insert failed." % fail_list_str)
+            LOGGER.warning("The unaffected cve '%s' insert failed." % fail_list_str)
 
         status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
         status_code = judge_return_code(status_dict, DATABASE_INSERT_ERROR)
@@ -432,9 +424,9 @@ class VulExportExcel(BaseResponse):
 
     def _handle(self, proxy, args):
         """
-            Handle export csv
-            Returns:
-                int: status code
+        Handle export csv
+        Returns:
+            int: status code
         """
         username = args.get("username")
         host_id_list = args.get("host_list")
@@ -447,19 +439,16 @@ class VulExportExcel(BaseResponse):
         os.mkdir(self.filepath)
 
         for host_id in host_id_list:
-            host_name, cve_info_list = proxy.query_host_name_and_related_cves(
-                host_id, username)
+            host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
             if host_name:
                 self.filename = f"{host_name}.csv"
                 csv_head = ["cve_id", "status", "fix_status", "support_hp", "fixed_by_hp"]
-                export_csv(cve_info_list, os.path.join(
-                    self.filepath, self.filename), csv_head)
+                export_csv(cve_info_list, os.path.join(self.filepath, self.filename), csv_head)
 
         if len(os.listdir(self.filepath)) == 0:
             return NO_DATA
         if len(os.listdir(self.filepath)) > FILE_NUMBER:
-            zip_filename, zip_save_path = compress_cve(
-                self.filepath, "host.zip")
+            zip_filename, zip_save_path = compress_cve(self.filepath, "host.zip")
             if zip_filename and zip_save_path:
                 self.filename = zip_filename
                 self.filepath = zip_save_path

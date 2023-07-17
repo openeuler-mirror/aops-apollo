@@ -40,16 +40,15 @@ def file_iterator(file_path, chunk_size=512):
 def make_download_response(file_path, file_name):
     response = Response(file_iterator(file_path))
     response.headers['Content-Type'] = "application/octet-stream"
-    response.headers['Content-Disposition'] = "application;file_name='{}'".format(
-        file_name)
+    response.headers['Content-Disposition'] = "application;file_name='{}'".format(file_name)
     return response
 
 
 class ConstantBase:
     """
-        Base class for constant classes
+    Base class for constant classes
 
-        Note: The values of these attributes should be initialized in a subclass
+    Note: The values of these attributes should be initialized in a subclass
     """
 
     @classmethod

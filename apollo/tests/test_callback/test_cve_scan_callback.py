@@ -20,19 +20,14 @@ import unittest
 from unittest import mock
 
 import sqlalchemy
-from flask import (
-    Flask,
-    Blueprint
-)
+from flask import Flask, Blueprint
 from flask_restful import Api
-
-from apollo.conf.constant import VUL_TASK_CVE_SCAN_CALLBACK
-from apollo.database.proxy.task import (
-    TaskMysqlProxy
-)
-from apollo.url import SPECIFIC_URLS
 from vulcanus.restful.resp import state
 from vulcanus.restful.response import BaseResponse
+
+from apollo.conf.constant import VUL_TASK_CVE_SCAN_CALLBACK
+from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.url import SPECIFIC_URLS
 
 API = Api()
 for view, url in SPECIFIC_URLS['CVE_TASK_CALLBACK_URLS']:
@@ -45,17 +40,9 @@ app.register_blueprint(APOLLO)
 
 app.testing = True
 client = app.test_client()
-header = {
-    "Content-Type": "application/json; charset=UTF-8"
-}
-header_with_token = {
-    "Content-Type": "application/json; charset=UTF-8",
-    "access_token": "81fe"
-}
-header_with_upload_file_token = {
-    "Content-Type": "multipart/form-data;",
-    "access_token": "81fe"
-}
+header = {"Content-Type": "application/json; charset=UTF-8"}
+header_with_token = {"Content-Type": "application/json; charset=UTF-8", "access_token": "81fe"}
+header_with_upload_file_token = {"Content-Type": "multipart/form-data;", "access_token": "81fe"}
 
 
 class TestCveScanCallback(unittest.TestCase):
@@ -65,33 +52,15 @@ class TestCveScanCallback(unittest.TestCase):
             "status": "succeed",
             "host_id": 2,
             "os_version": "mock-version",
-            "installed_packages": [
-                {
-                    "name": "mock-app",
-                    "version": "mock-version"
-                }
-            ],
+            "installed_packages": [{"name": "mock-app", "version": "mock-version"}],
             "unfixed_cves": [
-                {
-                    "cve_id": "CVE-2023-0001",
-                    "support_hp": True
-                },
-                {
-                    "cve_id": "CVE-2023-0002",
-                    "support_hp": False
-                }
+                {"cve_id": "CVE-2023-0001", "support_hp": True},
+                {"cve_id": "CVE-2023-0002", "support_hp": False},
             ],
             "fixed_cves": [
-                {
-                    "cve_id": "CVE-2023-0003",
-                    "fixed_by_hp": True,
-                    "hp_status": "ACCEPTED"
-                },
-                {
-                    "cve_id": "CVE-2023-0004",
-                    "fixed_by_hp": False
-                }
-            ]
+                {"cve_id": "CVE-2023-0003", "fixed_by_hp": True, "hp_status": "ACCEPTED"},
+                {"cve_id": "CVE-2023-0004", "fixed_by_hp": False},
+            ],
         }
 
     @mock.patch.object(TaskMysqlProxy, "__exit__")
@@ -100,7 +69,8 @@ class TestCveScanCallback(unittest.TestCase):
     @mock.patch.object(TaskMysqlProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_request")
     def test_cve_scan_callback_should_return_succeed_when_all_is_right(
-            self, mock_verify_request, mock_connect, mock_save, mock_update_host_scan, mock_close):
+        self, mock_verify_request, mock_connect, mock_save, mock_update_host_scan, mock_close
+    ):
         self.task_info["username"] = "mock-user"
         mock_verify_request.return_value = self.task_info, state.SUCCEED
         mock_connect.return_value = None
@@ -116,7 +86,8 @@ class TestCveScanCallback(unittest.TestCase):
     @mock.patch.object(TaskMysqlProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_request")
     def test_cve_scan_callback_should_return_update_error_when_save_scan_result_failed(
-            self, mock_verify_request, mock_connect, mock_save, mock_update_host_scan, mock_close):
+        self, mock_verify_request, mock_connect, mock_save, mock_update_host_scan, mock_close
+    ):
         self.task_info["username"] = "mock-user"
         mock_verify_request.return_value = self.task_info, state.SUCCEED
         mock_connect.return_value = None
@@ -147,7 +118,8 @@ class TestCveScanCallback(unittest.TestCase):
     @mock.patch.object(TaskMysqlProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_token")
     def test_cve_scan_callback_should_return_database_connect_error_when_connect_database_failed(
-            self, mock_token, mock_connect):
+        self, mock_token, mock_connect
+    ):
         mock_connect.side_effect = sqlalchemy.exc.SQLAlchemyError("Connection error")
         mock_token.return_value = state.SUCCEED
         response = client.post(VUL_TASK_CVE_SCAN_CALLBACK, data=json.dumps(self.task_info), headers=header_with_token)

@@ -20,27 +20,32 @@ from time import sleep
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
-
-from apollo.conf import configuration
-from apollo.conf.constant import CVE_INDEX, TASK_INDEX
-from apollo.database.mapping import MAPPINGS
-from apollo.database.table import CveHostAssociation, TaskHostRepoAssociation, \
-    CveUserAssociation, Cve, CveTaskAssociation, TaskCveHostAssociation, Task, Repo, CveAffectedPkgs
-from apollo.database.table import create_vul_tables
 from vulcanus.database.helper import drop_tables, create_database_engine
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.database.table import Base, User, Host, HostGroup, create_utils_tables
 
-__all__ = ["setup_mysql_db", "tear_down_mysql_db", "setup_es_db", "tear_down_es_db",
-           "SESSION", "ENGINE"]
+from apollo.conf import configuration
+from apollo.conf.constant import CVE_INDEX, TASK_INDEX
+from apollo.database.mapping import MAPPINGS
+from apollo.database.table import (
+    CveHostAssociation,
+    TaskHostRepoAssociation,
+    CveUserAssociation,
+    Cve,
+    CveTaskAssociation,
+    TaskCveHostAssociation,
+    Task,
+    Repo,
+    CveAffectedPkgs,
+)
+from apollo.database.table import create_vul_tables
+
+__all__ = ["setup_mysql_db", "tear_down_mysql_db", "setup_es_db", "tear_down_es_db", "SESSION", "ENGINE"]
 
 
 class TestMysqlDb(MysqlProxy):
     def add_user(self):
-        user_data = {
-            "username": "admin",
-            "password": "123456"
-        }
+        user_data = {"username": "admin", "password": "123456"}
         user = User(**user_data)
         self.session.add(user)
         self.session.commit()
@@ -67,7 +72,7 @@ class TestMysqlDb(MysqlProxy):
             "management": False,
             "status": "done",
             "repo_name": "repo1",
-            "last_scan": 123836100
+            "last_scan": 123836100,
         }
         host = Host(**host_data_1)
         self.session.add(host)
@@ -82,7 +87,7 @@ class TestMysqlDb(MysqlProxy):
             "management": False,
             "status": "scanning",
             "repo_name": "repo1",
-            "last_scan": 123836152
+            "last_scan": 123836152,
         }
         host = Host(**host_data_2)
         self.session.add(host)
@@ -96,7 +101,7 @@ class TestMysqlDb(MysqlProxy):
             "management": False,
             "status": "scanning",
             "repo_name": "repo1",
-            "last_scan": 123837152
+            "last_scan": 123837152,
         }
         host = Host(**host_data_3)
         self.session.add(host)
@@ -108,7 +113,7 @@ class TestMysqlDb(MysqlProxy):
             "publish_time": "qwff",
             "severity": "High",
             "cvss_score": "7.2",
-            "reboot": False
+            "reboot": False,
         }
         cve_1 = Cve(**cve_data_1)
         self.session.add(cve_1)
@@ -118,7 +123,7 @@ class TestMysqlDb(MysqlProxy):
             "publish_time": "asyubdqsd",
             "severity": "Medium",
             "cvss_score": "3",
-            "reboot": True
+            "reboot": True,
         }
         cve_2 = Cve(**cve_data_2)
         self.session.add(cve_2)
@@ -128,7 +133,7 @@ class TestMysqlDb(MysqlProxy):
             "publish_time": "111",
             "severity": "Low",
             "cvss_score": "3",
-            "reboot": False
+            "reboot": False,
         }
         cve_3 = Cve(**cve_data_3)
         self.session.add(cve_3)
@@ -138,7 +143,7 @@ class TestMysqlDb(MysqlProxy):
             "publish_time": "222",
             "severity": "Unknown",
             "cvss_score": "3",
-            "reboot": False
+            "reboot": False,
         }
         cve_4 = Cve(**cve_data_4)
         self.session.add(cve_4)
@@ -150,7 +155,7 @@ class TestMysqlDb(MysqlProxy):
             "repo_name": "repo1",
             "repo_attr": "openEuler 21.09",
             "repo_data": "[update]",
-            "username": "admin"
+            "username": "admin",
         }
         repo = Repo(**repo_data)
         self.session.add(repo)
@@ -160,7 +165,7 @@ class TestMysqlDb(MysqlProxy):
             "repo_name": "repo2",
             "repo_attr": "openEuler 21.09",
             "repo_data": "[update]",
-            "username": "admin"
+            "username": "admin",
         }
         repo = Repo(**repo_data)
         self.session.add(repo)
@@ -170,42 +175,26 @@ class TestMysqlDb(MysqlProxy):
             "repo_name": "repo3",
             "repo_attr": "openEuler 21.09",
             "repo_data": "[update]",
-            "username": "admin"
+            "username": "admin",
         }
         repo = Repo(**repo_data)
         self.session.add(repo)
         self.session.commit()
 
     def add_cve_user_status(self):
-        status_data_1 = {
-            "cve_id": "qwfqwff3",
-            "username": "admin",
-            "status": "in review"
-        }
+        status_data_1 = {"cve_id": "qwfqwff3", "username": "admin", "status": "in review"}
         status_1 = CveUserAssociation(**status_data_1)
         self.session.add(status_1)
 
-        status_data_2 = {
-            "cve_id": "qwfqwff4",
-            "username": "admin",
-            "status": "not reviewed"
-        }
+        status_data_2 = {"cve_id": "qwfqwff4", "username": "admin", "status": "not reviewed"}
         status_2 = CveUserAssociation(**status_data_2)
         self.session.add(status_2)
 
-        status_data_3 = {
-            "cve_id": "qwfqwff5",
-            "username": "admin",
-            "status": "not reviewed"
-        }
+        status_data_3 = {"cve_id": "qwfqwff5", "username": "admin", "status": "not reviewed"}
         status_3 = CveUserAssociation(**status_data_3)
         self.session.add(status_3)
 
-        status_data_4 = {
-            "cve_id": "qwfqwff6",
-            "username": "admin",
-            "status": "not reviewed"
-        }
+        status_data_4 = {"cve_id": "qwfqwff6", "username": "admin", "status": "not reviewed"}
         status_4 = CveUserAssociation(**status_data_4)
         self.session.add(status_4)
         self.session.commit()
@@ -221,7 +210,7 @@ class TestMysqlDb(MysqlProxy):
             "auto_reboot": True,
             "username": "admin",
             "create_time": 123836139,
-            "host_num": 2
+            "host_num": 2,
         }
         task = Task(**task_data)
         self.session.add(task)
@@ -236,7 +225,7 @@ class TestMysqlDb(MysqlProxy):
             "auto_reboot": False,
             "username": "admin",
             "create_time": 123836140,
-            "host_num": 1
+            "host_num": 1,
         }
         task = Task(**task_data)
         self.session.add(task)
@@ -251,7 +240,7 @@ class TestMysqlDb(MysqlProxy):
             "auto_reboot": False,
             "username": "admin",
             "create_time": 123836141,
-            "host_num": 1
+            "host_num": 1,
         }
         task = Task(**task_data)
         self.session.add(task)
@@ -263,7 +252,7 @@ class TestMysqlDb(MysqlProxy):
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "reboot": False,
             "progress": 1,
-            "host_num": 2
+            "host_num": 2,
         }
         cve_task = CveTaskAssociation(**task_cve_data)
         self.session.add(cve_task)
@@ -273,7 +262,7 @@ class TestMysqlDb(MysqlProxy):
             "task_id": "1111111111poiuytrewqasdfghjklmnb",
             "reboot": True,
             "progress": 1,
-            "host_num": 1
+            "host_num": 1,
         }
         cve_task = CveTaskAssociation(**task_cve_data)
         self.session.add(cve_task)
@@ -283,60 +272,30 @@ class TestMysqlDb(MysqlProxy):
             "task_id": "2222222222poiuytrewqasdfghjklmnb",
             "reboot": False,
             "progress": 0,
-            "host_num": 1
+            "host_num": 1,
         }
         cve_task = CveTaskAssociation(**task_cve_data)
         self.session.add(cve_task)
         self.session.commit()
 
     def add_cve_host_match(self):
-        cve_host_data = {
-            "cve_id": "qwfqwff3",
-            "host_id": 3,
-            "affected": 0,
-            "fixed": 1,
-            "hotpatch": 1
-        }
+        cve_host_data = {"cve_id": "qwfqwff3", "host_id": 3, "affected": 0, "fixed": 1, "hotpatch": 1}
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
-        cve_host_data = {
-            "cve_id": "qwfqwff4",
-            "host_id": 2,
-            "affected": 1,
-            "fixed": 1,
-            "hotpatch": 0
-        }
+        cve_host_data = {"cve_id": "qwfqwff4", "host_id": 2, "affected": 1, "fixed": 1, "hotpatch": 0}
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
-        cve_host_data = {
-            "cve_id": "qwfqwff5",
-            "host_id": 2,
-            "affected": 1,
-            "fixed": 0,
-            "hotpatch": 1
-        }
+        cve_host_data = {"cve_id": "qwfqwff5", "host_id": 2, "affected": 1, "fixed": 0, "hotpatch": 1}
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
-        cve_host_data = {
-            "cve_id": "qwfqwff3",
-            "host_id": 1,
-            "affected": 0,
-            "fixed": 1,
-            "hotpatch": 0
-        }
+        cve_host_data = {"cve_id": "qwfqwff3", "host_id": 1, "affected": 0, "fixed": 1, "hotpatch": 0}
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
 
-        cve_host_data = {
-            "cve_id": "qwfqwff4",
-            "host_id": 1,
-            "affected": 1,
-            "fixed": 1,
-            "hotpatch": 1
-        }
+        cve_host_data = {"cve_id": "qwfqwff4", "host_id": 1, "affected": 1, "fixed": 1, "hotpatch": 1}
         cve_host = CveHostAssociation(**cve_host_data)
         self.session.add(cve_host)
         self.session.commit()
@@ -349,7 +308,7 @@ class TestMysqlDb(MysqlProxy):
             "host_id": 2,
             "host_name": "host2",
             "host_ip": "127.0.0.2",
-            "status": "unknown"
+            "status": "unknown",
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -360,7 +319,7 @@ class TestMysqlDb(MysqlProxy):
             "host_id": 1,
             "host_name": "host1",
             "host_ip": "127.0.0.1",
-            "status": "running"
+            "status": "running",
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -371,7 +330,7 @@ class TestMysqlDb(MysqlProxy):
             "host_id": 3,
             "host_name": "host1",
             "host_ip": "127.0.0.1",
-            "status": "succeed"
+            "status": "succeed",
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -383,7 +342,7 @@ class TestMysqlDb(MysqlProxy):
             "host_id": 2,
             "host_name": "host2",
             "host_ip": "127.0.0.2",
-            "status": "fail"
+            "status": "fail",
         }
         task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
         self.session.add(task_cve_host)
@@ -396,7 +355,7 @@ class TestMysqlDb(MysqlProxy):
             "host_id": 1,
             "host_name": "host1",
             "host_ip": "127.0.0.1",
-            "status": "running"
+            "status": "running",
         }
         task_repo_host = TaskHostRepoAssociation(**task_repo_host_data)
         self.session.add(task_repo_host)
@@ -407,7 +366,7 @@ class TestMysqlDb(MysqlProxy):
             "host_id": 2,
             "host_name": "host2",
             "host_ip": "127.0.0.2",
-            "status": "fail"
+            "status": "fail",
         }
         task_repo_host = TaskHostRepoAssociation(**task_repo_host_data)
         self.session.add(task_repo_host)
@@ -419,7 +378,7 @@ class TestMysqlDb(MysqlProxy):
             "package": "ansible",
             "package_version": "1.2.3",
             "os_version": "",
-            "affected": 0
+            "affected": 0,
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -429,7 +388,7 @@ class TestMysqlDb(MysqlProxy):
             "package": "tensorflow",
             "package_version": "1.2.3",
             "os_version": "openEuler-20.03-LTS-SP3",
-            "affected": 0
+            "affected": 0,
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -439,7 +398,7 @@ class TestMysqlDb(MysqlProxy):
             "package": "ansible",
             "package_version": "0.2.3",
             "os_version": "openEuler-20.03-LTS-SP3",
-            "affected": 1
+            "affected": 1,
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -449,7 +408,7 @@ class TestMysqlDb(MysqlProxy):
             "package": "redis",
             "package_version": "1.3",
             "os_version": "openEuler-20.03-LTS-SP3",
-            "affected": 1
+            "affected": 1,
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -459,7 +418,7 @@ class TestMysqlDb(MysqlProxy):
             "package": "",
             "package_version": "1.6.3",
             "os_version": "openEuler-20.03-LTS-SP3",
-            "affected": 1
+            "affected": 1,
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -469,7 +428,7 @@ class TestMysqlDb(MysqlProxy):
             "package": "redis",
             "package_version": "0.6.3",
             "os_version": "openEuler-20.03-LTS-SP3",
-            "affected": 1
+            "affected": 1,
         }
         cve_pkg = CveAffectedPkgs(**cve_pkg_data)
         self.session.add(cve_pkg)
@@ -489,51 +448,23 @@ class TestEsDb(ElasticsearchProxy):
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "running",
-                    "check_items": [
-                        {
-                            "item": "check network",
-                            "result": True
-                        }
-                    ],
+                    "check_items": [{"item": "check network", "result": True}],
                     "cves": [
-                        {
-                            "cve_id": "qwfqwff3",
-                            "log": "",
-                            "result": "running"
-                        },
-                        {
-                            "cve_id": "qwfqwff4",
-                            "log": "",
-                            "result": "fixed"
-                        }
-                    ]
+                        {"cve_id": "qwfqwff3", "log": "", "result": "running"},
+                        {"cve_id": "qwfqwff4", "log": "", "result": "fixed"},
+                    ],
                 },
                 {
                     "host_id": 2,
                     "host_name": "host2",
                     "host_ip": "127.0.0.2",
                     "status": "fail",
-                    "check_items": [
-                        {
-                            "item": "check network",
-                            "result": True
-                        }
-                    ],
-                    "cves": [
-                        {
-                            "cve_id": "qwfqwff3",
-                            "log": "",
-                            "result": "unfixed"
-                        }
-                    ]
-                }
-            ]
+                    "check_items": [{"item": "check network", "result": True}],
+                    "cves": [{"cve_id": "qwfqwff3", "log": "", "result": "unfixed"}],
+                },
+            ],
         }
-        data = {
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "log": json.dumps(cve_task_result),
-            "username": "admin"
-        }
+        data = {"task_id": "1111111111poiuytrewqasdfghjklmnb", "log": json.dumps(cve_task_result), "username": "admin"}
         self.insert(TASK_INDEX, data, document_id=data["task_id"])
 
         # insert repo task result
@@ -547,61 +478,64 @@ class TestEsDb(ElasticsearchProxy):
                     "host_name": "host1",
                     "host_ip": "127.0.0.1",
                     "status": "succeed",
-                    "check_items": [
-                        {
-                            "item": "check network",
-                            "result": True
-                        }
-                    ],
-                    "log": ""
+                    "check_items": [{"item": "check network", "result": True}],
+                    "log": "",
                 }
-            ]
+            ],
         }
-        data = {
-            "task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb",
-            "log": json.dumps(repo_task_result),
-            "username": "admin"
-        }
+        data = {"task_id": "aaaaaaaaaapoiuytrewqasdfghjklmnb", "log": json.dumps(repo_task_result), "username": "admin"}
         self.insert(TASK_INDEX, data, document_id=data["task_id"])
 
     def add_cve_pkg_info(self):
-        cve_doc = {'cve_id': 'qwfqwff3',
-                   'description': 'asdqwfqwf',
-                   'os_list': [{'arch_list': [{'arch': 'noarch',
-                                               'package': ['ansible.oe1.noarch.rpm',
-                                                           'tensorflow.oe1.noarch.rpm']},
-                                              {'arch': 'src',
-                                               'package': ['ansible.oe1.src.rpm',
-                                                           'tensorflow.oe1.src.rpm']}],
-                                'os_version': 'openEuler:20.03-LTS-SP1',
-                                'update_time': '2021-12-31'}]}
+        cve_doc = {
+            'cve_id': 'qwfqwff3',
+            'description': 'asdqwfqwf',
+            'os_list': [
+                {
+                    'arch_list': [
+                        {'arch': 'noarch', 'package': ['ansible.oe1.noarch.rpm', 'tensorflow.oe1.noarch.rpm']},
+                        {'arch': 'src', 'package': ['ansible.oe1.src.rpm', 'tensorflow.oe1.src.rpm']},
+                    ],
+                    'os_version': 'openEuler:20.03-LTS-SP1',
+                    'update_time': '2021-12-31',
+                }
+            ],
+        }
         self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
-        cve_doc = {'cve_id': 'qwfqwff4',
-                   'description': 'sef',
-                   'os_list': [{'arch_list': [{'arch': 'noarch',
-                                               'package': ['ansible.oe1.noarch.rpm',
-                                                           'redis.oe1.noarch.rpm']},
-                                              {'arch': 'src',
-                                               'package': ['ansible.oe1.src.rpm',
-                                                           'redis.oe1.src.rpm']}],
-                                'os_version': 'openEuler:20.03-LTS-SP1',
-                                'update_time': '2021-12-31'}]}
+        cve_doc = {
+            'cve_id': 'qwfqwff4',
+            'description': 'sef',
+            'os_list': [
+                {
+                    'arch_list': [
+                        {'arch': 'noarch', 'package': ['ansible.oe1.noarch.rpm', 'redis.oe1.noarch.rpm']},
+                        {'arch': 'src', 'package': ['ansible.oe1.src.rpm', 'redis.oe1.src.rpm']},
+                    ],
+                    'os_version': 'openEuler:20.03-LTS-SP1',
+                    'update_time': '2021-12-31',
+                }
+            ],
+        }
         self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
-        cve_doc = {'cve_id': 'qwfqwff5',
-                   'description': 'abc',
-                   'os_list': []}
+        cve_doc = {'cve_id': 'qwfqwff5', 'description': 'abc', 'os_list': []}
         self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
-        cve_doc = {'cve_id': 'qwfqwff6',
-                   'description': 'abcd',
-                   'os_list': [{'arch_list': [{'arch': 'noarch',
-                                               'package': ['redis.oe1.noarch.rpm']},
-                                              {'arch': 'src',
-                                               'package': ['redis.oe1.src.rpm']}],
-                                'os_version': 'openEuler:20.03-LTS-SP1',
-                                'update_time': '2021-12-31'}]}
+        cve_doc = {
+            'cve_id': 'qwfqwff6',
+            'description': 'abcd',
+            'os_list': [
+                {
+                    'arch_list': [
+                        {'arch': 'noarch', 'package': ['redis.oe1.noarch.rpm']},
+                        {'arch': 'src', 'package': ['redis.oe1.src.rpm']},
+                    ],
+                    'os_version': 'openEuler:20.03-LTS-SP1',
+                    'update_time': '2021-12-31',
+                }
+            ],
+        }
         self.insert(CVE_INDEX, cve_doc, document_id=cve_doc["cve_id"])
 
 
@@ -613,8 +547,7 @@ mysql_host = "127.0.0.1"
 mysql_port = 3306
 mysql_url_format = "mysql+pymysql://root@%s:%s/%s"
 mysql_database_name = "aops_test"
-engine_url = mysql_url_format % (
-    mysql_host, mysql_port, mysql_database_name)
+engine_url = mysql_url_format % (mysql_host, mysql_port, mysql_database_name)
 ENGINE = create_database_engine(engine_url, 100, 7200)
 SESSION = scoped_session(sessionmaker(bind=ENGINE))
 

@@ -16,10 +16,8 @@ Author:
 Description:
 """
 import unittest
-from unittest import mock
 
 from apollo.handler.task_handler.cache import TaskCache
-from vulcanus.restful.resp.state import SUCCEED
 
 
 class TestCache(unittest.TestCase):
@@ -29,53 +27,18 @@ class TestCache(unittest.TestCase):
             {
                 "cve_id": "1",
                 "host_info": [
-                    {
-                        "host_name": "name1",
-                        "host_id": 1,
-                        "host_ip": "ip1"
-                    },
-                    {
-                        "host_name": "name2",
-                        "host_id": 2,
-                        "host_ip": "ip2"
-                    }
-                ]
+                    {"host_name": "name1", "host_id": 1, "host_ip": "ip1"},
+                    {"host_name": "name2", "host_id": 2, "host_ip": "ip2"},
+                ],
             },
-            {
-                "cve_id": "2",
-                "host_info": [
-                    {
-                        "host_name": "name1",
-                        "host_id": 1,
-                        "host_ip": "ip1"
-                    }
-                ]
-            }
+            {"cve_id": "2", "host_info": [{"host_name": "name1", "host_id": 1, "host_ip": "ip1"}]},
         ]
         expected_res = {
-            "cve": {
-                "1": 1,
-                "2": 1
-            },
+            "cve": {"1": 1, "2": 1},
             "host": {
-                "name1": {
-                    "host_name": "name1",
-                    "host_id": 1,
-                    "host_ip": "ip1",
-                    "cve": {
-                        "1": 1,
-                        "2": 1
-                    }
-                },
-                "name2": {
-                    "host_name": "name2",
-                    "host_id": 2,
-                    "host_ip": "ip2",
-                    "cve": {
-                        "1": 1
-                    }
-                }
-            }
+                "name1": {"host_name": "name1", "host_id": 1, "host_ip": "ip1", "cve": {"1": 1, "2": 1}},
+                "name2": {"host_name": "name2", "host_id": 2, "host_ip": "ip2", "cve": {"1": 1}},
+            },
         }
         res = cache.make_cve_info(info)
         self.assertDictEqual(res, expected_res)
@@ -84,28 +47,13 @@ class TestCache(unittest.TestCase):
         cache = TaskCache(10)
         info = {
             "result": [
-                {
-                    "host_name": "name1",
-                    "host_id": 1,
-                    "host_ip": "ip1"
-                },
-                {
-                    "host_name": "name2",
-                    "host_id": 2,
-                    "host_ip": "ip2"
-                }
-            ]}
+                {"host_name": "name1", "host_id": 1, "host_ip": "ip1"},
+                {"host_name": "name2", "host_id": 2, "host_ip": "ip2"},
+            ]
+        }
         expected_res = {
-            "name1": {
-                "host_name": "name1",
-                "host_id": 1,
-                "host_ip": "ip1"
-            },
-            "name2": {
-                "host_name": "name2",
-                "host_id": 2,
-                "host_ip": "ip2"
-            }
+            "name1": {"host_name": "name1", "host_id": 1, "host_ip": "ip1"},
+            "name2": {"host_name": "name2", "host_id": 2, "host_ip": "ip2"},
         }
         res = cache.query_repo_info('a', info)
         self.assertDictEqual(res, expected_res)

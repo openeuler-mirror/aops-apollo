@@ -19,51 +19,50 @@ Description:
 import unittest
 from unittest import mock
 
-from apollo.database.proxy.task import TaskProxy
-from apollo.cron.timed_correct_manager import TimedCorrectTask
 from vulcanus.restful.resp.state import DATABASE_CONNECT_ERROR, SUCCEED
+
+from apollo.cron.timed_correct_manager import TimedCorrectTask
+from apollo.database.proxy.task import TaskProxy
 
 
 class TestTimedCorrectTask(unittest.TestCase):
-
     @mock.patch.object(TaskProxy, "connect")
-    def test_get_abnormal_task_should_return_connect_error_when_database_connect_fail(self,
-                                                                                      mock_connect):
+    def test_get_abnormal_task_should_return_connect_error_when_database_connect_fail(self, mock_connect):
         mock_connect.return_value = False
         self.assertEqual(TimedCorrectTask.get_abnormal_task(), DATABASE_CONNECT_ERROR)
 
     @mock.patch.object(TaskProxy, "connect")
     @mock.patch.object(TaskProxy, "get_task_create_time")
-    def test_get_abnormal_task_should_return_none_list_when_time_less_threshold(self,
-                                                                                mock_get_task_create_time,
-                                                                                mock_connect):
+    def test_get_abnormal_task_should_return_none_list_when_time_less_threshold(
+        self, mock_get_task_create_time, mock_connect
+    ):
         mock_connect.return_value = True
         mock_get_task_create_time.return_value = [("qwertyuiop", "cve fix", "1707777777")]
         self.assertEqual(TimedCorrectTask.get_abnormal_task(), [])
 
     @mock.patch.object(TaskProxy, "connect")
     @mock.patch.object(TaskProxy, "get_task_create_time")
-    def test_get_abnormal_task_should_return_list_when_time_exceeds_threshold(self,
-                                                                              mock_get_task_create_time,
-                                                                              mock_connect):
+    def test_get_abnormal_task_should_return_list_when_time_exceeds_threshold(
+        self, mock_get_task_create_time, mock_connect
+    ):
         mock_connect.return_value = True
         mock_get_task_create_time.return_value = [("qwertyuiop", "cve fix", "1672777777")]
         self.assertEqual(TimedCorrectTask.get_abnormal_task(), ["qwertyuiop"])
 
     @mock.patch.object(TaskProxy, "connect")
     @mock.patch.object(TimedCorrectTask, "get_abnormal_task")
-    def test_create_timed_scan_task_should_return_connect_error_when_database_connect_fail(self,
-                                                                                           mock_get_abnormal_task,
-                                                                                           mock_connect):
+    def test_create_timed_scan_task_should_return_connect_error_when_database_connect_fail(
+        self, mock_get_abnormal_task, mock_connect
+    ):
         mock_get_abnormal_task.return_value = ["qwertyuiop"]
         mock_connect.return_value = False
         self.assertEqual(TimedCorrectTask.task_enter(), DATABASE_CONNECT_ERROR)
 
     @mock.patch.object(TaskProxy, "connect")
     @mock.patch.object(TimedCorrectTask, "get_abnormal_task")
-    def test_create_timed_scan_task_should_return_log_info_when_abnormal_task_list_is_null(self,
-                                                                                           mock_get_abnormal_task,
-                                                                                           mock_connect):
+    def test_create_timed_scan_task_should_return_log_info_when_abnormal_task_list_is_null(
+        self, mock_get_abnormal_task, mock_connect
+    ):
         mock_get_abnormal_task.return_value = []
         mock_connect.return_value = True
         self.assertEqual(TimedCorrectTask.task_enter(), None)
@@ -71,10 +70,9 @@ class TestTimedCorrectTask(unittest.TestCase):
     @mock.patch.object(TaskProxy, "connect")
     @mock.patch.object(TimedCorrectTask, "get_abnormal_task")
     @mock.patch.object(TaskProxy, "update_task_status")
-    def test_create_timed_scan_task_should_return_none_when_update_task_status_succeed(self,
-                                                                                       mock_update_task_status,
-                                                                                       mock_get_abnormal_task,
-                                                                                       mock_connect):
+    def test_create_timed_scan_task_should_return_none_when_update_task_status_succeed(
+        self, mock_update_task_status, mock_get_abnormal_task, mock_connect
+    ):
         mock_get_abnormal_task.return_value = ["QWERTYUIOP"]
         mock_connect.return_value = True
         mock_update_task_status.return_value = SUCCEED

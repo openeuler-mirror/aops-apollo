@@ -10,13 +10,14 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
+from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_ROLLBACK
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.restful.response import BaseResponse
+
 from apollo.conf import configuration
 from apollo.conf.constant import CveHostStatus, VUL_TASK_CVE_ROLLBACK_CALLBACK, CveProgressSettingMethod, TaskType
 from apollo.handler.task_handler.manager import Manager
-from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_ROLLBACK
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.response import BaseResponse
-from vulcanus.restful.resp.state import SUCCEED
 
 
 class CveRollbackManager(Manager):
@@ -62,10 +63,7 @@ class CveRollbackManager(Manager):
         """
         LOGGER.info("Cve rollback task %s start to execute.", self.task_id)
         manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_CVE_ROLLBACK)
-        header = {
-            "access_token": self.token,
-            "Content-Type": "application/json; charset=UTF-8"
-        }
+        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
 
         response = BaseResponse.get_response('POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED or not response.get("data", dict()):

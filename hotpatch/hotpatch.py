@@ -13,8 +13,8 @@
 import dnf
 from dnfpluginscore import _, logger
 
-from .syscare import Syscare
 from .hotpatch_updateinfo import HotpatchUpdateInfo
+from .syscare import Syscare
 
 
 @dnf.plugin.register_command
@@ -32,18 +32,24 @@ class HotpatchCommand(dnf.cli.Command):
     @staticmethod
     def set_argparser(parser):
         output_format = parser.add_mutually_exclusive_group()
-        output_format.add_argument('--list', nargs='?', type=str, default='',
-                                   choices=['cve', 'cves'], help=_('show list of hotpatch'))
-        output_format.add_argument('--apply', type=str, default=None, dest='apply_name', nargs=1,
-                                   help=_('apply hotpatch'))
-        output_format.add_argument('--remove', type=str, default=None, dest='remove_name', nargs=1,
-                                   help=_('remove hotpatch'))
-        output_format.add_argument('--active', type=str, default=None, dest='active_name', nargs=1,
-                                   help=_('active hotpatch'))
-        output_format.add_argument('--deactive', type=str, default=None, dest='deactive_name', nargs=1,
-                                   help=_('deactive hotpatch'))
-        output_format.add_argument('--accept', type=str, default=None, dest='accept_name', nargs=1,
-                                   help=_('accept hotpatch'))
+        output_format.add_argument(
+            '--list', nargs='?', type=str, default='', choices=['cve', 'cves'], help=_('show list of hotpatch')
+        )
+        output_format.add_argument(
+            '--apply', type=str, default=None, dest='apply_name', nargs=1, help=_('apply hotpatch')
+        )
+        output_format.add_argument(
+            '--remove', type=str, default=None, dest='remove_name', nargs=1, help=_('remove hotpatch')
+        )
+        output_format.add_argument(
+            '--active', type=str, default=None, dest='active_name', nargs=1, help=_('active hotpatch')
+        )
+        output_format.add_argument(
+            '--deactive', type=str, default=None, dest='deactive_name', nargs=1, help=_('deactive hotpatch')
+        )
+        output_format.add_argument(
+            '--accept', type=str, default=None, dest='accept_name', nargs=1, help=_('accept hotpatch')
+        )
 
     def configure(self):
         demands = self.cli.demands
@@ -88,19 +94,15 @@ class HotpatchCommand(dnf.cli.Command):
 
         # print title
         if self.opts.list in ['cve', 'cves']:
-            print('%-*s %-*s %s' %
-                  (idw, title[0], naw, title[1], title[2]))
+            print('%-*s %-*s %s' % (idw, title[0], naw, title[1], title[2]))
         else:
-            print('%-*s %s' %
-                  (naw, title[1], title[2]))
+            print('%-*s %s' % (naw, title[1], title[2]))
 
         for format_line in sorted(format_lines, key=lambda x: (x[1], x[0])):
             if self.opts.list in ['cve', 'cves']:
-                print('%-*s %-*s %s' %
-                      (idw, format_line[0], naw, format_line[1], format_line[2]))
+                print('%-*s %-*s %s' % (idw, format_line[0], naw, format_line[1], format_line[2]))
             else:
-                print('%-*s %s' %
-                      (naw, format_line[1], format_line[2]))
+                print('%-*s %s' % (naw, format_line[1], format_line[2]))
 
     def display(self):
         """
@@ -139,7 +141,10 @@ class HotpatchCommand(dnf.cli.Command):
 
         output, status = func(target_patch)
         if status:
-            logger.error(_("%s hot patch '%s' failed, remain original status."), operate,
-                        self.base.output.term.bold(target_patch))
+            logger.error(
+                _("%s hot patch '%s' failed, remain original status."),
+                operate,
+                self.base.output.term.bold(target_patch),
+            )
         else:
             logger.info(_("%s hot patch '%s' succeed"), operate, self.base.output.term.bold(target_patch))

@@ -12,12 +12,12 @@
 # ******************************************************************************/
 from unittest import TestCase
 
-import apollo
 from flask import Flask
+
+import apollo
 
 
 class BaseTestCase(TestCase):
-
     @staticmethod
     def create_app():
         app = Flask("test")

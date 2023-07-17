@@ -21,6 +21,7 @@ class ParseAdvisoryError(Exception):
     """
     Something went wrong when parsing security advisory xml file, raise the error
     """
+
     def __init__(self, error_info=''):
         super().__init__(self)
         self.message = error_info
@@ -33,6 +34,7 @@ class EsOperationError(Exception):
     """
     When operate es, the operation code is False, raise the error
     """
+
     def __init__(self, error_info=''):
         super().__init__(self)
         self.message = error_info

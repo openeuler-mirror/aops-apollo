@@ -17,12 +17,12 @@ Description:
 """
 import unittest
 from unittest import mock
-from flask import Flask
 
+from flask import Flask
 from vulcanus.restful.resp import make_response
 from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
+
 from apollo import BLUE_POINT
-from apollo.conf import *
 from apollo.conf.constant import VUL_TASK_DELETE
 from apollo.handler.task_handler.view import VulDeleteTask
 
@@ -44,20 +44,14 @@ class TestDeleteTaskView(unittest.TestCase):
     def test_schema(self, mock_verify_token, mock_handle):
         mock_verify_token.return_value = SUCCEED
         mock_handle.return_value = SUCCEED
-        args = {
-            "task_list": ["a", "b"]
-        }
-        response = self.client.delete(
-            VUL_TASK_DELETE, json=args, headers=self.headers)
+        args = {"task_list": ["a", "b"]}
+        response = self.client.delete(VUL_TASK_DELETE, json=args, headers=self.headers)
         res = response.json
         expected_res = make_response(SUCCEED)
         self.assertEqual(res, expected_res)
 
-        args = {
-            "task_list": "b"
-        }
-        response = self.client.delete(
-            VUL_TASK_DELETE, json=args, headers=self.headers)
+        args = {"task_list": "b"}
+        response = self.client.delete(VUL_TASK_DELETE, json=args, headers=self.headers)
         res = response.json
         expected_res = make_response(PARAM_ERROR)
         self.assertEqual(res, expected_res)

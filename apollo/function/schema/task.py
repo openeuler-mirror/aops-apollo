@@ -18,27 +18,27 @@ Description: For task related restful interfaces schema
 from marshmallow import Schema
 from marshmallow import fields
 from marshmallow import validate
+from vulcanus.restful.serialize.validate import PaginationSchema
 
 from apollo.conf.constant import TaskType, TaskStatus
-from vulcanus.restful.serialize.validate import PaginationSchema
+
 
 class TaskListFilterSchema(Schema):
     """
     filter schema of task list getting interface
     """
+
     task_name = fields.String(required=False, validate=lambda s: len(s) > 0)
-    task_type = fields.List(fields.String(
-        validate=validate.OneOf(TaskType.get_attributes_values())), required=False)
+    task_type = fields.List(fields.String(validate=validate.OneOf(TaskType.get_attributes_values())), required=False)
 
 
 class GetTaskListSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/list/get
     """
-    sort = fields.String(required=False, validate=validate.OneOf(
-        ["host_num", "create_time"]))
-    direction = fields.String(required=False, validate=validate.OneOf(
-        ["asc", "desc"]))
+
+    sort = fields.String(required=False, validate=validate.OneOf(["host_num", "create_time"]))
+    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
     filter = fields.Nested(TaskListFilterSchema, required=False)
 
 
@@ -46,6 +46,7 @@ class GetTaskProgressSchema(Schema):
     """
     validators for parameter of /vulnerability/task/progress/get
     """
+
     task_list = fields.List(fields.String(), required=True)
 
 
@@ -53,6 +54,7 @@ class GetTaskInfoSchema(Schema):
     """
     validators for parameter of /vulnerability/task/info/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
@@ -60,8 +62,9 @@ class CveHostInfoDictSchema(Schema):
     """
     single host's info of a cve from
     """
+
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    host_name = fields.String(required=True, validate=lambda s:  0 < len(s) <= 50)
+    host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     host_ip = fields.IP(required=True)
 
 
@@ -69,6 +72,7 @@ class CveHostInfoHotpathSchema(CveHostInfoDictSchema):
     """
     single host's info of a cve from /vulnerability/task/cve/generate
     """
+
     hotpatch = fields.Boolean(required=True)
 
 
@@ -76,6 +80,7 @@ class CveInfoDictSchema(Schema):
     """
     single cve's info of cve task from /vulnerability/task/cve/generate
     """
+
     cve_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     host_info = fields.List(fields.Nested(CveHostInfoHotpathSchema), required=True, validate=lambda s: len(s) > 0)
     reboot = fields.Boolean(required=True)
@@ -85,9 +90,9 @@ class GenerateCveTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve/generate
     """
+
     task_name = fields.String(required=True, validate=lambda s: len(s) != 0)
-    description = fields.String(
-        required=True, validate=lambda s: 0 < len(s) <= 50)
+    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     auto_reboot = fields.Boolean(required=True, default=False)
     accepted = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
     check_items = fields.String(required=False, validate=lambda s: 0 < len(s) <= 32)
@@ -98,16 +103,17 @@ class CveTaskInfoFilterSchema(Schema):
     """
     filter schema of cve task info getting interface
     """
+
     cve_id = fields.String(required=False, validate=lambda s: len(s) > 0)
     reboot = fields.Boolean(required=False)
-    status = fields.List(fields.String(validate=validate.OneOf(
-        TaskStatus.get_attributes_values())), required=False)
+    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.get_attributes_values())), required=False)
 
 
 class GetCveTaskInfoSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/cve/info/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     sort = fields.String(required=False, validate=validate.OneOf(["host_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
@@ -118,6 +124,7 @@ class GetCveTaskStatusSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve/status/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     cve_list = fields.List(fields.String(), required=True)
 
@@ -126,6 +133,7 @@ class GetCveTaskProgressSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve/progress/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     cve_list = fields.List(fields.String(), required=True)
 
@@ -134,6 +142,7 @@ class GetCveTaskResultSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve/result/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     cve_list = fields.List(fields.String(), required=True)
 
@@ -142,6 +151,7 @@ class RollbackCveTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve/rollback
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     cve_list = fields.List(fields.String(), required=True)
 
@@ -150,6 +160,7 @@ class GenerateRepoTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/repo/generate
     """
+
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     repo_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
@@ -160,16 +171,16 @@ class RepoTaskInfoFilterSchema(Schema):
     """
     filter schema of repo task info getting interface
     """
+
     host_name = fields.String(required=False, validate=lambda s: len(s) > 0)
-    status = fields.List(fields.String(
-        validate=validate.OneOf(TaskStatus.get_attributes_values())),
-        required=False)
+    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.get_attributes_values())), required=False)
 
 
 class GetRepoTaskInfoSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/repo/info/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     filter = fields.Nested(RepoTaskInfoFilterSchema, required=False)
 
@@ -178,6 +189,7 @@ class GetRepoTaskResultSchema(Schema):
     """
     validators for parameter of /vulnerability/task/repo/result/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
 
@@ -186,6 +198,7 @@ class ExecuteTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/execute
     """
+
     task_id = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
@@ -193,6 +206,7 @@ class DeleteTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/delete
     """
+
     task_list = fields.List(fields.String(), required=True, validate=lambda s: len(s) != 0)
 
 
@@ -276,5 +290,5 @@ __all__ = [
     'RepoSetCallbackSchema',
     'CveScanCallbackSchema',
     'GenerateCveRollbackTaskSchema',
-    'CveRollbackCallbackSchema'
+    'CveRollbackCallbackSchema',
 ]

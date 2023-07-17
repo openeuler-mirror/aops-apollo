@@ -27,10 +27,7 @@ class CveFixCallbackTestCase(unittest.TestCase):
         proxy = TaskProxy(configuration)
         fake_task_id = Mock()
         fake_host_id = Mock()
-        fake_cves = {
-            "cve1": "fixed",
-            "cve2": "unfixed"
-        }
+        fake_cves = {"cve1": "fixed", "cve2": "unfixed"}
         callback = CveFixCallback(proxy)
         callback.callback(fake_task_id, fake_host_id, fake_cves)
         self.assertEqual(mock_update_cve_status.call_count, 2)

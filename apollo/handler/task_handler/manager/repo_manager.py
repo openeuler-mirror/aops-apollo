@@ -49,8 +49,7 @@ class RepoManager(Manager):
             LOGGER.error("The database proxy need to be inited first.")
             return PARAM_ERROR
 
-        status_code, self.task = self.proxy.get_repo_set_task_template(
-            self.task_id, username)
+        status_code, self.task = self.proxy.get_repo_set_task_template(self.task_id, username)
         if status_code != SUCCEED:
             LOGGER.error("There is no data about host info, stop repo set.")
             return status_code
@@ -69,13 +68,11 @@ class RepoManager(Manager):
             bool
         """
         if self.proxy.set_repo_status(self.task_id, [], RepoStatus.RUNNING) != SUCCEED:
-            LOGGER.error(
-                "Init the host status in database failed, stop repo setting task %s.", self.task_id)
+            LOGGER.error("Init the host status in database failed, stop repo setting task %s.", self.task_id)
             return False
 
         if self.proxy.update_task_execute_time(self.task_id, self.cur_time) != SUCCEED:
-            LOGGER.error(
-                "Update latest execute time for repo set task %s failed.", self.task_id)
+            LOGGER.error("Update latest execute time for repo set task %s failed.", self.task_id)
 
         return True
 
@@ -84,23 +81,16 @@ class RepoManager(Manager):
         Execute repo setting task.
         """
         LOGGER.info("Repo setting task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (configuration.zeus.get('IP'),
-                                    configuration.zeus.get('PORT'),
-                                    EXECUTE_REPO_SET)
-        header = {
-            "access_token": self.token,
-            "Content-Type": "application/json; charset=UTF-8"
-        }
+        manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_REPO_SET)
+        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
 
-        response = BaseResponse.get_response(
-            'POST', manager_url, self.task, header)
+        response = BaseResponse.get_response('POST', manager_url, self.task, header)
 
         if response.get('label') != SUCCEED:
             LOGGER.error("Set repo task %s execute failed.", self.task_id)
             return
 
-        LOGGER.info(
-            "Set repo task %s end, begin to handle result.", self.task_id)
+        LOGGER.info("Set repo task %s end, begin to handle result.", self.task_id)
         self.result = response.get("data", dict()).get("result")
 
     def post_handle(self):
@@ -109,8 +99,7 @@ class RepoManager(Manager):
         save to database.
         """
         if self.result:
-            LOGGER.debug("Set repo task %s result: %s",
-                         self.task_id, self.result)
+            LOGGER.debug("Set repo task %s result: %s", self.task_id, self.result)
             task_result = self.result.get("task_result")
             self._save_result(task_result)
         self.fault_handle()
