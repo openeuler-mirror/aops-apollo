@@ -42,6 +42,10 @@ class CveHostStatus:
     RUNNING = "running"
     UNKNOWN = "unknown"
 
+    @staticmethod
+    def attribute():
+        return [CveHostStatus.SUCCEED, CveHostStatus.FAIL, CveHostStatus.RUNNING, CveHostStatus.UNKNOWN]
+
 
 class RepoStatus:
     SUCCEED = "set"
@@ -66,19 +70,26 @@ class CvssScore:
     NONE = 0
 
 
-class CveSeverity(ConstantBase):
+class CveSeverity:
     CRITICAL = "Critical"
     HIGH = "High"
     MEDIUM = "Medium"
     LOW = "Low"
     NONE = "None"
 
+    @staticmethod
+    def attribute():
+        return [CveSeverity.CRITICAL, CveSeverity.HIGH, CveSeverity.MEDIUM, CveSeverity.LOW, CveSeverity.NONE]
 
-class TaskType(ConstantBase):
+
+class TaskType:
     CVE_FIX = "cve fix"
     CVE_ROLLBACK = "cve rollback"
     REPO_SET = "repo set"
 
+    @staticmethod
+    def attribute():
+        return [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET]
 
 class CveProgressSettingMethod:
     ADD = "add"
@@ -86,7 +97,7 @@ class CveProgressSettingMethod:
     ZERO = "zero"
 
 
-class TaskStatus(ConstantBase, CveHostStatus):
+class TaskStatus(CveHostStatus):
     pass
 
 
