@@ -15,47 +15,30 @@ Time:
 Author:
 Description: Manager that start aops-manager
 """
-from gevent import monkey
+try:
+    from gevent import monkey
 
-monkey.patch_all(thread=False)
-import redis
-import sqlalchemy
-from flask import Flask
-from redis import RedisError
+    monkey.patch_all()
+except:
+    pass
 
+from vulcanus import init_application
 from vulcanus.timed import TimedTaskManager
-from vulcanus.database.proxy import ElasticsearchProxy, RedisProxy
 from vulcanus.log.log import LOGGER
-from apollo import BLUE_POINT
-from apollo.conf import configuration
-from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
+from vulcanus.database.proxy import ElasticsearchProxy
 from apollo.cron import task_meta
-from apollo.database import ENGINE
+from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
 from apollo.database.mapping import MAPPINGS
-from apollo.database.table import create_vul_tables
+from apollo.conf import configuration
+from apollo.url import URLS
 
 
-def init_mysql():
-    """
-    Initialize user, add a default user: admin
-    """
-    try:
-        create_vul_tables(ENGINE)
-        LOGGER.info("initialize mysql tables for aops-apollo succeed.")
-    except sqlalchemy.exc.SQLAlchemyError as err:
-        LOGGER.error(err)
-        LOGGER.error("initialize mysql tables for aops-apollo failed.")
-        raise sqlalchemy.exc.SQLAlchemyError("create tables fail")
-
-
-def init_es():
+def _init_elasticsearch():
     """
     Initialize elasticsearch index and add default task
     """
-    proxy = ElasticsearchProxy(configuration)
-    if not proxy.connect():
-        raise ValueError("connect to elasticsearch fail")
 
+    proxy = ElasticsearchProxy()
     for index_name, body in MAPPINGS.items():
         res = proxy.create_index(index_name, body)
         if not res:
@@ -67,34 +50,14 @@ def init_es():
     proxy.update_settings(**config)
 
 
-def init_database():
-    """
-    Initialize database
-    """
-    init_mysql()
-    init_es()
-
-
-def init_app():
-    app = Flask('apollo')
-    # limit max upload document size
-    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-
-    for blue, api in BLUE_POINT:
-        api.init_app(app)
-        app.register_blueprint(blue)
-
-    return app
-
-
-def init_timed_task(app):
+def _init_timed_task(application):
     """
     Initialize and create a scheduled task
 
     Args:
-        app:flask.Application
+        application:flask.Application
     """
-    timed_task = TimedTaskManager(app=app, config_path=TIMED_TASK_CONFIG_PATH)
+    timed_task = TimedTaskManager(app=application, config_path=TIMED_TASK_CONFIG_PATH)
     if not timed_task.timed_config:
         LOGGER.warning("If you want to start a scheduled task, please add a timed config.")
         return
@@ -109,23 +72,19 @@ def init_timed_task(app):
     timed_task.start()
 
 
-def init_redis_connect():
-    """
-    Init redis connect
-    """
-    try:
-        redis_connect = RedisProxy(configuration)
-        redis_connect.connect()
-    except (RedisError, redis.ConnectionError):
-        raise RedisError("redis connect error.")
-
-
 def main():
-    init_redis_connect()
-    init_database()
-    app = init_app()
-    init_timed_task(app)
-    return app
+    """
+    Service initialization
+    """
+    _app = init_application(name="apollo", settings=configuration, register_urls=URLS)
+
+    _init_elasticsearch()
+    _init_timed_task(application=_app)
+    return _app
 
 
 app = main()
+
+
+if __name__ == "__main__":
+    app.run(host=configuration.apollo.get("IP"), port=configuration.apollo.get("PORT"))

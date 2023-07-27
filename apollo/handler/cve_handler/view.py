@@ -24,7 +24,6 @@ from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, DATABASE_INSERT_ERROR, WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
 from vulcanus.restful.response import BaseResponse
 
-from apollo.conf import configuration
 from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
@@ -47,7 +46,7 @@ class VulGetCveOverview(BaseResponse):
     Restful interface for getting CVE's overview info
     """
 
-    @BaseResponse.handle(proxy=CveMysqlProxy, config=configuration)
+    @BaseResponse.handle(proxy=CveMysqlProxy)
     def get(self, callback: CveMysqlProxy, **params):
         """
         Get overview of cve severity
@@ -67,7 +66,7 @@ class VulGetCveList(BaseResponse):
     Restful interface for getting cve list of all hosts
     """
 
-    @BaseResponse.handle(schema=GetCveListSchema, proxy=CveProxy, config=configuration)
+    @BaseResponse.handle(schema=GetCveListSchema, proxy=CveProxy)
     def post(self, callback: CveProxy, **params):
         """
         Get cve list of all hosts
@@ -92,7 +91,7 @@ class VulGetCveInfo(BaseResponse):
     Restful interface for getting detailed info of a cve
     """
 
-    @BaseResponse.handle(schema=GetCveInfoSchema, proxy=CveProxy, config=configuration)
+    @BaseResponse.handle(schema=GetCveInfoSchema, proxy=CveProxy)
     def get(self, callback: CveProxy, **params):
         """
         Get detailed info of a cve
@@ -113,7 +112,7 @@ class VulGetCveHosts(BaseResponse):
     Restful interface for getting hosts info of a cve
     """
 
-    @BaseResponse.handle(schema=GetCveHostsSchema, proxy=CveMysqlProxy, config=configuration)
+    @BaseResponse.handle(schema=GetCveHostsSchema, proxy=CveMysqlProxy)
     def post(self, callback: CveMysqlProxy, **params):
         """
         Get hosts info of a cve
@@ -139,7 +138,7 @@ class VulGetCveTaskHost(BaseResponse):
     Restful interface for getting each CVE's hosts' basic info (id, ip, name)
     """
 
-    @BaseResponse.handle(schema=GetCveTaskHostSchema, proxy=CveMysqlProxy, config=configuration)
+    @BaseResponse.handle(schema=GetCveTaskHostSchema, proxy=CveMysqlProxy)
     def post(self, callback: CveMysqlProxy, **params):
         """
         Get basic info of hosts which have specific cve
@@ -160,7 +159,7 @@ class VulGetCveAction(BaseResponse):
     Restful interface for getting action after cve fixed
     """
 
-    @BaseResponse.handle(GetCveActionSchema, proxy=CveMysqlProxy, config=configuration)
+    @BaseResponse.handle(GetCveActionSchema, proxy=CveMysqlProxy)
     def post(self, callback: CveMysqlProxy, **params):
         """
         Get action after fixing cve
@@ -282,7 +281,7 @@ class VulUploadAdvisory(BaseResponse):
         status_code = judge_return_code(status_dict, DATABASE_INSERT_ERROR)
         return status_code
 
-    @BaseResponse.handle(proxy=CveProxy, config=configuration)
+    @BaseResponse.handle(proxy=CveProxy)
     def post(self, callback: CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data
@@ -405,7 +404,7 @@ class VulUploadUnaffected(BaseResponse):
         status_code = judge_return_code(status_dict, DATABASE_INSERT_ERROR)
         return status_code
 
-    @BaseResponse.handle(proxy=CveProxy, config=configuration)
+    @BaseResponse.handle(proxy=CveProxy)
     def post(self, callback=CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data
@@ -457,7 +456,7 @@ class VulExportExcel(BaseResponse):
                 return SERVER_ERROR
         return SUCCEED
 
-    @BaseResponse.handle(proxy=CveProxy, config=configuration)
+    @BaseResponse.handle(proxy=CveProxy)
     def post(self, callback: CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data into database

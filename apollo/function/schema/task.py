@@ -83,7 +83,6 @@ class CveInfoDictSchema(Schema):
 
     cve_id = fields.String(required=True, validate=lambda s: len(s) != 0)
     host_info = fields.List(fields.Nested(CveHostInfoHotpathSchema), required=True, validate=lambda s: len(s) > 0)
-    reboot = fields.Boolean(required=True)
 
 
 class GenerateCveTaskSchema(Schema):
@@ -93,7 +92,6 @@ class GenerateCveTaskSchema(Schema):
 
     task_name = fields.String(required=True, validate=lambda s: len(s) != 0)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
-    auto_reboot = fields.Boolean(required=True, default=False)
     accepted = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
     check_items = fields.String(required=False, validate=lambda s: 0 < len(s) <= 32)
     info = fields.List(fields.Nested(CveInfoDictSchema), required=True, validate=lambda s: len(s) > 0)
@@ -105,7 +103,6 @@ class CveTaskInfoFilterSchema(Schema):
     """
 
     cve_id = fields.String(required=False, validate=lambda s: len(s) > 0)
-    reboot = fields.Boolean(required=False)
     status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
 
 

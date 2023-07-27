@@ -19,12 +19,11 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy
-from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import NO_DATA, DATABASE_QUERY_ERROR, SUCCEED
 
 from apollo.database.proxy.cve import CveEsProxy
-from apollo.database.table import Cve, CveHostAssociation
+from apollo.database.table import Cve, CveHostAssociation, Host
 
 
 class HostMysqlProxy(MysqlProxy):
@@ -397,7 +396,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
     Host related database operation
     """
 
-    def __init__(self, configuration, host=None, port=None):
+    def __init__(self, host=None, port=None):
         """
         Instance initialization
 
@@ -406,17 +405,8 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             host(str)
             port(int)
         """
-        HostMysqlProxy.__init__(self, configuration)
-        CveEsProxy.__init__(self, configuration, host, port)
-
-    def connect(self):
-        return CveEsProxy.connect(self)
-
-    def close(self):
-        CveEsProxy.close(self)
-
-    def __del__(self):
-        CveEsProxy.__del__(self)
+        HostMysqlProxy.__init__(self)
+        CveEsProxy.__init__(self, host, port)
 
     def get_host_cve(self, data):
         """

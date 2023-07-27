@@ -22,12 +22,11 @@ from sqlalchemy import func, tuple_, case, distinct
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
-from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, SUCCEED
 
 from apollo.database.mapping import CVE_INDEX
-from apollo.database.table import Cve, CveHostAssociation, CveAffectedPkgs, AdvisoryDownloadRecord
+from apollo.database.table import Cve, CveHostAssociation, CveAffectedPkgs, AdvisoryDownloadRecord, Host
 from apollo.function.customize_exception import EsOperationError
 
 
@@ -545,7 +544,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
     Cve related database operation
     """
 
-    def __init__(self, configuration, host=None, port=None):
+    def __init__(self, host=None, port=None):
         """
         Instance initialization
 
@@ -554,19 +553,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             host(str)
             port(int)
         """
-        CveMysqlProxy.__init__(self, configuration)
-        CveEsProxy.__init__(self, configuration, host, port)
-
-    def connect(self):
-        """connect database"""
-        return ElasticsearchProxy.connect(self)
-
-    def close(self):
-        """close connection"""
-        ElasticsearchProxy.close(self)
-
-    def __del__(self):
-        ElasticsearchProxy.__del__(self)
+        CveMysqlProxy.__init__(self)
+        CveEsProxy.__init__(self, host, port)
 
     def get_cve_list(self, data):
         """

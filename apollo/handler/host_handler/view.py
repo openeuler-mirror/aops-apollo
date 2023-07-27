@@ -18,7 +18,6 @@ Description: Handle about host related operation
 
 from vulcanus.restful.response import BaseResponse
 
-from apollo.conf import configuration
 from apollo.database.proxy.host import HostProxy, HostMysqlProxy
 from apollo.function.schema.host import GetHostStatusSchema, GetHostListSchema, GetHostInfoSchema, GetHostCvesSchema
 
@@ -28,7 +27,7 @@ class VulGetHostStatus(BaseResponse):
     Restful interface for getting hosts status
     """
 
-    @BaseResponse.handle(schema=GetHostStatusSchema, proxy=HostMysqlProxy, config=configuration)
+    @BaseResponse.handle(schema=GetHostStatusSchema, proxy=HostMysqlProxy)
     def post(self, callback: HostMysqlProxy, **params):
         """
         Get hosts status
@@ -49,7 +48,7 @@ class VulGetHostList(BaseResponse):
     Restful interface for getting host list
     """
 
-    @BaseResponse.handle(schema=GetHostListSchema, proxy=HostMysqlProxy, config=configuration)
+    @BaseResponse.handle(schema=GetHostListSchema, proxy=HostMysqlProxy)
     def post(self, callback: HostMysqlProxy, **params):
         """
         Get host list
@@ -74,7 +73,7 @@ class VulGetHostInfo(BaseResponse):
     Restful interface for getting detailed info of a host
     """
 
-    @BaseResponse.handle(schema=GetHostInfoSchema, proxy=HostMysqlProxy, config=configuration)
+    @BaseResponse.handle(schema=GetHostInfoSchema, proxy=HostMysqlProxy)
     def get(self, callback: HostMysqlProxy, **params):
         """
         Get detailed info of a cve
@@ -95,7 +94,7 @@ class VulGetHostCves(BaseResponse):
     Restful interface for getting CVEs info of a host
     """
 
-    @BaseResponse.handle(schema=GetHostCvesSchema, proxy=HostProxy, config=configuration)
+    @BaseResponse.handle(schema=GetHostCvesSchema, proxy=HostProxy)
     def post(self, callback: HostProxy, **params):
         """
         Get hosts info of a cve
