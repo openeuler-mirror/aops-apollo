@@ -19,7 +19,6 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import judge_return_code
 from vulcanus.database.proxy import MysqlProxy
-from vulcanus.database.table import Host
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
     DATABASE_DELETE_ERROR,
@@ -32,7 +31,7 @@ from vulcanus.restful.resp.state import (
     DATA_DEPENDENCY_ERROR,
 )
 
-from apollo.database.table import Repo
+from apollo.database.table import Repo, Host
 
 
 class RepoProxy(MysqlProxy):

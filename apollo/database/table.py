@@ -16,11 +16,96 @@ Author:
 Description: mysql tables
 """
 from sqlalchemy import Column, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean, Integer, String
 from vulcanus.database.helper import create_tables
-from vulcanus.database.table import Base, MyBase
 
 from apollo.database import ENGINE
+
+Base = declarative_base()
+
+
+class MyBase:  # pylint: disable=R0903
+    """
+    Class that provide helper function
+    """
+
+    def to_dict(self):
+        """
+        Transfer query data to dict
+
+        Returns:
+            dict
+        """
+        return {col.name: getattr(self, col.name) for col in self.__table__.columns}  # pylint: disable=E1101
+
+
+class Host(Base, MyBase):  # pylint: disable=R0903
+    """
+    Host table
+    """
+
+    __tablename__ = "host"
+
+    host_id = Column(Integer(), primary_key=True, autoincrement=True)
+    host_name = Column(String(50), nullable=False)
+    host_ip = Column(String(16), nullable=False)
+    management = Column(Boolean, nullable=False)
+    host_group_name = Column(String(20))
+    repo_name = Column(String(20))
+    last_scan = Column(Integer)
+    scene = Column(String(255))
+    os_version = Column(String(40))
+    ssh_user = Column(String(40), default="root")
+    ssh_port = Column(Integer(), default=22)
+    pkey = Column(String(2048))
+    status = Column(Integer(), default=2)
+
+    user = Column(String(40), ForeignKey('user.username'))
+    host_group_id = Column(Integer, ForeignKey('host_group.host_group_id'))
+
+    host_group = relationship('HostGroup', back_populates='hosts')
+    owner = relationship('User', back_populates='hosts')
+
+    def __eq__(self, o):
+        return self.user == o.user and (
+            self.host_name == o.host_name or f"{self.host_ip}{self.ssh_port}" == f"{o.host_ip}{o.ssh_port}"
+        )
+
+
+class HostGroup(Base, MyBase):
+    """
+    Host group table
+    """
+
+    __tablename__ = "host_group"
+
+    host_group_id = Column(Integer, autoincrement=True, primary_key=True)
+    host_group_name = Column(String(20))
+    description = Column(String(60))
+    username = Column(String(40), ForeignKey('user.username'))
+
+    user = relationship('User', back_populates='host_groups')
+    hosts = relationship('Host', back_populates='host_group')
+
+    def __eq__(self, o):
+        return self.username == o.username and self.host_group_name == o.host_group_name
+
+
+class User(Base, MyBase):  # pylint: disable=R0903
+    """
+    User Table
+    """
+
+    __tablename__ = "user"
+
+    username = Column(String(40), primary_key=True)
+    password = Column(String(255), nullable=False)
+    email = Column(String(40))
+
+    host_groups = relationship('HostGroup', order_by=HostGroup.host_group_name, back_populates='user')
+    hosts = relationship('Host', back_populates='owner')
 
 
 class CveHostAssociation(Base, MyBase):
@@ -64,7 +149,6 @@ class CveTaskAssociation(Base, MyBase):
 
     cve_id = Column(String(20), primary_key=True)
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
-    reboot = Column(Boolean)
     progress = Column(Integer, default=0)
     host_num = Column(Integer, nullable=False)
 
@@ -145,8 +229,6 @@ class Task(Base, MyBase):
     description = Column(String(50), nullable=False)
     task_name = Column(String(20), nullable=False)
     latest_execute_time = Column(Integer)
-    need_reboot = Column(Integer)
-    auto_reboot = Column(Boolean, default=False)
     create_time = Column(Integer)
     host_num = Column(Integer)
     check_items = Column(String(32))

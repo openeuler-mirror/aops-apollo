@@ -15,13 +15,13 @@ Time:
 Author:
 Description: Task manager for repo setting
 """
-from vulcanus.conf.constant import URL_FORMAT, EXECUTE_REPO_SET
+from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import RepoStatus, VUL_TASK_REPO_SET_CALLBACK, TaskType
+from apollo.conf.constant import RepoStatus, VUL_TASK_REPO_SET_CALLBACK, TaskType, EXECUTE_REPO_SET
 from apollo.handler.task_handler.manager import Manager
 from apollo.handler.task_handler.cache import TASK_CACHE
 

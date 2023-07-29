@@ -10,13 +10,19 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_ROLLBACK
+from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import CveHostStatus, VUL_TASK_CVE_ROLLBACK_CALLBACK, CveProgressSettingMethod, TaskType
+from apollo.conf.constant import (
+    CveHostStatus,
+    VUL_TASK_CVE_ROLLBACK_CALLBACK,
+    CveProgressSettingMethod,
+    TaskType,
+    EXECUTE_CVE_ROLLBACK,
+)
 from apollo.handler.task_handler.manager import Manager
 
 

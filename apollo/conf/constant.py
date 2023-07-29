@@ -19,7 +19,6 @@ import os
 
 from vulcanus.conf.constant import BASE_CONFIG_PATH
 
-from apollo.function.utils import ConstantBase
 
 # path of apollo configuration
 CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'apollo.ini')
@@ -90,6 +89,7 @@ class TaskType:
     @staticmethod
     def attribute():
         return [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET]
+
 
 class CveProgressSettingMethod:
     ADD = "add"
@@ -162,3 +162,9 @@ FILE_UPLOAD_PATH = "/opt/aops/cve/upload"
 CSV_SAVED_PATH = "/opt/aops/cve/saved"
 ADVISORY_SAVED_PATH = "/opt/aops/cve/advisory_download"
 TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.yml"
+
+
+EXECUTE_REPO_SET = '/manage/vulnerability/repo/set'
+EXECUTE_CVE_FIX = '/manage/vulnerability/cve/fix'
+EXECUTE_CVE_SCAN = '/manage/vulnerability/cve/scan'
+EXECUTE_CVE_ROLLBACK = "/manage/vulnerability/cve/rollback"

@@ -27,7 +27,6 @@ from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
-from vulcanus.database.table import Host, User
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
     DATABASE_DELETE_ERROR,
@@ -51,6 +50,8 @@ from apollo.database.table import (
     CveTaskAssociation,
     CveHostAssociation,
     CveAffectedPkgs,
+    Host,
+    User,
 )
 from apollo.function.customize_exception import EsOperationError
 
@@ -709,7 +710,7 @@ class TaskMysqlProxy(MysqlProxy):
         task_query = self._query_repo_task_host(task_list)
         for row in task_query:
             if row.status == TaskStatus.SUCCEED:
-                result[row.task_id][TaskStatus.SUCCEED :] += 1
+                result[row.task_id][TaskStatus.SUCCEED] += 1
             elif row.status == TaskStatus.FAIL:
                 result[row.task_id][TaskStatus.FAIL] += 1
             elif row.status == TaskStatus.RUNNING:
@@ -807,12 +808,7 @@ class TaskMysqlProxy(MysqlProxy):
             sqlalchemy.orm.query.Query
         """
         task_info_query = self.session.query(
-            Task.task_name,
-            Task.description,
-            Task.host_num,
-            Task.need_reboot,
-            Task.auto_reboot,
-            Task.latest_execute_time,
+            Task.task_name, Task.description, Task.host_num, Task.latest_execute_time
         ).filter(Task.task_id == task_id, Task.username == username)
         return task_info_query
 
@@ -822,8 +818,6 @@ class TaskMysqlProxy(MysqlProxy):
             "task_name": row.task_name,
             "description": row.description,
             "host_num": row.host_num,
-            "need_reboot": row.need_reboot,
-            "auto_reboot": row.auto_reboot,
             "latest_execute_time": row.latest_execute_time,
         }
         return task_info
@@ -843,7 +837,6 @@ class TaskMysqlProxy(MysqlProxy):
                     "username": "admin",
                     "filter": {
                         "cve_id": "",
-                        "reboot": True,
                         "status": []
                     }
                 }
@@ -857,7 +850,6 @@ class TaskMysqlProxy(MysqlProxy):
                     "result": [{
                         "cve_id": "id1",
                         "package": "tensorflow",
-                        "reboot": True,
                         "host_num": 3,
                         "status": "running"
                     }]
@@ -912,9 +904,7 @@ class TaskMysqlProxy(MysqlProxy):
         Args:
             filter_dict(dict): filter dict to filter cve task's cve info, e.g.
                 {
-                    "cve_id": "",
-                    "reboot": True,
-                    "status": [""]
+                    "cve_id": ""
                 }
 
         Returns:
@@ -939,7 +929,6 @@ class TaskMysqlProxy(MysqlProxy):
                 {
                     "cve_id": "CVE-2021-0001",
                     "package": "tensorflow",
-                    "reboot": True,
                     "host_id": "id1",
                     "status": "fixed"
                 }
@@ -2538,7 +2527,7 @@ class TaskEsProxy(ElasticsearchProxy):
 
 
 class TaskProxy(TaskMysqlProxy, TaskEsProxy):
-    def __init__(self, configuration, host=None, port=None):
+    def __init__(self, host=None, port=None):
         """
         Instance initialization
 
@@ -2547,17 +2536,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             host(str)
             port(int)
         """
-        TaskMysqlProxy.__init__(self, configuration)
-        TaskEsProxy.__init__(self, configuration, host, port)
-
-    def connect(self):
-        return TaskEsProxy.connect(self)
-
-    def close(self):
-        TaskEsProxy.close(self)
-
-    def __del__(self):
-        TaskEsProxy.__del__(self)
+        TaskMysqlProxy.__init__(self)
+        TaskEsProxy.__init__(self, host, port)
 
     def generate_cve_task(self, data):
         """
@@ -2571,7 +2551,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                     "task_name": "",
                     "task_type": "",
                     "description": "",
-                    "auto_reboot": True,
                     "create_time": 1,
                     "check_items": "",
                     "accepted": True
@@ -2585,8 +2564,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                                     "host_ip": "",
                                     "hotpatch": true
                                 }
-                            ],
-                            "reboot": True
+                            ]
                         }
                     ]
                 }
@@ -2620,11 +2598,9 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             EsOperationError
         """
         task_id = data["task_id"]
-        auto_reboot = data["auto_reboot"]
         cve_host_info = data.pop("info")
 
         host_set = set()
-        reboot_host_set = set()
         task_cve_rows = []
         task_cve_host_rows = []
 
@@ -2632,20 +2608,16 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             cve_host_set = set()
             cve_id = cve["cve_id"]
             host_num = len(cve["host_info"])
-            cve["reboot"] &= auto_reboot
-            task_cve_rows.append(self._task_cve_row_dict(task_id, cve_id, cve["reboot"], host_num))
+            task_cve_rows.append(self._task_cve_row_dict(task_id, cve_id, host_num))
 
             for host in cve["host_info"]:
                 cve_host_set.add(host["host_id"])
                 task_cve_host_rows.append(self._task_cve_host_row_dict(task_id, cve_id, host))
 
             host_set |= cve_host_set
-            if cve["reboot"]:
-                reboot_host_set |= cve_host_set
 
         # insert data into mysql tables
         data["host_num"] = len(host_set)
-        data["need_reboot"] = len(reboot_host_set)
         self._insert_cve_task_tables(data, task_cve_rows, task_cve_host_rows)
 
         # insert task id and username into es
@@ -2677,11 +2649,11 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             raise
 
     @staticmethod
-    def _task_cve_row_dict(task_id, cve_id, reboot, host_num):
+    def _task_cve_row_dict(task_id, cve_id, host_num):
         """
         insert cve task's reboot and progress info of each cve into CveTaskAssociation table
         """
-        return {"task_id": task_id, "cve_id": cve_id, "reboot": reboot, "progress": 0, "host_num": host_num}
+        return {"task_id": task_id, "cve_id": cve_id, "progress": 0, "host_num": host_num}
 
     @staticmethod
     def _task_cve_host_row_dict(task_id, cve_id, host_info):
@@ -2774,7 +2746,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         # insert data into mysql tables
         data["host_num"] = len(host_list)
-        data["need_reboot"] = 0
         self._insert_repo_task_tables(data, task_repo_host_rows)
 
         # insert task id and username into es
@@ -3134,7 +3105,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 cves[cve["cve_id"]] = cves[cve["cve_id"]] + 1 if cve["cve_id"] in cves else 1
                 task_cve_host[task_info["host_id"]].append((cve["cve_id"], cve["hotpatch"]))
 
-        task_cve_rows = [self._task_cve_row_dict(task_id, cve_id, False, host_num) for cve_id, host_num in cves.items()]
+        task_cve_rows = [self._task_cve_row_dict(task_id, cve_id, host_num) for cve_id, host_num in cves.items()]
 
         task_cve_host_rows = []
         hosts = self.session.query(Host).filter(Host.host_id.in_(list(task_cve_host.keys()))).all()

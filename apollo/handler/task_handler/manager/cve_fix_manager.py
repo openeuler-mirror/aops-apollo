@@ -16,13 +16,19 @@ Author:
 Description: Task manager for cve fixing
 """
 
-from vulcanus.conf.constant import URL_FORMAT, EXECUTE_CVE_FIX
+from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import CveHostStatus, VUL_TASK_CVE_FIX_CALLBACK, TaskType, CveProgressSettingMethod
+from apollo.conf.constant import (
+    CveHostStatus,
+    VUL_TASK_CVE_FIX_CALLBACK,
+    TaskType,
+    CveProgressSettingMethod,
+    EXECUTE_CVE_FIX,
+)
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager import Manager
 

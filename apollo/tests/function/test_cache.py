@@ -10,21 +10,26 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from unittest import TestCase
+"""
+Time:
+Author:
+Description:
+"""
+import unittest
 
-from vulcanus.conf import configuration
-from vulcanus.manage import init_application
-from apollo.conf import configuration as settings
-from apollo.url import URLS
+from apollo.function.cache import LRUCache
 
 
-class BaseTestCase(TestCase):
-    def setUp(self) -> None:
-        for config in [config for config in dir(settings) if not config.startswith("_")]:
-            setattr(configuration, config, getattr(settings, config))
+class TestCache(unittest.TestCase):
+    def setUp(self):
+        self.cache = LRUCache(2)
 
-    @staticmethod
-    def create_app():
-        app = init_application(name="apollo", settings=settings, register_urls=URLS)
-        app.testing = True
-        return app.test_client()
+    def test_common(self):
+        self.cache.put("a", [1])
+        self.cache.put("b", 2)
+        self.cache.put("a", 3)
+
+        self.assertEqual(len(self.cache.queue), 2)
+
+        res = self.cache.get("a")
+        self.assertEqual(res, 3)
