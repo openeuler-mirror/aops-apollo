@@ -15,35 +15,20 @@ Time:
 Author:
 Description:
 """
-import unittest
-
 from vulcanus.restful.resp.state import (
     PARTIAL_SUCCEED,
     SUCCEED,
     NO_DATA,
     DATABASE_INSERT_ERROR,
 )
-
-from apollo.tests import BaseTestCase
-from apollo.conf.constant import ES_TEST_FLAG
+from apollo.tests.database import DatabaseTestCase
 from apollo.database.proxy.cve import CveProxy
-from apollo.tests.database.helper import (
-    setup_mysql_db,
-    tear_down_mysql_db,
-    setup_es_db,
-    tear_down_es_db,
-)
 
 
-class TestCveMysqlProxy(BaseTestCase):
+class TestCveMysqlProxy(DatabaseTestCase):
     def setUp(self) -> None:
-        super().setUp()
-        setup_mysql_db()
         self.cve_database = CveProxy()
         self.cve_database.connect()
-
-    def tearDown(self) -> None:
-        tear_down_mysql_db()
 
     def test_get_overview(self):
         data = {"username": "admin"}
@@ -127,23 +112,10 @@ class TestCveMysqlProxy(BaseTestCase):
         self.assertEqual(self.cve_database.get_cve_action(data), (NO_DATA, {"result": {}}))
 
 
-@unittest.skipUnless(
-    ES_TEST_FLAG,
-    "The test cases will remove all the data on es, never run on real environment.",
-)
-class TestCveProxy(unittest.TestCase):
-    cve_database = CveProxy()
-    cve_database.connect()
-
-    @classmethod
-    def setUpClass(cls):
-        setup_mysql_db()
-        setup_es_db()
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_mysql_db()
-        tear_down_es_db()
+class TestCveProxy(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.cve_database = CveProxy()
+        self.cve_database.connect()
 
     def test_get_cve_list_sort(self):
         data = {

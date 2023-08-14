@@ -10,23 +10,3 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-"""
-Time:
-Author:
-Description: Define bluepoint of apollo
-"""
-from flask.blueprints import Blueprint
-from flask_restful import Api
-
-from apollo.url import URLS
-
-# make blue point
-apollo = Blueprint('apollo', __name__)
-api = Api()
-
-for view, url in URLS:
-    api.add_resource(view, url)
-
-BLUE_POINT = [(apollo, api)]
-
-__all__ = ['BLUE_POINT']

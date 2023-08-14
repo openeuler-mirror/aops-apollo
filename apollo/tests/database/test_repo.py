@@ -15,8 +15,6 @@ Time:
 Author:
 Description:
 """
-import unittest
-
 from sqlalchemy import func
 from vulcanus.restful.resp.state import (
     PARTIAL_SUCCEED,
@@ -27,20 +25,13 @@ from vulcanus.restful.resp.state import (
 
 from apollo.database.proxy.repo import RepoProxy
 from apollo.database.table import Repo
-from apollo.tests.database.helper import setup_mysql_db, tear_down_mysql_db
+from apollo.tests.database import DatabaseTestCase
 
 
-class TestRepoDatabase(unittest.TestCase):
-    repo_database = RepoProxy()
-    repo_database.connect()
-
-    @classmethod
-    def setUpClass(cls):
-        setup_mysql_db()
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_mysql_db()
+class TestRepoDatabase(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.repo_database = RepoProxy()
+        self.repo_database.connect()
 
     def test_import_repo(self):
         # add exist repo

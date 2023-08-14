@@ -15,32 +15,15 @@ Time:
 Author:
 Description:
 """
-import unittest
-
 from vulcanus.restful.resp.state import SUCCEED, PARTIAL_SUCCEED, NO_DATA
-
 from apollo.database.proxy.host import HostProxy
-from apollo.tests.database.helper import (
-    setup_mysql_db,
-    setup_es_db,
-    tear_down_mysql_db,
-    tear_down_es_db,
-)
+from apollo.tests.database import DatabaseTestCase
 
 
-class TestHostDatabase(unittest.TestCase):
-    host_database = HostProxy()
-    host_database.connect()
-
-    @classmethod
-    def setUpClass(cls):
-        setup_mysql_db()
-        setup_es_db()
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_mysql_db()
-        tear_down_es_db()
+class TestHostDatabase(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.host_database = HostProxy()
+        self.host_database.connect()
 
     def test_get_host_list_sort(self):
         data = {
