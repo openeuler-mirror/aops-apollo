@@ -10,6 +10,7 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
+import unittest
 from unittest import TestCase
 
 from vulcanus.conf import configuration
@@ -28,3 +29,7 @@ class BaseTestCase(TestCase):
         app = init_application(name="apollo", settings=settings, register_urls=URLS)
         app.testing = True
         return app.test_client()
+
+
+if __name__ == "__main__":
+    unittest.main()

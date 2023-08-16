@@ -15,10 +15,9 @@ Time:
 Author:
 Description:
 """
-import unittest
 from copy import deepcopy
-from time import sleep
 from unittest import mock
+from elasticsearch import Elasticsearch, ElasticsearchException
 
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.restful.resp.state import (
@@ -30,28 +29,15 @@ from vulcanus.restful.resp.state import (
 )
 
 from apollo.conf import configuration
-from apollo.conf.constant import ES_TEST_FLAG
 from apollo.database.proxy.host import HostProxy
 from apollo.database.proxy.task import TaskProxy
-from apollo.tests.database.helper import (
-    setup_mysql_db,
-    tear_down_mysql_db,
-    setup_es_db,
-    tear_down_es_db,
-)
+from apollo.tests.database import DatabaseTestCase
 
 
-class TestTaskMysqlFirst(unittest.TestCase):
-    task_database = TaskProxy()
-    task_database.connect()
-
-    @classmethod
-    def setUpClass(cls):
-        setup_mysql_db()
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_mysql_db()
+class TestTaskMysqlFirst(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.task_database = TaskProxy()
+        self.task_database.connect()
 
     def test_get_scan_host_info(self):
         # query all host's info
@@ -521,19 +507,10 @@ class TestTaskMysqlFirst(unittest.TestCase):
         self.assertEqual(self.task_database.update_task_status(data), SUCCEED)
 
 
-class TestTaskMysqlSecond(unittest.TestCase):
-    task_database = TaskProxy(configuration)
-    task_database.connect()
-
-    @classmethod
-    def setUpClass(cls):
-        setup_mysql_db()
-
-    #
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_mysql_db()
+class TestTaskMysqlSecond(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.task_database = TaskProxy()
+        self.task_database.connect()
 
     def test_init_cve_task(self):
         data = {"task_id": "1111111111poiuytrewqasdfghjklmnb", "cve_list": ["qwfqwff3"]}
@@ -885,57 +862,15 @@ class TestTaskMysqlSecond(unittest.TestCase):
         self.assertEqual(result, False)
 
 
-@unittest.skipUnless(
-    ES_TEST_FLAG,
-    "The test cases will remove all the data on es, never run on real environment.",
-)
-class TestTaskEsProxy(unittest.TestCase):
-    task_database = TaskProxy(configuration)
-    task_database.connect()
+class TestTaskEsProxy(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.task_database = TaskProxy()
+        self.task_database.connect()
 
-    @classmethod
-    def setUpClass(cls):
-        setup_es_db()
-        sleep(1)
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_es_db()
-
-    def test_save_task_info(self):
-        status_code = self.task_database.save_task_info("1111111111poiuytrewqasdfghjklmnb", "changed_playbook")
-        self.assertEqual(status_code, SUCCEED)
-        sleep(1)
-        _, result = self.task_database._query_task_info_from_es("1111111111poiuytrewqasdfghjklmnb")
-        result["hits"]["hits"][0]["_source"].pop("log")
-        self.assertEqual(
-            result["hits"]["hits"][0]["_source"],
-            {
-                "task_id": "1111111111poiuytrewqasdfghjklmnb",
-                "playbook": "changed_playbook",
-                "inventory": "test_inventory",
-                "username": "admin",
-            },
-        )
-
-        status_code = self.task_database.save_task_info(
-            "1111111111poiuytrewqasdfghjklmnb", inventory="changed_inventory"
-        )
-        self.assertEqual(status_code, SUCCEED)
-        sleep(1)
-        _, result = self.task_database._query_task_info_from_es("1111111111poiuytrewqasdfghjklmnb")
-        result["hits"]["hits"][0]["_source"].pop("log")
-        self.assertEqual(
-            result["hits"]["hits"][0]["_source"],
-            {
-                "task_id": "1111111111poiuytrewqasdfghjklmnb",
-                "playbook": "changed_playbook",
-                "inventory": "changed_inventory",
-                "username": "admin",
-            },
-        )
-
-        status_code = self.task_database.save_task_info("new_task", "new_playbook")
+    @mock.patch.object(Elasticsearch, 'exists')
+    def test_save_task_info_should_insert_error_when_es_error(self, mock_exists):
+        mock_exists.side_effect = ElasticsearchException()
+        status_code = self.task_database.save_task_info(task_id="1111111111poiuytrewqasdfghjklmnb", host_id=1, log="")
         self.assertEqual(status_code, DATABASE_INSERT_ERROR)
 
     def test_get_cve_task_result(self):
@@ -995,23 +930,10 @@ class TestTaskEsProxy(unittest.TestCase):
         self.assertEqual(query_result, (SUCCEED, {"result": expected_result}))
 
 
-@unittest.skipUnless(
-    ES_TEST_FLAG,
-    "The test cases will remove all the data on es, never run on real environment.",
-)
-class TestTaskProxy(unittest.TestCase):
-    task_database = TaskProxy(configuration)
-    task_database.connect()
-
-    @classmethod
-    def setUpClass(cls):
-        setup_mysql_db()
-        setup_es_db()
-
-    @classmethod
-    def tearDownClass(cls):
-        tear_down_mysql_db()
-        tear_down_es_db()
+class TestTaskProxy(DatabaseTestCase):
+    def setUp(self) -> None:
+        self.task_database = TaskProxy()
+        self.task_database.connect()
 
     def test_generate_cve_task(self):
         data = {

@@ -25,6 +25,7 @@ import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
 from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
+from vulcanus.common import hash_value
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
 from vulcanus.log.log import LOGGER
@@ -1453,7 +1454,7 @@ class TaskMysqlProxy(MysqlProxy):
 
     def _update_cve_host_status(self, task_id, cve_id, host_id, status):
         """
-        update a cve's one host's fix status of a cve task
+        update a cve's one host's result of a cve task or rollback
         """
         status_query = self.session.query(TaskCveHostAssociation).filter(
             TaskCveHostAssociation.task_id == task_id,
@@ -2261,7 +2262,7 @@ class TaskEsProxy(ElasticsearchProxy):
         """
         return SUCCEED, {}
 
-    def save_task_info(self, task_id, log=None):
+    def save_task_info(self, task_id, host_id, log=None):
         """
          Every time log are generated, save them to es database.
 
@@ -2272,16 +2273,17 @@ class TaskEsProxy(ElasticsearchProxy):
         Returns:
             int: status code
         """
-        operation_code, task_exist = self.exists(TASK_INDEX, document_id=task_id)
+        task_body = {"task_id": task_id, "host_id": host_id, "log": log}
+        document_id = hash_value(str(task_id) + "_" + str(host_id))
+        operation_code, exists = self.exists(TASK_INDEX, document_id=document_id)
         if not operation_code:
             LOGGER.error("Failed to query whether the task exists or not due to internal error")
             return DATABASE_INSERT_ERROR
 
-        if not task_exist:
-            LOGGER.error("Task doesn't exist when save task info into es.")
-            return DATABASE_INSERT_ERROR
-
-        operation_code = self._update_task(task_id, log)
+        if exists:
+            operation_code = self.update_bulk(TASK_INDEX, [{"_id": document_id, "doc": task_body}])
+        else:
+            operation_code = self.insert(self, TASK_INDEX, task_body, document_id=document_id)
 
         if operation_code:
             LOGGER.debug("Finished saving task info into es.")
@@ -2290,28 +2292,12 @@ class TaskEsProxy(ElasticsearchProxy):
         LOGGER.error("Saving task info into es failed due to internal error.")
         return DATABASE_INSERT_ERROR
 
-    def _update_task(self, task_id, log):
-        """
-        update task info into es.
-        Args:
-            task_id (str/None): task id
-            log (str/None): task log
-
-        Returns:
-            bool
-        """
-        task_body = {"task_id": task_id}
-        if log is not None:
-            task_body["log"] = log
-        action = [{"_id": task_id, "doc": task_body}]
-        operation_code = self.update_bulk(TASK_INDEX, action)
-        return operation_code
-
-    def _query_task_info_from_es(self, task_id, username=None, source=True):
+    def _query_task_info_from_es(self, task_id, host_id=None, username=None, source=True):
         """
         query task's info from elasticsearch
         Args:
             task_id (str): task id
+            host_id (int): host id
             username (str/None): user name, used for authorisation check
             source (bool/list): list of source
 
@@ -2320,14 +2306,17 @@ class TaskEsProxy(ElasticsearchProxy):
             dict
         """
         query_body = self._general_body()
+        query_body.update({"from": 0, "size": 10000})
+        query_body['query']['bool']['must'].append({"term": {"task_id": task_id}})
         if username:
-            query_body['query']['bool']['must'].extend([{"term": {"_id": task_id}}, {"term": {"username": username}}])
-        else:
-            query_body['query']['bool']['must'].append({"term": {"_id": task_id}})
+            query_body['query']['bool']['must'].append({"term": {"username": username}})
+        if host_id:
+            query_body['query']['bool']['must'].append({"term": {"host_id": host_id}})
+
         operation_code, res = self.query(TASK_INDEX, query_body, source)
         return operation_code, res
 
-    def get_task_log_info(self, task_id, username=None):
+    def get_task_log_info(self, task_id, host_id=None, username=None) -> list:
         """
         Get task's info (log) from es
 
@@ -2337,22 +2326,23 @@ class TaskEsProxy(ElasticsearchProxy):
 
         Returns:
             int: status code
-            str: needed task info
+            list: needed task log info
         """
 
-        operation_code, res = self._query_task_info_from_es(task_id, username, ["log"])
+        operation_code, res = self._query_task_info_from_es(task_id, host_id, username, ["log"])
 
         if not operation_code:
-            LOGGER.debug("Querying log info of task '%s' failed due to internal error." % task_id)
+            LOGGER.debug("Querying log info of task host '%s' failed due to internal error." % task_id)
             return DATABASE_QUERY_ERROR, ""
 
         if not res["hits"]["hits"]:
             LOGGER.debug("No data found when getting log info of task '%s'." % task_id)
             return NO_DATA, ""
 
-        task_info = res["hits"]["hits"][0]["_source"]["log"]
+        task_infos = [json.loads(task_info["_source"]["log"]) for task_info in res["hits"]["hits"]]
+
         LOGGER.debug("Querying task log succeed.")
-        return SUCCEED, task_info
+        return SUCCEED, task_infos
 
     def get_task_cve_result(self, data):
         """
@@ -2368,35 +2358,40 @@ class TaskEsProxy(ElasticsearchProxy):
 
         Returns:
             int: status code
-            dict: query result. e.g.
-                {
-                    "result": {
-                        "task_id": "cve_task",
-                        "task_type": "cve fix",
-                        "latest_execute_time": 1234567890,
-                        "task_result": [
+            list: query result. e.g.
+                [{
+                    "task_id": "90d0a61e32a811ee8677000c29766160",
+                    "host_id": "2",
+                    "latest_execute_time": "1691465474",
+                    "task_type": "cve fix",
+                    "task_result": {
+                        "check_items":[
                             {
-                                "host_id": "id1",
-                                "host_name": "",
-                                "host_ip": "127.0.0.1",
-                                "status": "fail",
-                                "check_items": [
+                                "item":"network",
+                                "result":true,
+                                "log":"xxxx"
+                            }
+                        ],
+                        "cves": [
+                            {
+                                "cve_id": "string",
+                                "result": "string",
+                                "log": "string",
+                                "rpms":[
                                     {
-                                        "item": "check network",
-                                        "result": True
+                                        "rpm": "string",
+                                        "result": "string",
+                                        "log": "string",
                                     }
                                 ],
-                                "cves": [
-                                    {
-                                        "cve_id": "cve1",
-                                        "log": "",
-                                        "result": "unfixed"
-                                    }
-                                ]
                             }
-                        ]
-                    }
+                        ],
+                        "host_ip": "172.168.63.86",
+                        "host_name": "host1_12001",
+                        "log": "operate success",
+                        "status": "fail"
                 }
+            }]
         """
         result = {}
         try:
@@ -2414,37 +2409,14 @@ class TaskEsProxy(ElasticsearchProxy):
         """
         username = data["username"]
         task_id = data["task_id"]
-        cve_list = data["cve_list"]
 
         # task log is in the format of returned dict of func
         # 'get_task_cve_result'
         status_code, task_log = self.get_task_log_info(task_id, username)
         if status_code != SUCCEED:
-            return status_code, {}
+            return status_code, []
 
-        task_dict = {}
-        if task_log:
-            task_dict = json.loads(task_log)
-        if task_dict and cve_list:
-            self._process_cve_task_result(task_dict, cve_list)
-        return SUCCEED, {"result": task_dict}
-
-    @staticmethod
-    def _process_cve_task_result(task_dict, cve_list):
-        task_result = task_dict.pop("task_result")
-        filtered_result = []
-
-        for host_result in task_result:
-            all_cve_result = host_result.pop("cves")
-            filtered_cve_result = []
-            for cve_result in all_cve_result:
-                if cve_result["cve_id"] in cve_list:
-                    filtered_cve_result.append(cve_result)
-            if filtered_cve_result:
-                host_result["cves"] = filtered_cve_result
-                filtered_result.append(host_result)
-
-        task_dict["task_result"] = filtered_result
+        return SUCCEED, task_log
 
     def get_task_repo_result(self, data):
         """
@@ -2460,29 +2432,27 @@ class TaskEsProxy(ElasticsearchProxy):
 
         Returns:
             int: status code
-            dict: query result. e.g.
-                {
-                    "result": {
-                        "task_id": "repo_task",
-                        "task_type": "repo set",
-                        "latest_execute_time": 1234567890,
-                        "task_result": [
-                            {
-                                "host_id": "id1",
-                                "host_name": "",
-                                "host_ip": "127.0.0.1",
-                                "status": "fail",
-                                "check_items": [
-                                    {
-                                        "item": "check network",
-                                        "result": True
-                                    }
-                                ],
-                                "log": ""
-                            }
-                        ]
+            list: query result. e.g.
+                [{
+                "task_id": "90d0a61e32a811ee8677000c29766160",
+                "host_id": "2",
+                "latest_execute_time": "1691465474",
+                "task_type": "repo set",
+                "task_result": {
+                "check_items":[
+                    {
+                        "item":"network",
+                        "result":true,
+                        "log":"xxxx"
                     }
-                }
+                    ],
+                "host_ip": "172.168.63.86",
+                "host_name": "host1_12001",
+                "log": "operate success",
+                "repo": "2203sp2",
+                "status": "fail"
+               }
+            }]
 
         """
         result = {}
@@ -2502,19 +2472,16 @@ class TaskEsProxy(ElasticsearchProxy):
         username = data["username"]
         task_id = data["task_id"]
         host_list = data["host_list"]
-
         # task log is in the format of returned dict of func
         # 'get_task_cve_result'
         status_code, task_log = self.get_task_log_info(task_id, username)
         if status_code != SUCCEED:
-            return status_code, {}
+            return status_code, []
 
-        task_dict = {}
-        if task_log:
-            task_dict = json.loads(task_log)
-        if task_dict and host_list:
-            self._process_repo_task_result(task_dict, host_list)
-        return SUCCEED, {"result": task_dict}
+        if host_list and task_log:
+            task_log = [log for log in task_log if log["host_id"] in host_list]
+
+        return SUCCEED, task_log
 
     @staticmethod
     def _process_repo_task_result(task_dict, host_list):
