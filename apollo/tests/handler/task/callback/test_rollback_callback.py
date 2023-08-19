@@ -15,38 +15,41 @@ Time:
 Author:
 Description:
 """
-
+from unittest import mock
+from sqlalchemy.exc import SQLAlchemyError
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED
 from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
-from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.database.proxy.task import TaskProxy
 from apollo.tests import BaseTestCase
 
 
 class TestCveRollbackCallback(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
-        task_info = {"cve": {"cve1": 1, "cve2": 2}, "host": {"name1": {"host_id": 1}, "name2": {"host_id": 2}}}
-        proxy = TaskMysqlProxy()
-        self.call = CveRollbackCallback('1', proxy, task_info)
+        task_proxy = TaskProxy()
+        task_proxy.connect()
+        self.cve_rollback_callback = CveRollbackCallback(proxy=task_proxy)
+        self.callback_result = {
+            "task_id": "string",
+            "host_id": "string",
+            "check_items": [{"item": "network", "result": True, "log": "xxxx"}],
+            "cves": [{"cve_id": "string", "result": "succeed", "log": ""}],
+            "host_ip": "172.168.63.86",
+            "host_name": "host1_12001",
+            "status": "fail",
+        }
 
-    def tearDown(self):
-        pass
+    @mock.patch.object(TaskProxy, '_update_cve_host_status')
+    def test_callback_should_partial_succeed_when_update_error(self, mock_update_cve_host_status):
+        mock_update_cve_host_status.return_value = DATABASE_UPDATE_ERROR
+        self.assertEqual(self.cve_rollback_callback.callback(cve_rollback_result=self.callback_result), PARTIAL_SUCCEED)
 
-    # @mock.patch.object(TaskMysqlProxy, 'set_cve_progress')
-    # @mock.patch.object(TaskMysqlProxy, 'update_cve_status')
-    # def test_result(self, mock_update_cve_status, mock_set_cve_progress):
-    #     result1 = Test(Host('name1'), {'stdout': "11"}, "cve1")
-    #     self.call.v2_runner_on_unreachable(result1)
+    @mock.patch.object(TaskProxy, '_update_cve_host_status')
+    def test_callback_should_partial_succeed_when_update_status_fail(self, mock_update_cve_host_status):
+        mock_update_cve_host_status.side_effect = SQLAlchemyError()
+        self.assertEqual(self.cve_rollback_callback.callback(cve_rollback_result=self.callback_result), PARTIAL_SUCCEED)
 
-    #     result2 = Test(Host('name1'), {'stdout': "12"}, "check1")
-    #     self.call.v2_runner_on_ok(result2)
-
-    #     result3 = Test(Host('name1'), {'stderr': "13"}, "cve2")
-    #     self.call.v2_runner_on_failed(result3)
-
-    #     expected_res = {
-    #         "name1": {
-    #             "cve1": {"info": "11", "status": CVE_HOST_STATUS.FIXED},
-    #             "cve2": {"info": "13", "status": CVE_HOST_STATUS.FIXED},
-    #         }
-    #     }
-    #     self.assertDictEqual(expected_res, self.call.result)
+    @mock.patch.object(TaskProxy, '_update_cve_host_status')
+    def test_callback_should_succeed_when_update_package_status_succeed(self, mock_update_cve_host_status):
+        mock_update_cve_host_status.return_value = SUCCEED
+        self.assertEqual(self.cve_rollback_callback.callback(cve_rollback_result=self.callback_result), SUCCEED)
