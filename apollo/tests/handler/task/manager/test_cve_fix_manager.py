@@ -16,11 +16,11 @@ from unittest import mock
 from unittest.mock import Mock
 
 from vulcanus.conf.constant import URL_FORMAT
-from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, SERVER_ERROR
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, SERVER_ERROR, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_CVE_FIX_CALLBACK, CveHostStatus, EXECUTE_CVE_FIX
+from apollo.conf.constant import VUL_TASK_CVE_FIX_CALLBACK, EXECUTE_CVE_FIX
 from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
@@ -92,53 +92,17 @@ class CveFixManagerTestCase(BaseTestCase):
         self.assertEqual(manager.result, None)
 
     @mock.patch.object(BaseResponse, 'get_response')
-    def test_handle_should_assign_result_with_task_when_response_succeed(self, mock_response):
+    def test_handle_should_succeed_with_task_when_response_succeed(self, mock_response):
         manager = CveFixManager(Mock(), Mock())
         fake_result = Mock()
         mock_response.return_value = {"label": SUCCEED, "data": {"result": {"task_result": fake_result}}}
-        manager.handle()
-        self.assertEqual(manager.result, fake_result)
+        self.assertEqual(manager.handle(), SUCCEED)
 
-    @mock.patch.object(CveFixManager, '_save_result')
-    @mock.patch.object(CveFixManager, 'fault_handle')
-    def test_post_handle_should_be_correct(self, mock_fault_handle, mock_save_result):
+    @mock.patch.object(TaskProxy, 'init_cve_task')
+    @mock.patch.object(BaseResponse, 'get_response')
+    def test_handle_should_error_when_response_failed(self, mock_response, mock_init_cve_task):
         manager = CveFixManager(Mock(), Mock())
-        fake_result = [
-            {
-                "host_id": 1,
-                "check_items": [{"item": "net", "result": False}],
-                "cves": [{"cve_id": "cve1", "log": "", "result": CveHostStatus.SUCCEED}],
-            },
-            {
-                "host_id": 2,
-                "check_items": [],
-                "cves": [
-                    {"cve_id": "cve1", "log": "", "result": CveHostStatus.SUCCEED},
-                    {"cve_id": "cve2", "log": "", "result": CveHostStatus.FAIL},
-                ],
-            },
-            {
-                "host_id": 2,
-                "check_items": [{"item": "net", "result": True}],
-                "cves": [
-                    {"cve_id": "cve1", "log": "", "result": CveHostStatus.SUCCEED},
-                    {"cve_id": "cve2", "log": "", "result": CveHostStatus.SUCCEED},
-                ],
-            },
-        ]
-        manager.result = fake_result
-        manager.post_handle()
-        fake_result[0]['status'] = "fail"
-        fake_result[1]['status'] = "fail"
-        fake_result[2]['status'] = "succeed"
-        self.assertEqual(manager.result, fake_result)
-
-    @mock.patch.object(TaskProxy, 'fix_task_status')
-    @mock.patch.object(TaskProxy, 'set_cve_progress')
-    def test_fault_handle_should_have_correct_step(self, mock_set_cve_progress, mock_fix_task_status):
-        proxy = TaskProxy()
-        fake_task_id = Mock()
-        manager = CveFixManager(proxy, fake_task_id)
-        manager.fault_handle()
-        mock_set_cve_progress.assert_called_with(fake_task_id, [], 'fill')
-        mock_fix_task_status.assert_called_with(fake_task_id, 'cve fix')
+        fake_result = Mock()
+        mock_init_cve_task.return_value = SUCCEED
+        mock_response.return_value = {"label": SERVER_ERROR, "data": {"result": {"task_result": fake_result}}}
+        self.assertEqual(manager.handle(), TASK_EXECUTION_FAIL)

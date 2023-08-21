@@ -87,30 +87,6 @@ class TestCveMysqlProxy(DatabaseTestCase):
         data = {"cve_list": ["not_exist_id"], "username": "admin"}
         self.assertEqual(self.cve_database.get_cve_task_hosts(data), (NO_DATA, {"result": {}}))
 
-    def test_get_cve_action(self):
-        data = {
-            "cve_list": ["qwfqwff3", "qwfqwff4", "not_exist_id"],
-            "username": "admin",
-        }
-        expected_query_result = {
-            "result": {
-                "qwfqwff3": {"reboot": False, "package": "ansible,tensorflow"},
-                "qwfqwff4": {"reboot": True, "package": "ansible,redis"},
-            }
-        }
-        query_result = self.cve_database.get_cve_action(data)
-        sorted_pkg = sorted(query_result[1]["result"]["qwfqwff3"]["package"].split(","))
-        query_result[1]["result"]["qwfqwff3"]["package"] = ",".join(sorted_pkg)
-        sorted_pkg = sorted(query_result[1]["result"]["qwfqwff4"]["package"].split(","))
-        query_result[1]["result"]["qwfqwff4"]["package"] = ",".join(sorted_pkg)
-        self.assertEqual(
-            self.cve_database.get_cve_action(data),
-            (PARTIAL_SUCCEED, expected_query_result),
-        )
-
-        data = {"cve_list": ["not_exist_id"], "username": "admin"}
-        self.assertEqual(self.cve_database.get_cve_action(data), (NO_DATA, {"result": {}}))
-
 
 class TestCveProxy(DatabaseTestCase):
     def setUp(self) -> None:

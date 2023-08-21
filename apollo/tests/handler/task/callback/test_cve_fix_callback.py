@@ -11,29 +11,60 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 
-import unittest
 from unittest import mock
-from unittest.mock import Mock
+from sqlalchemy.exc import SQLAlchemyError
 
-from apollo.conf.constant import CveProgressSettingMethod
+from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
 from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.tests import BaseTestCase
 
 
 class CveFixCallbackTestCase(BaseTestCase):
-    @mock.patch.object(TaskProxy, '_set_cve_progress')
+    def setUp(self) -> None:
+        super().setUp()
+        task_proxy = TaskProxy()
+        task_proxy.connect()
+        self.cve_fix_callback = CveFixCallback(proxy=task_proxy)
+        self.callback_result = {
+            "task_id": "string",
+            "host_id": "string",
+            "check_items": [{"item": "network", "result": True, "log": "xxxx"}],
+            "cves": [
+                {
+                    "cve_id": "string",
+                    "result": "succeed",
+                    "rpms": [
+                        {
+                            "rpm": "string",
+                            "result": "string",
+                            "log": "string",
+                        }
+                    ],
+                }
+            ],
+            "host_ip": "172.168.63.86",
+            "host_name": "host1_12001",
+            "status": "fail",
+        }
+
+    @mock.patch.object(TaskProxy, "_set_package_status")
     @mock.patch.object(TaskProxy, '_update_cve_host_status')
-    def test_callback_should_correct(self, mock_update_cve_status, mock_set_cve_progress):
-        proxy = TaskProxy()
-        fake_task_id = Mock()
-        fake_host_id = Mock()
-        fake_cves = {"cve1": "fixed", "cve2": "unfixed"}
-        callback = CveFixCallback(proxy)
-        callback.callback(fake_task_id, fake_host_id, fake_cves)
-        self.assertEqual(mock_update_cve_status.call_count, 2)
-        mock_set_cve_progress.assert_called_with(fake_task_id, list(fake_cves.keys()), CveProgressSettingMethod.ADD)
+    def test_callback_should_succeed_when_update_success(self, mock_update_cve_host_status, mock_set_package_status):
+        mock_update_cve_host_status.return_value = SUCCEED
+        mock_set_package_status.return_value = SUCCEED
+        self.assertEqual(self.cve_fix_callback.callback(cve_fix_result=self.callback_result), SUCCEED)
 
+    @mock.patch.object(TaskProxy, '_update_cve_host_status')
+    def test_callback_should_error_when_update_status_fail(self, mock_update_cve_host_status):
+        mock_update_cve_host_status.side_effect = SQLAlchemyError()
+        self.assertEqual(self.cve_fix_callback.callback(cve_fix_result=self.callback_result), DATABASE_UPDATE_ERROR)
 
-if __name__ == '__main__':
-    unittest.main()
+    @mock.patch.object(TaskProxy, "_set_package_status")
+    @mock.patch.object(TaskProxy, '_update_cve_host_status')
+    def test_callback_should_error_when_update_package_status_fail(
+        self, mock_update_cve_host_status, mock_set_package_status
+    ):
+        mock_update_cve_host_status.return_value = SUCCEED
+        mock_set_package_status.side_effect = SQLAlchemyError()
+        self.assertEqual(self.cve_fix_callback.callback(cve_fix_result=self.callback_result), DATABASE_UPDATE_ERROR)

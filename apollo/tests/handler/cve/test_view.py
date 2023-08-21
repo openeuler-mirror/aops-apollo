@@ -186,18 +186,6 @@ class VulGetCveTaskHostTestCase(BaseTestCase):
         self.assertEqual(response['label'], DATABASE_QUERY_ERROR)
 
 
-class VulGetCveActionTestCase(BaseTestCase):
-    def test_vulgetcveaction_should_return_error_when_request_method_is_wrong(self):
-        args = {}
-        response = client.get(VUL_CVE_ACTION_QUERY, json=args).json
-        self.assertEqual(response['message'], 'The method is not allowed for the requested URL.')
-
-    def test_vulgetcveaction_should_return_param_error_when_input_wrong_param(self):
-        args = {"task_id": 2}
-        response = client.post(VUL_CVE_ACTION_QUERY, json=args, headers=header_with_token).json
-        self.assertEqual(response['label'], PARAM_ERROR)
-
-
 class VulUploadAdvisoryTestCase(BaseTestCase):
     def test_vuluploadadvisory_should_return_error_when_request_method_is_wrong(self):
         args = {}

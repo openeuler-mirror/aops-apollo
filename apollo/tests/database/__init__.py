@@ -37,7 +37,6 @@ from apollo.database.table import (
     HostGroup,
     CveHostAssociation,
     CveAffectedPkgs,
-    CveTaskAssociation,
     TaskCveHostAssociation,
     TaskHostRepoAssociation,
     Cve,
@@ -131,7 +130,6 @@ class TestDataInit(Database):
         self._add_cve()
         self._add_repo()
         self._add_task()
-        self._add_cve_task_info()
         self._add_cve_host_match()
         self._add_task_cve_host()
         self._add_task_repo_host()
@@ -315,35 +313,6 @@ class TestDataInit(Database):
         }
         task = Task(**task_data)
         self.sql.session.add(task)
-        self.sql.session.commit()
-
-    def _add_cve_task_info(self):
-        task_cve_data = {
-            "cve_id": "qwfqwff3",
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "progress": 1,
-            "host_num": 2,
-        }
-        cve_task = CveTaskAssociation(**task_cve_data)
-        self.sql.session.add(cve_task)
-
-        task_cve_data = {
-            "cve_id": "qwfqwff4",
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "progress": 1,
-            "host_num": 1,
-        }
-        cve_task = CveTaskAssociation(**task_cve_data)
-        self.sql.session.add(cve_task)
-
-        task_cve_data = {
-            "cve_id": "qwfqwff5",
-            "task_id": "2222222222poiuytrewqasdfghjklmnb",
-            "progress": 0,
-            "host_num": 1,
-        }
-        cve_task = CveTaskAssociation(**task_cve_data)
-        self.sql.session.add(cve_task)
         self.sql.session.commit()
 
     def _add_cve_host_match(self):
@@ -666,4 +635,4 @@ class DatabaseTestCase(BaseTestCase, Database):
         database_test._set_database_engine()
 
 
-_ = TestDataInit()
+# _ = TestDataInit()
