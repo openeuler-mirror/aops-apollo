@@ -635,10 +635,7 @@ class VulExecuteTask(BaseResponse):
             return DATABASE_UPDATE_ERROR
 
         # run the task in a thread
-        task_thread = threading.Thread(target=manager.execute_task)
-        task_thread.start()
-
-        return SUCCEED
+        return manager.execute_task()
 
     def _handle(self, proxy, args):
         """
@@ -879,5 +876,5 @@ class VulCveRollbackTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code = CveRollbackCallback(callback).callback(params['task_id'], params["host_id"], params["cves"])
+        status_code = CveRollbackCallback(callback).callback(params)
         return self.response(code=status_code)

@@ -15,12 +15,10 @@ Time:
 Author:
 Description:
 """
-import json
 import time
 from abc import ABC, abstractmethod
 
 from apollo.database.proxy.task import TaskProxy
-from vulcanus.log.log import LOGGER
 
 
 class Manager(ABC):
@@ -92,37 +90,8 @@ class Manager(ABC):
         Task executing
         """
 
-    @abstractmethod
-    def post_handle(self):
-        """
-        Post handle after executing the task, which is generally result parsing.
-        """
-
-    @abstractmethod
-    def fault_handle(self):
-        """
-        Handle function when trap into fault, it's often used to fix the status.
-        """
-
     def execute_task(self):
         """
         Run task according to the two handle function steps.
         """
-        self.handle()
-        self.post_handle()
-
-    def _save_result(self, task_result):
-        """
-        Save the result to database.
-
-        Args:
-            task_result (list)
-        """
-        result = {
-            "task_id": self.task_id,
-            "task_type": self.task['task_type'],
-            "latest_execute_time": self.cur_time,
-            "task_result": task_result
-        }
-        LOGGER.debug(result)
-        self.proxy.save_task_info(self.task_id, log=json.dumps(result))
+        return self.handle()
