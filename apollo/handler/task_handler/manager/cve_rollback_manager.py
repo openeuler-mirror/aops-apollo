@@ -12,17 +12,11 @@
 # ******************************************************************************/
 from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.restful.resp.state import SUCCEED, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import (
-    CveHostStatus,
-    VUL_TASK_CVE_ROLLBACK_CALLBACK,
-    CveProgressSettingMethod,
-    TaskType,
-    EXECUTE_CVE_ROLLBACK,
-)
+from apollo.conf.constant import VUL_TASK_CVE_ROLLBACK_CALLBACK, EXECUTE_CVE_ROLLBACK, TaskStatus
 from apollo.handler.task_handler.manager import Manager
 
 
@@ -54,7 +48,7 @@ class CveRollbackManager(Manager):
         Returns:
             bool: succeed or fail
         """
-        if self.proxy.init_cve_task(self.task_id, []) != SUCCEED:
+        if self.proxy.init_cve_rollback_task(self.task_id, []) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop cve rollback task %s.", self.task_id)
             return False
 
@@ -74,36 +68,7 @@ class CveRollbackManager(Manager):
         response = BaseResponse.get_response('POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED or not response.get("data", dict()):
             LOGGER.error("Cve rollback task %s execute failed.", self.task_id)
-            return
+            self.proxy.init_cve_rollback_task(self.task_id, [], TaskStatus.UNKNOWN)
+            return TASK_EXECUTION_FAIL
 
-        LOGGER.info("Cve rollback task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("data", dict()).get("execute_result") or []
-
-    def post_handle(self):
-        """
-        After executing the task, parse the checking and executing result, then save to database.
-        """
-        if not self.result:
-            self.fault_handle()
-            return
-        LOGGER.debug("Cve rollback task %s result: %s", self.task_id, self.result)
-
-        for host in self.result:
-            host['status'] = CveHostStatus.SUCCEED
-            if not host['cves']:
-                host['status'] = CveHostStatus.UNKNOWN
-            for cve in host['cves']:
-                if cve.get('result') is None or cve.get('result') != CveHostStatus.SUCCEED:
-                    host['status'] = CveHostStatus.FAIL
-                    break
-
-        self._save_result(self.result)
-        self.fault_handle()
-
-    def fault_handle(self):
-        """
-        When the task is completed or execute fail, fill the progress and set the
-        host status to 'unknown'.
-        """
-        self.proxy.set_cve_progress(self.task_id, [], CveProgressSettingMethod.FILL)
-        self.proxy.fix_task_status(self.task_id, TaskType.CVE_ROLLBACK)
+        return SUCCEED
