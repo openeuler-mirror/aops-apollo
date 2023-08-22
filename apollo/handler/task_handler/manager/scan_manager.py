@@ -24,7 +24,7 @@ from io import BytesIO
 
 from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.restful.resp.state import SUCCEED, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 from vulcanus.send_email import Email
 
@@ -66,7 +66,6 @@ class ScanManager(Manager):
             "task_type": "cve scan",
             "total_hosts": self.host_list,
             "check_items": [],
-            "tasks": host_info_list,
             "callback": VUL_TASK_CVE_SCAN_CALLBACK,
         }
 
@@ -105,34 +104,8 @@ class ScanManager(Manager):
         response = BaseResponse.get_response('POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:
             LOGGER.error("Cve scan task %s execute failed.", self.task_id)
-            return
-        self.result = response.get("data", dict()).get("task_result")
-        LOGGER.info("Cve scan task %s end, begin to handle result.", self.task_id)
-
-    def post_handle(self):
-        """
-        After executing the task, parse and save result to database.
-        """
-
-        if self.result:
-            for host_info in self.result:
-                LOGGER.debug(f"{host_info['host_id']} scan status is {host_info.get('status')}")
-        else:
-            LOGGER.info(f"cve scan result is null")
-        self.fault_handle()
-
-    def fault_handle(self):
-        """
-        When the task is completed or execute fail, set the host status to 'done'.
-        then send a email to notify the user.
-        """
-        self.proxy.update_host_scan("finish", self.host_list)
-        if configuration.email.get("ENABLED"):
-            status_code, self.current_scan_result = self.proxy.query_host_cve_info(self.username)
-            self.last_scan_result.sort(key=lambda ele: ele[0])
-            self.current_scan_result.sort(key=lambda ele: ele[0])
-            if self.current_scan_result != self.last_scan_result:
-                self.send_email_to_user()
+            return TASK_EXECUTION_FAIL
+        return SUCCEED
 
     def send_email_to_user(self) -> None:
         """

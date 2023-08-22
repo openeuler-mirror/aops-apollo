@@ -239,16 +239,29 @@ class CveFixCallbackSchema(Schema):
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
+class CheckItemsSchema(Schema):
+    item = fields.String(required=True, validate=lambda s: len(s) != 0)
+    result = fields.Boolean(validate=validate.OneOf([True, False]), required=True)
+    log = fields.String(required=True, validate=lambda s: len(s) != 0)
+
+
 class RepoSetCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_ip = fields.IP(required=True)
+    host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
+    execution_time = fields.Integer(required=True)
     repo_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    check_items = fields.List(fields.Nested(CheckItemsSchema(), required=False), required=False)
+    log = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
-class CveHostPatchInfoSchema(Schema):
+class UnfixedCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    support_hp = fields.Boolean()
+    installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
+    available_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
+    support_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch", "-"]), required=True)
 
 
 class InstallPcakageInfoSchema(Schema):
@@ -258,7 +271,8 @@ class InstallPcakageInfoSchema(Schema):
 
 class FixedCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    fixed_by_hp = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
+    installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
+    fix_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch", "-"]), required=True)
     hp_status = fields.String(validate=validate.OneOf(["ACCEPTED", "ACTIVED"]), required=False)
 
 
@@ -266,10 +280,11 @@ class CveScanCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
-    installed_packages = fields.List(fields.Nested(InstallPcakageInfoSchema(), required=True), required=True)
-    os_version = fields.String(required=True)
-    unfixed_cves = fields.List(fields.Nested(CveHostPatchInfoSchema(), required=False), required=True)
-    fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=False), required=True)
+    check_items = fields.List(fields.Nested(CheckItemsSchema(), required=False), required=False)
+    installed_packages = fields.List(fields.Nested(InstallPcakageInfoSchema(), required=True), required=False)
+    os_version = fields.String(required=False, validate=lambda s: 0 < len(s) < 40)
+    unfixed_cves = fields.List(fields.Nested(UnfixedCveInfoSchema(), required=False), required=False)
+    fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=False), required=False)
 
 
 class CveRollbackHostPatchInfoSchema(Schema):

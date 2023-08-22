@@ -746,22 +746,6 @@ class VulRepoSetTaskCallback(BaseResponse):
     Restful interface for set repo callback.
     """
 
-    @staticmethod
-    def _handle(proxy, args):
-        """
-        Handle set repo callback.
-
-        Args:
-            args (dict): request parameter
-
-        Returns:
-            int: status code
-        """
-        task_info = dict(status=args["status"], repo_name=args["repo_name"], host_id=args["host_id"])
-
-        repo_set_callback = RepoSetCallback(proxy)
-        return repo_set_callback.callback(args['task_id'], task_info)
-
     @BaseResponse.handle(schema=RepoSetCallbackSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
         """
@@ -774,7 +758,7 @@ class VulRepoSetTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        return self.response(self._handle(callback, params))
+        return self.response(RepoSetCallback(callback).callback(params))
 
 
 class VulCveScanTaskCallback(BaseResponse):
