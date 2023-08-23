@@ -31,8 +31,7 @@ from apollo.function.schema.cve import (
     GetCveListSchema,
     GetCveInfoSchema,
     GetCveHostsSchema,
-    GetCveTaskHostSchema,
-    GetCveActionSchema,
+    GetCveTaskHostSchema
 )
 from apollo.function.utils import make_download_response
 from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
@@ -144,34 +143,28 @@ class VulGetCveTaskHost(BaseResponse):
         Get basic info of hosts which have specific cve
 
         Args:
-            cve_list (list): cve id list
+            callback: CveMysqlProxy
+            params: dict of params.  e.g.
+                {
+                    "username": "admin",
+                    "cve_list": [
+                        {
+                            "cve_id": "CVE-2023-25180",
+                            "rpms":[{
+                              "installed_rpm":"pkg1",
+                              "available_rpm": "pkg1-1",
+                              "fix_way":"hotpatch"
+                            }]
+                        }
+                    ],
+                    "fixed":true
+                }
 
         Returns:
             dict: response body
 
         """
         status_code, result = callback.get_cve_task_hosts(params)
-        return self.response(code=status_code, data=result)
-
-
-class VulGetCveAction(BaseResponse):
-    """
-    Restful interface for getting action after cve fixed
-    """
-
-    @BaseResponse.handle(GetCveActionSchema, proxy=CveMysqlProxy)
-    def post(self, callback: CveMysqlProxy, **params):
-        """
-        Get action after fixing cve
-
-        Args:
-            cve_list (list): cve id list
-
-        Returns:
-            dict: response body
-
-        """
-        status_code, result = callback.get_cve_action(params)
         return self.response(code=status_code, data=result)
 
 
