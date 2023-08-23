@@ -88,10 +88,7 @@ class HostCvesFilterSchema(Schema):
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
     severity = fields.List(fields.String(validate=validate.OneOf(CveSeverity.attribute())), required=False)
     affected = fields.Boolean(required=False, default=True)
-
-    hotpatch = fields.List(fields.Boolean(validate=validate.OneOf([True, False])), required=False)
     fixed = fields.Boolean(validate=validate.OneOf([True, False]))
-    hp_status = fields.List(fields.String(validate=validate.OneOf(["ACCEPTED", "ACTIVED"])), required=False)
 
 
 class GetHostCvesSchema(PaginationSchema):
