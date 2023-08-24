@@ -2089,7 +2089,7 @@ class TaskMysqlProxy(MysqlProxy):
         for rpm_result in rpms:
             self.session.query(TaskCveHostRpmAssociation).filter(
                 TaskCveHostRpmAssociation.task_cve_host_id == task_cve_host_id,
-                TaskCveHostRpmAssociation.installed_rpm == rpm_result["rpm"],
+                TaskCveHostRpmAssociation.installed_rpm == rpm_result["installed_rpm"],
             ).update({TaskCveHostRpmAssociation.status: rpm_result["result"]}, synchronize_session=False)
 
     def query_user_email(self, username: str) -> tuple:

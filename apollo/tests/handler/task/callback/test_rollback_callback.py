@@ -42,14 +42,14 @@ class TestCveRollbackCallback(BaseTestCase):
     @mock.patch.object(TaskProxy, '_update_cve_host_status')
     def test_callback_should_partial_succeed_when_update_error(self, mock_update_cve_host_status):
         mock_update_cve_host_status.return_value = DATABASE_UPDATE_ERROR
-        self.assertEqual(self.cve_rollback_callback.callback(cve_rollback_result=self.callback_result), PARTIAL_SUCCEED)
+        self.assertEqual(self.cve_rollback_callback.callback(task_result=self.callback_result), PARTIAL_SUCCEED)
 
     @mock.patch.object(TaskProxy, '_update_cve_host_status')
     def test_callback_should_partial_succeed_when_update_status_fail(self, mock_update_cve_host_status):
         mock_update_cve_host_status.side_effect = SQLAlchemyError()
-        self.assertEqual(self.cve_rollback_callback.callback(cve_rollback_result=self.callback_result), PARTIAL_SUCCEED)
+        self.assertEqual(self.cve_rollback_callback.callback(task_result=self.callback_result), PARTIAL_SUCCEED)
 
     @mock.patch.object(TaskProxy, '_update_cve_host_status')
     def test_callback_should_succeed_when_update_package_status_succeed(self, mock_update_cve_host_status):
         mock_update_cve_host_status.return_value = SUCCEED
-        self.assertEqual(self.cve_rollback_callback.callback(cve_rollback_result=self.callback_result), SUCCEED)
+        self.assertEqual(self.cve_rollback_callback.callback(task_result=self.callback_result), SUCCEED)
