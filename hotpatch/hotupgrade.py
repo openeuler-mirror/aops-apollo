@@ -12,16 +12,17 @@
 # ******************************************************************************/
 from __future__ import print_function
 
+from time import sleep
 import dnf.base
 import dnf.exceptions
 import hawkey
 from dnf.cli import commands
 from dnf.cli.option_parser import OptionParser
-from dnf.cli.output import Output
+# from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
 from .hot_updateinfo import HotUpdateinfoCommand
-from .hotpatch_updateinfo import HotpatchUpdateInfo
+from .updateinfo_parse import HotpatchUpdateInfo
 from .syscare import Syscare
 
 EMPTY_TAG = "-"
@@ -68,25 +69,28 @@ class HotupgradeCommand(dnf.cli.Command):
             advisory_pkgs = self.get_hotpatch_based_on_advisory(self.opts.advisory)
             self.hp_list = cve_pkgs + advisory_pkgs
         else:
-            self.hp_list = self.upgrade_all()
+            self.hp_list = self.get_hotpatch_of_all_cve()
             if self.hp_list:
-                logger.info(_("Gonna apply these hot patches:%s"), self.hp_list)
+                logger.info(_("Gonna apply all available hot patches: %s"), self.hp_list)
 
-        hp_target_map = self._get_available_hotpatches(self.hp_list)
-        if not hp_target_map:
-            raise dnf.exceptions.Error(_('No hot patches marked for install.'))
+        available_hp_dict = self._get_available_hotpatches(self.hp_list)
+        if not available_hp_dict:
+            logger.info(_('No hot patches marked for install.'))
+            return
 
-        target_patch_map = self._get_applied_old_patch(list(hp_target_map.values()))
-        if target_patch_map:
-            self._remove_hot_patches(target_patch_map)
+        applied_old_patches = self._get_applied_old_patch(list(available_hp_dict.values()))
+        if applied_old_patches:
+            self._remove_hot_patches(applied_old_patches)
         else:
             self.syscare.save()
-        success = self._install_hot_patch(list(hp_target_map.keys()))
+        success = self._install_hot_patch(list(available_hp_dict.keys()))
         if not success:
+            logger.info(_("Error: Install hot patch failed, try to rollback."))
             output, status = self.syscare.restore()
             if status:
                 raise dnf.exceptions.Error(_('Roll back failed.'))
-            raise dnf.exceptions.Error(_("Roll back succeed."))
+            logger.info(_("Roll back succeed."))
+            return
         return
 
     def run_transaction(self) -> None:
@@ -95,7 +99,8 @@ class HotupgradeCommand(dnf.cli.Command):
         Returns:
             None
         """
-        logger.info(_('Applying hot patch'))
+        # syscare need a little bit time to process the installed hot patch
+        sleep(0.5)
         if not self.base.transaction:
             for hp in self.hp_list:
                 self._apply_hp(hp)
@@ -108,14 +113,28 @@ class HotupgradeCommand(dnf.cli.Command):
 
     def _apply_hp(self, hp_full_name):
         pkg_info = self._parse_hp_name(hp_full_name)
-        hp_full_name = (
-            "-".join([pkg_info["name"], pkg_info["version"], pkg_info["release"]]) + '/' + pkg_info["hp_name"]
-        )
-        output, status = self.syscare.apply(hp_full_name)
+        hp_subname = self._get_hp_subname_for_syscare(pkg_info)
+        output, status = self.syscare.apply(hp_subname)
         if status:
-            logger.info(_('Apply hot patch failed: %s.'), hp_full_name)
+            logger.info(_('Apply hot patch failed: %s.'), hp_subname)
         else:
-            logger.info(_('Apply hot patch succeed: %s.'), hp_full_name)
+            logger.info(_('Apply hot patch succeed: %s.'), hp_subname)
+
+    @staticmethod
+    def _get_hp_subname_for_syscare(pkg_info: dict) -> str:
+        """
+        get hotpatch's subname for syscare command.  e.g. redis-1-1/ACC-1-1
+        Args:
+            pkg_info: out put of _parse_hp_name.
+
+        Returns:
+            str
+        """
+        hp_subname = (
+            "-".join([pkg_info["target_name"], pkg_info["target_version"], pkg_info["target_release"]]) + '/' +
+            "-".join([pkg_info["hp_name"], pkg_info["hp_version"], pkg_info["hp_release"]])
+        )
+        return hp_subname
 
     def _get_available_hotpatches(self, pkg_specs: list) -> dict:
         """
@@ -126,9 +145,10 @@ class HotupgradeCommand(dnf.cli.Command):
             pkg_specs: full names of hot patches' rpm packages
 
         Returns:
-            dict: key is available hot patches' full name, value is target package's name-version-release
+            dict: key is available hot patches' full name,
+                  value is hot patches' operate name. e.g. kernel-5.10.0-60.66.0.91.oe2203/ACC-1-1
         """
-        hp_target_map = {}
+        hp_map = {}
         installed_packages = self.base.sack.query().installed()
         for pkg_spec in set(pkg_specs):
             query = self.base.sack.query()
@@ -153,7 +173,7 @@ class HotupgradeCommand(dnf.cli.Command):
             # check the hot patch's target package installed or not
             pkg_info = self._parse_hp_name(pkg_spec)
             installed_pkg = installed_packages.filter(
-                name=pkg_info["name"], version=pkg_info["version"], release=pkg_info["release"]
+                name=pkg_info["target_name"], version=pkg_info["target_version"], release=pkg_info["target_release"]
             ).run()
             if not installed_pkg:
                 logger.info(
@@ -167,41 +187,57 @@ class HotupgradeCommand(dnf.cli.Command):
                     self.base.output.term.bold(pkg_spec),
                 )
                 continue
-            target = "-".join([pkg_info["name"], pkg_info["version"], pkg_info["release"]])
-            hp_target_map[pkg_spec] = target
-        return hp_target_map
+            hp_subname = self._get_hp_subname_for_syscare(pkg_info)
+            hp_map[pkg_spec] = hp_subname
+        return hp_map
 
-    def _get_applied_old_patch(self, targets: list):
+    @staticmethod
+    def _get_applied_old_patch(available_hp_list: list) -> list:
         """
-        get targets' applied hot patches
+        get targets' applied accumulative hot patches.
+        User can install and apply multiple sgl (single) hot patches because the rpm name is different,
+        but for acc (accumulative) hot patch, user can only install one for a specific target binary rpm.
         Args:
-            targets: target RPMs' name-version-release.  e.g. redis-1.0-1
+            available_hp_list:  e.g. ['redis-1.0-1/ACC-1-1', 'redis-1.0-1/SGL_CVE_2022_1-1-1']
 
         Returns:
-            dict: targets' applied hot patches.  e.g. {'redis-1.0-1': 'redis-1.0-1/HP001'}
+            list: applied hot patches.  e.g. ['redis-1.0-1/ACC-1-1']
         """
-        target_patch_map = {}
+        hotpatch_set = set()
         hps_info = Syscare.list()
         for hp_info in hps_info:
-            target, hp_name = hp_info["Name"].split('/')
-            if target in targets and hp_info["Status"] != "NOT-APPLIED":
+            # hp_info[Name] is the middle column of syscare list. format: {target_rpm_name}/{hp_name}/{binary_file}
+            # a hotpatch is mapped to a target binary rpm, and may affect multiple binary executable binary files
+            # e.g. for hotpatch patch-redis-1-1-ACC-1-1.x86_64.rpm, it may provide 2 sub hotpatches in syscare list,
+            # and SGL hotpatches may be installed at the same time
+            #       redis-1-1/ACC-1-1/redis
+            #       redis-1-1/ACC-1-1/redis-cli
+            #       redis-1-1/SGL_CVE_2022_1-1-1/redis
+            #       redis-1-1/SGL_CVE_2022_2-1-1/redis
+            target, hp_name, binary_file = hp_info["Name"].split('/')
+            hotpatch = target + '/' + hp_name
+            # right now, if part of the hotpatch (for different binary file) is applied,
+            # we consider the hotpatch is applied
+            if hotpatch in available_hp_list and hp_info["Status"] != "NOT-APPLIED":
                 logger.info(
-                    _("The target package '%s' has a hotpatch '%s' applied"),
-                    self.base.output.term.bold(target),
-                    self.base.output.term.bold(hp_name),
+                    _("The hotpatch '%s' already has a '%s' sub hotpatch of binary file '%s'"),
+                    hotpatch,
+                    hp_info["Status"],
+                    binary_file,
                 )
-                target_patch_map[target] = hp_info["Name"]
-        return target_patch_map
+                if hotpatch not in hotpatch_set:
+                    hotpatch_set.add(hotpatch)
+        return list(hotpatch_set)
 
-    def _remove_hot_patches(self, target_patch_map: dict) -> None:
-        output = Output(self.base, dnf.conf.Conf())
-        logger.info(_("Gonna remove these hot patches: %s"), list(target_patch_map.values()))
+    def _remove_hot_patches(self, applied_old_patches: list) -> None:
+        # output = Output(self.base, dnf.conf.Conf())
+        logger.info(_("Gonna remove these hot patches: %s"), applied_old_patches)
         # remove_flag = output.userconfirm()
         # if not remove_flag:
         #    raise dnf.exceptions.Error(_('Operation aborted.'))
 
         self.syscare.save()
-        for target, hp_name in target_patch_map.items():
+        for hp_name in applied_old_patches:
             logger.info(_("Remove hot patch %s."), hp_name)
             output, status = self.syscare.remove(hp_name)
             if status:
@@ -220,22 +256,31 @@ class HotupgradeCommand(dnf.cli.Command):
         parse hot patch's name, get target rpm's name, version, release and hp's name.
         Args:
             hp_filename: hot patch's name, in the format of
-                'patch-{pkg_name}-{pkg_version}-{pkg_release}-{patchname}-{patch_version}-{patch_release}.rpm'
-                e.g. patch-kernel-5.10.0-60.66.0.91.oe2203-HP001-1-1.x86_64.rpm
+                'patch-{pkg_name}-{pkg_version}-{pkg_release}-{patchname}-{patch_version}-{patch_release}'
+                e.g. patch-kernel-5.10.0-60.66.0.91.oe2203-ACC-1-1.x86_64
+                     patch-kernel-5.10.0-60.66.0.91.oe2203-SGL_CVE_2022_1-1-1.x86_64
                 pkg_name may have '-' in it, patch name cannot have '-'.
         Returns:
-            dict: rpm info. {"name": "", "version": "", "release": "", "hp_name": ""}
+            dict: rpm info. {"target_name": "", "target_version": "", "target_release": "", "hp_name": "",
+                             "hp_version": "", "hp_release": ""}
         """
-        splitted_hp_filename = hp_filename.split('-')
+        hp_filename_format = ("patch-{pkg_name}-{pkg_version}-{pkg_release}-{patch_name}-"
+                              "{patch_version}-{patch_release}.{arch}")
+
+        remove_suffix_filename = hp_filename.rsplit(".", 1)[0]
+        splitted_hp_filename = remove_suffix_filename.split('-')
         try:
             rpm_info = {
-                "release": splitted_hp_filename[-4],
-                "version": splitted_hp_filename[-5],
-                "name": "-".join(splitted_hp_filename[1:-5]),
+                "target_release": splitted_hp_filename[-4],
+                "target_version": splitted_hp_filename[-5],
+                "target_name": "-".join(splitted_hp_filename[1:-5]),
                 "hp_name": splitted_hp_filename[-3],
+                "hp_version": splitted_hp_filename[-2],
+                "hp_release": splitted_hp_filename[-1]
             }
         except IndexError as e:
-            raise dnf.exceptions.Error(_('Parse hot patch name failed. Please insert correct hot patch name.'))
+            raise dnf.exceptions.Error(_("Parse hot patch name failed. Please insert correct hot patch name "
+                                         "with the format: \n %s" % hp_filename_format))
         return rpm_info
 
     def _install_hot_patch(self, pkg_specs: list) -> bool:
@@ -291,19 +336,36 @@ class HotupgradeCommand(dnf.cli.Command):
             hp_list += hp
         return list(set(hp_list))
 
-    def get_hot_updateinfo_list(self):
+    def get_hotpatch_of_all_cve(self) -> list:
         """
-        Find all hotpatches and return hotpatch list
+        upgrade all exist cve using hot patches
+        1. find all cves when init HotpatchUpdateInfo
+        2. get the recommended hot patch for each cve
+        3. deduplication
+        Returns:
+            ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
+        """
+        updateinfo = HotpatchUpdateInfo(self.cli.base, self.cli)
+        cve_list = self.get_all_cve_which_can_be_fixed_by_hotpatch()
+        hp_list = []
+        cve_hp_dict = updateinfo.get_hotpatches_from_cve(cve_list)
+        for hp in cve_hp_dict.values():
+            if not hp:
+                continue
+            hp_list += hp
+        return list(set(hp_list))
+
+    def get_all_cve_which_can_be_fixed_by_hotpatch(self) -> list:
+        """
+        get all unfixed cve which can be fixed by hotpatch
         use  command : dnf hot-updateinfo list cves
-        Last metadata expiration check: 0:48:26 ago on 2023年06月01日 星期四 20时29分55秒.
-        CVE-2023-3332  Low/Sec.       -   -
-        CVE-2023-3331  Low/Sec.       -   -
-        CVE-2023-1112  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
-        CVE-2023-1111  Important/Sec. -   patch-redis-6.2.5-1-HP001-1-1.x86_64
+            Last metadata expiration check: 0:48:26 ago on 2023年06月01日 星期四 20时29分55秒.
+            CVE-2023-3332  Low/Sec.       -   -
+            CVE-2023-3331  Low/Sec.       -   -
+            CVE-2023-1111  Important/Sec. -   patch-redis-6.2.5-1-ACC-1-1.x86_64
+            CVE-2023-1111  Important/Sec. -   patch-redis-cli-6.2.5-1-ACC-1-1.x86_64
 
-        return:list e.g.
-        ['patch-redis-6.2.5-1-HP002-1-1.x86_64', '-', '-']
-
+        Returns: list of unfixed cve. e.g.['CVE-2023-1111']
         """
         hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
         hot_updateinfo = HotUpdateinfoCommand(self.cli)
@@ -311,39 +373,8 @@ class HotupgradeCommand(dnf.cli.Command):
         hot_updateinfo.hp_hawkey = hp_hawkey
         hot_updateinfo.filter_cves = None
         all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
-        result = list()
+        cve_set = set()
         for display_line in all_cves.display_lines:
-            result.append(display_line[3])
-        return result
-
-    def upgrade_all(self):
-        """
-        upgrade all exist cve and hot patches
-
-        Return:
-             use get_hot_updateinfo_list() to find all patches and then select highest version
-             in the hot patch corresponding to the same software package.
-             For example, the hot patches corresponding to redis are patch-redis-6.2.5-1-HP1-1-1.x86 64
-             and patch-redis-6.2.5-1-HP2-1-1.x86 64. Select the later version patch-redis-6.2.5-1-HP2-1-1.x86 64
-            e.g.:
-            ['patch-redis-6.2.5-1-HP2-1-1.x86_64']
-        """
-        hotpatchs_info = self.get_hot_updateinfo_list()
-        hp_list = list()
-        for item in hotpatchs_info:
-            if item != EMPTY_TAG:
-                hp_list.append(item)
-        if len(hp_list) == 0 or len(hp_list) == 1:
-            return hp_list
-
-        hp_list.sort(reverse=True)
-        res_hp_list = list()
-        pkg_name = None
-        for hp in hp_list:
-            pkg_name_tmp = hp.split("-")[1]
-            if pkg_name_tmp == pkg_name:
-                continue
-            else:
-                res_hp_list.append(hp)
-                pkg_name = hp.split("-")[1]
-        return res_hp_list
+            if display_line[3] != EMPTY_TAG:
+                cve_set.add(display_line[0])
+        return list(cve_set)
