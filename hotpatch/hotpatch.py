@@ -12,13 +12,16 @@
 # ******************************************************************************/
 import dnf
 from dnfpluginscore import _, logger
-
-from .hotpatch_updateinfo import HotpatchUpdateInfo
 from .syscare import Syscare
+from .updateinfo_parse import HotpatchUpdateInfo
 
 
 @dnf.plugin.register_command
 class HotpatchCommand(dnf.cli.Command):
+    CVE_ID_INDEX = 0
+    Name_INDEX = 1
+    STATUS_INDEX = 2
+
     aliases = ['hotpatch']
     summary = _('show hotpatch info')
     syscare = Syscare()
@@ -82,7 +85,11 @@ class HotpatchCommand(dnf.cli.Command):
         idw = len(title[0])
         naw = len(title[1])
         for echo_line in echo_lines:
-            cve_id, name, status = echo_line[0], echo_line[1], echo_line[2]
+            cve_id, name, status = (
+                echo_line[self.CVE_ID_INDEX],
+                echo_line[self.Name_INDEX],
+                echo_line[self.STATUS_INDEX],
+            )
             if self.filter_cves is not None and cve_id not in self.filter_cves:
                 continue
             idw = max(idw, len(cve_id))
@@ -94,15 +101,23 @@ class HotpatchCommand(dnf.cli.Command):
 
         # print title
         if self.opts.list in ['cve', 'cves']:
-            print('%-*s %-*s %s' % (idw, title[0], naw, title[1], title[2]))
+            print(
+                '%-*s %-*s %s' % (idw, title[self.CVE_ID_INDEX], naw, title[self.Name_INDEX], title[self.STATUS_INDEX])
+            )
         else:
-            print('%-*s %s' % (naw, title[1], title[2]))
+            print('%-*s %s' % (naw, title[self.Name_INDEX], title[self.STATUS_INDEX]))
 
-        for format_line in sorted(format_lines, key=lambda x: (x[1], x[0])):
-            if self.opts.list in ['cve', 'cves']:
-                print('%-*s %-*s %s' % (idw, format_line[0], naw, format_line[1], format_line[2]))
-            else:
-                print('%-*s %s' % (naw, format_line[1], format_line[2]))
+        format_lines.sort(key=lambda x: (x[self.Name_INDEX], x[self.CVE_ID_INDEX]))
+
+        if self.opts.list in ['cve', 'cves']:
+            for cve_id, name, status in format_lines:
+                print('%-*s %-*s %s' % (idw, cve_id, naw, name, status))
+        else:
+            new_format_lines = [(name, status) for _, name, status in format_lines]
+            deduplicated_format_lines = list(set(new_format_lines))
+            deduplicated_format_lines.sort(key=new_format_lines.index)
+            for name, status in deduplicated_format_lines:
+                print('%-*s %s' % (naw, name, status))
 
     def display(self):
         """
@@ -112,16 +127,16 @@ class HotpatchCommand(dnf.cli.Command):
         For the command of 'dnf hotpatch --list', the echo_lines is [[base-pkg/hotpatch, status], ...]
         For the command of 'dnf hotpatch --list cve', the echo_lines is [[cve_id, base-pkg/hotpatch, status], ...]
         """
+
         hotpatch_cves = self.hp_hawkey.hotpatch_cves
         echo_lines = []
         for cve_id in hotpatch_cves.keys():
             for hotpatch in hotpatch_cves[cve_id].hotpatches:
-                status = self.hp_hawkey._get_hotpatch_status_in_syscare(hotpatch)
-                if status == '':
-                    continue
-                echo_line = [cve_id, hotpatch.syscare_name, status]
-                echo_lines.append(echo_line)
-
+                for name, status in self.hp_hawkey._hotpatch_state.items():
+                    if hotpatch.syscare_subname not in name:
+                        continue
+                    echo_line = [cve_id, name, status]
+                    echo_lines.append(echo_line)
         self._filter_and_format_list_output(echo_lines)
 
     def operate_hot_patches(self, target_patch: list, operate, func) -> None:

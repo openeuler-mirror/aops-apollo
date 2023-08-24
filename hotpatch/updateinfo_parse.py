@@ -10,14 +10,29 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import datetime
-import gzip
 import os
 import re
+import gzip
+import datetime
+import subprocess
 import xml.etree.ElementTree as ET
-
+from functools import cmp_to_key
 from .baseclass import Hotpatch, Cve, Advisory
 from .syscare import Syscare
+from .version import Versions
+
+SUCCEED = 0
+FAIL = 255
+
+
+def cmd_output(cmd):
+    try:
+        result = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result.wait()
+        return result.stdout.read().decode('utf-8'), result.returncode
+    except Exception as e:
+        print("error: ", e)
+        return str(e), FAIL
 
 
 class HotpatchUpdateInfo(object):
@@ -29,6 +44,9 @@ class HotpatchUpdateInfo(object):
     INSTALLED = 1
     INSTALLABLE = 2
 
+    syscare = Syscare()
+    version = Versions()
+
     def __init__(self, base, cli):
         self.base = base
         self.cli = cli
@@ -38,6 +56,8 @@ class HotpatchUpdateInfo(object):
         self._hotpatch_cves = {}
         # list [{'Uuid': uuid, 'Name':name, 'Status': status}]
         self._hotpatch_status = []
+        # dict {required_pkg_info_str: [Hotpatch]}
+        self._hotpatch_required_pkg_info_str = {}
 
         self.init_hotpatch_info()
 
@@ -57,6 +77,10 @@ class HotpatchUpdateInfo(object):
     @property
     def hotpatch_status(self):
         return self._hotpatch_status
+
+    @property
+    def hotpatch_required_pkg_info_str(self):
+        return self._hotpatch_required_pkg_info_str
 
     def _get_installed_pkgs(self):
         """
@@ -94,7 +118,7 @@ class HotpatchUpdateInfo(object):
                 for xml_file in os.listdir(repodata_path):
                     # the hotpatch relevant updateinfo is recorded in xxx-updateinfo.xml.gz
                     if "updateinfo" in xml_file:
-                        repo_name = file.rsplit("-")[0]
+                        repo_name = file.rsplit("-", 1)[0]
                         cache_updateinfo_xml_path = os.path.join(repodata_path, xml_file)
                         map_repo_updateinfoxml[repo_name] = cache_updateinfo_xml_path
 
@@ -165,6 +189,36 @@ class HotpatchUpdateInfo(object):
         advisory['adv_type'] = update.get('type')
         return advisory
 
+    def _get_hotpatch_require_pkgs_info(self, hotpatch: Hotpatch):
+        """
+        Get require packages from requires info of hotpatch packages. Specifically, read the require
+        information of the rpm package, get the target coldpatch rpm package, and record the
+        name_vere(name-version-release) information of the coldpatch.
+
+        Returns:
+            require pkgs: dict
+        e.g.
+            {
+                'redis': '6.2.5-1',
+                'redis-cli': '6.2.5-1'
+            }
+        """
+        require_pkgs = dict()
+        cmd = ["dnf", "repoquery", "--requires", hotpatch.nevra]
+        requires_output, return_code = cmd_output(cmd)
+        if return_code != SUCCEED:
+            return require_pkgs
+        requires_output = requires_output.split('\n')
+        for requires in requires_output:
+            if " = " not in requires:
+                continue
+            require_pkg = requires
+            pkg_name, pkg_vere = re.split(' = ', require_pkg)
+            if pkg_name == "syscare":
+                continue
+            require_pkgs[pkg_name] = pkg_vere
+        return require_pkgs
+
     def _store_advisory_info(self, advisory_kwargs: dict()):
         """
         Instantiate Cve, Hotpatch and Advisory object according to the advisory kwargs
@@ -175,24 +229,28 @@ class HotpatchUpdateInfo(object):
         advisory_cves = {}
         for cve_kwargs in advisory_references:
             cve = Cve(**cve_kwargs)
-            self._hotpatch_cves[cve.cve_id] = cve
-            advisory_cves[cve.cve_id] = cve
+
+            if cve.cve_id not in self._hotpatch_cves:
+                self._hotpatch_cves[cve.cve_id] = cve
+            advisory_cves[cve.cve_id] = self._hotpatch_cves[cve.cve_id]
+
         advisory.cves = advisory_cves
 
         for hotpatch_kwargs in advisory_hotpatches:
-            # parse the id string of the package to list
-            # e.g. parse the id of "CVE-2021-2023,CVE-2021-2024" to ["CVE-2021-2023", "CVE-2021-2024"]
-            hotpatch_ref_id = hotpatch_kwargs.pop('id')
-            hotpatch_ref_id = hotpatch_ref_id.split(',')
-
             hotpatch = Hotpatch(**hotpatch_kwargs)
             hotpatch.advisory = advisory
-            hotpatch.cves = hotpatch_ref_id
+            hotpatch.cves = advisory_cves.keys()
+            hotpatch.required_pkgs_info = self._get_hotpatch_require_pkgs_info(hotpatch)
 
             advisory.add_hotpatch(hotpatch)
 
-            for ref_id in hotpatch_ref_id:
+            for ref_id in advisory_cves.keys():
                 advisory_cves[ref_id].add_hotpatch(hotpatch)
+
+            hotpatch_vere = "%s-%s" % (hotpatch.version, hotpatch.release)
+            self._hotpatch_required_pkg_info_str.setdefault(hotpatch.required_pkgs_str, []).append(
+                [hotpatch_vere, hotpatch]
+            )
 
         self._hotpatch_advisories[advisory_kwargs['id']] = advisory
 
@@ -201,30 +259,29 @@ class HotpatchUpdateInfo(object):
         Initialize the hotpatch state
 
         each hotpatch has three states:
-        1. UNINSTALLABLE: can not be installed due to the source package version mismatch
+        1. UNINSTALLABLE: can not be installed due to the target required package version mismatch
         2. INSTALLED: has been installed and actived in syscare
         3. INSTALLABLE: can be installed
 
         """
         for advisory in self._hotpatch_advisories.values():
             for hotpatch in advisory.hotpatches:
-                src_pkg_name, src_pkg_version, src_pkg_release = hotpatch.src_pkg_nevre
-                inst_pkgs = self._inst_pkgs_query.filter(name=src_pkg_name)
-                hotpatch.state = self.UNINSTALLABLE
-                # check whether the relevant source package is installed on this machine
-                if not inst_pkgs:
-                    continue
-                for inst_pkg in inst_pkgs:
-                    inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
-                    hp_vere = '%s-%s' % (src_pkg_version, src_pkg_release)
-                    if hp_vere != inst_pkg_vere:
+                for required_pkg_name, required_pkg_vere in hotpatch.required_pkgs_info.items():
+                    inst_pkgs = self._inst_pkgs_query.filter(name=required_pkg_name)
+                    hotpatch.state = self.UNINSTALLABLE
+                    # check whether the relevant target required package is installed on this machine
+                    if not inst_pkgs:
                         continue
-                    elif self._get_hotpatch_status_in_syscare(hotpatch) in ('ACTIVED', "ACCEPTED"):
-                        hotpatch.state = self.INSTALLED
-                    else:
-                        hotpatch.state = self.INSTALLABLE
+                    for inst_pkg in inst_pkgs:
+                        inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
+                        if required_pkg_vere != inst_pkg_vere:
+                            continue
+                        elif self._get_hotpatch_aggregated_status_in_syscare(hotpatch) in ('ACTIVED', "ACCEPTED"):
+                            hotpatch.state = self.INSTALLED
+                        else:
+                            hotpatch.state = self.INSTALLABLE
 
-    def _parse_and_store_from_xml(self, updateinfoxml):
+    def _parse_and_store_from_xml(self, updateinfoxml: str):
         """
         Parse and store hotpatch update information from xxx-updateinfo.xml.gz
 
@@ -246,16 +303,16 @@ class HotpatchUpdateInfo(object):
                 <pkglist>
                 <hot_patch_collection>
                     <name>openEuler</name>
-                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP001" release="1" version="1" id="CVE-2021-1111" >
+                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP001" release="1" version="1">
                         <filename>patch-redis-6.2.5-1-HP001-1-1.aarch64.rpm</filename>
                     </package>
-                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP001" release="1" version="1" id="CVE-2021-1111">
+                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP001" release="1" version="1">
                         <filename>patch-redis-6.2.5-1-HP001-1-1.x86_64.rpm</filename>
                     </package>
-                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP002" release="1" version="1" id="CVE-2021-1111,CVE-2021-1112">
+                    <package arch="aarch64" name="patch-redis-6.2.5-1-HP002" release="1" version="1">
                         <filename>patch-redis-6.2.5-1-HP002-1-1.aarch64.rpm</filename>
                     </package>
-                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP002" release="1" version="1" id="CVE-2021-1111,CVE-2021-1112">
+                    <package arch="x86_64" name="patch-redis-6.2.5-1-HP002" release="1" version="1">
                         <filename>patch-redis-6.2.5-1-HP002-1-1.x86_64.rpm</filename>
                     </package>
                 </hot_patch_collection>
@@ -278,24 +335,30 @@ class HotpatchUpdateInfo(object):
         """
         Initialize hotpatch status from syscare
         """
-        self._hotpatch_status = Syscare().list()
-
+        self._hotpatch_status = self.syscare.list()
         self._hotpatch_state = {}
         for hotpatch_info in self._hotpatch_status:
             self._hotpatch_state[hotpatch_info['Name']] = hotpatch_info['Status']
 
-    def _get_hotpatch_status_in_syscare(self, hotpatch: Hotpatch) -> str:
+    def _get_hotpatch_aggregated_status_in_syscare(self, hotpatch: Hotpatch) -> str:
         """
-        Get hotpatch status in syscare
+        Get hotpatch aggregated status in syscare.
         """
-        if hotpatch.syscare_name not in self._hotpatch_state:
-            return ''
-        return self._hotpatch_state[hotpatch.syscare_name]
+        hotpatch_status = ''
 
-    def get_hotpatches_from_cve(self, cves: list[str]) -> dict():
+        for name, status in self._hotpatch_state.items():
+            if hotpatch.syscare_subname not in name:
+                continue
+            elif status in ('ACTIVED', 'ACCEPTED'):
+                hotpatch_status = status
+            elif status not in ('ACTIVED', 'ACCEPTED'):
+                return ''
+        return hotpatch_status
+
+    def get_hotpatches_from_cve(self, cves: list[str], priority="ACC") -> dict():
         """
-        Get hotpatches from specified cve. If there are several hotpatches for the same source package for a cve, only return the
-        hotpatch with the highest version.
+        Get hotpatches from specified cve. If there are several hotpatches for the same target required
+        package for a cve, only return the hotpatch with the highest version according to the priority.
 
         Args:
             cves: [cve_id_1, cve_id_2]
@@ -306,31 +369,73 @@ class HotpatchUpdateInfo(object):
             cve_id_2: []
         }
         """
+
         mapping_cve_hotpatches = dict()
+        if priority not in ("ACC", "SGL"):
+            return mapping_cve_hotpatches
+
         for cve_id in cves:
             mapping_cve_hotpatches[cve_id] = []
             if cve_id not in self.hotpatch_cves:
                 continue
-            # find the hotpatch with the highest version for the same source package
-            mapping_src_pkg_to_hotpatches = dict()
-            # check whether the cve is fixed
-            is_cve_fixed = False
-            for hotpatch in self.hotpatch_cves[cve_id].hotpatches:
-                if hotpatch.state == self.INSTALLED:
-                    is_cve_fixed = True
-                if hotpatch.state == self.INSTALLABLE:
-                    mapping_src_pkg_to_hotpatches.setdefault(hotpatch.src_pkg, []).append(
-                        [hotpatch.hotpatch_name, hotpatch]
-                    )
-            # do not return the releated hotpatches if the cve is fixed
-            if is_cve_fixed:
-                continue
-            for src_pkg, hotpatches in mapping_src_pkg_to_hotpatches.items():
-                # extract the number in HPxxx and sort hotpatches in descending order according to the number
-                hotpatches = sorted(hotpatches, key=lambda x: int(re.findall("\d+", x[0])[0]), reverse=True)
-                mapping_cve_hotpatches[cve_id].append(hotpatches[0][1].nevra)
+
+            self.update_mapping_cve_hotpatches(priority, mapping_cve_hotpatches, cve_id)
 
         return mapping_cve_hotpatches
+
+    def version_cmp(self, hotpatch_a: Hotpatch, hotpatch_b: Hotpatch):
+        """
+        Sort the hotpatch in descending order according to the version-release.
+        """
+        vere_a = "%s-%s" % (hotpatch_a.version, hotpatch_a.release)
+        vere_b = "%s-%s" % (hotpatch_b.version, hotpatch_b.release)
+        if self.version.larger_than(vere_a, vere_b):
+            return -1
+        if self.version.larger_than(vere_b, vere_a):
+            return 1
+        return 0
+
+    def update_mapping_cve_hotpatches(self, priority: str, mapping_cve_hotpatches: dict(), cve_id: str):
+        """
+        Update mapping_cve_hotpatches. Specifically, get the hotpatches corresponding to the cve_id, if find
+        at least one installable hotpatch, append hotpatches in mapping_cve_hotpatches for cve_id, in which
+        only the hotpatch with the highest version (priority first) for each targeted required package is
+        returned. Otherwise, do not update mapping_cve_hotpatches.
+        """
+        mapping_required_pkg_to_hotpatches = dict()
+        for hotpatch in self.hotpatch_cves[cve_id].hotpatches:
+            mapping_required_pkg_to_hotpatches.setdefault(hotpatch.required_pkgs_str, []).append(hotpatch)
+
+        # append the hotpatches corresponding to the target required package
+        for cve in self.hotpatch_cves.values():
+            for hotpatch in cve.hotpatches:
+                if hotpatch.required_pkgs_str not in mapping_required_pkg_to_hotpatches:
+                    continue
+                if hotpatch in mapping_required_pkg_to_hotpatches[hotpatch.required_pkgs_str]:
+                    continue
+                mapping_required_pkg_to_hotpatches[hotpatch.required_pkgs_str].append(hotpatch)
+
+        # find the hotpatch with the highest version for the same target required package
+        for _, hotpatches in mapping_required_pkg_to_hotpatches.items():
+            prefered_hotpatch = self.get_preferred_hotpatch(hotpatches, priority)
+            if not prefered_hotpatch:
+                continue
+            if prefered_hotpatch.state == self.INSTALLED:
+                continue
+            if prefered_hotpatch.state == self.INSTALLABLE:
+                mapping_cve_hotpatches[cve_id].append(prefered_hotpatch.nevra)
+
+    def get_preferred_hotpatch(self, hotpatches: list, priority: str):
+        """
+        Get the preferred hotpatch with priority in their name.
+        """
+        if not hotpatches:
+            return None
+        hotpatches.sort(key=cmp_to_key(self.version_cmp))
+        for hotpatch in hotpatches:
+            if priority in hotpatch.hotpatch_name:
+                return hotpatch
+        return hotpatches[0]
 
     def get_hotpatches_from_advisories(self, advisories: list[str]) -> dict():
         """

@@ -11,9 +11,20 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 class Hotpatch(object):
-    __slots__ = ['_name', '_version', '_cves', '_advisory', '_arch', '_filename', '_state']
+    __slots__ = [
+        '_name',
+        '_version',
+        '_release',
+        '_cves',
+        '_advisory',
+        '_arch',
+        '_filename',
+        '_state',
+        '_required_pkgs_info',
+        '_required_pkgs_str',
+    ]
 
-    def __init__(self, name, version, arch, filename, release=''):
+    def __init__(self, name, version, arch, filename, release):
         """
         name: str
         version: str
@@ -28,6 +39,9 @@ class Hotpatch(object):
         self._cves = []
         self._advisory = None
         self._state = ''
+        self._release = release
+        self._required_pkgs_info = dict()
+        self._required_pkgs_str = ''
 
     @property
     def state(self):
@@ -40,7 +54,7 @@ class Hotpatch(object):
     @property
     def name(self):
         """
-        name: patch-src_pkg-HPxxx
+        name: patch-src_pkg-ACC or patch-src_pkg-SGL_xxx
         """
         return self._name
 
@@ -49,14 +63,56 @@ class Hotpatch(object):
         return self._version
 
     @property
+    def release(self):
+        return self._release
+
+    @property
     def src_pkg(self):
         """
-        If the hotpatch need to be installed, the source package must be installed
+        The compiled source package for hotpatch.
 
         src_pkg: name-version-release
         """
         src_pkg = self.name[self.name.index('-') + 1 : self.name.rindex('-')]
         return src_pkg
+
+    @property
+    def required_pkgs_info(self):
+        """
+        The target fixed rpm package of the hotpatch.
+        """
+        return self._required_pkgs_info
+
+    @required_pkgs_info.setter
+    def required_pkgs_info(self, required_pkgs_info):
+        """
+        The required pkgs info are from the 'dnf repoquery --requires name-version-release.arch'. The
+        required pkgs info are considered to be truely fixed rpm package.
+
+        e.g.
+            {
+                'redis': '6.2.5-1',
+                'redis-cli': '6.2.5-1'
+            }
+        """
+
+        self._required_pkgs_info = required_pkgs_info
+        required_pkgs_str_list = []
+        # sort the _required_pkgs_info and concatenate the str to get _required_pkgs_str
+        for required_pkgs_name, required_pkgs_vere in self._required_pkgs_info.items():
+            required_pkgs_str_list.append("%s-%s" % (required_pkgs_name, required_pkgs_vere))
+        sorted(required_pkgs_str_list)
+        self._required_pkgs_str = ",".join(required_pkgs_str_list)
+
+    @property
+    def required_pkgs_str(self):
+        """
+        The truly fixed rpm package mark, which is composed of required_pkgs_info.
+
+        e.g.
+            'redis-6.2.5-1,redis-cli-6.2.5-1'
+        """
+        return self._required_pkgs_str
 
     @property
     def src_pkg_nevre(self):
@@ -88,15 +144,22 @@ class Hotpatch(object):
     @property
     def hotpatch_name(self):
         """
-        The 'hotpatch_name' is defined as HPxxx, which is used for hotpatch status querying in syscare
+        There are two types of hotpatch, ACC hotpatch and SGL hotpatch. The ACC hotpatch can be made
+        iteratively, and its 'hotpatch_name' is defined as ACC. The SGL hotpatch cannot be made iteratively,
+        and its 'hotpatch_name' is defined as SGL_xxx. The 'xxx' in the SGL_xxx means the issue it solves.
         """
         hotpatch_name = self.name[self.name.rindex('-') + 1 :]
         return hotpatch_name
 
     @property
-    def syscare_name(self):
+    def syscare_subname(self):
+        """
+        The 'syscare_subname' is used for hotpatch status querying in syscare list, which is composed of
+        'src_pkg/hotpatch_name-version-release'.
+        """
         src_pkg = '%s-%s-%s' % (self.src_pkg_nevre)
-        return '%s/%s' % (src_pkg, self.hotpatch_name)
+
+        return '%s/%s-%s-%s' % (src_pkg, self.hotpatch_name, self.version, self.release)
 
     @property
     def cves(self):
