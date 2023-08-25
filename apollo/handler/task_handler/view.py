@@ -28,6 +28,7 @@ from vulcanus.restful.resp.state import (
     PARAM_ERROR,
     DATABASE_UPDATE_ERROR,
     PARTIAL_SUCCEED,
+    NO_DATA,
 )
 from vulcanus.restful.response import BaseResponse
 
@@ -878,3 +879,60 @@ class VulCveRollbackTaskCallback(BaseResponse):
         """
         status_code = CveRollbackCallback(callback).callback(params)
         return self.response(code=status_code)
+
+
+class VulGetTaskCveRpmInfo(BaseResponse):
+    """
+    Restful interface for query cve's rpm info about cve-fix task
+    """
+
+    @staticmethod
+    def _handle(proxy: TaskProxy, task_id: str, cve_id: str) -> Tuple[str, list]:
+        """
+        Handle query cve's rpm info
+
+        Args:
+            proxy: database proxy
+            task_id
+            cve_id
+
+        Returns:
+            Tuple[str, list]
+            a tuple containing two elements (return code, rpm info list).
+        """
+        status_code, query_rows = proxy.query_task_cve_rpm_info(task_id, cve_id)
+        result = []
+        if status_code != SUCCEED:
+            return status_code, result
+
+        if len(query_rows) == 0:
+            return NO_DATA, result
+
+        tmp = {}
+        for row in query_rows:
+            tmp_key = row.installed_rpm + row.available_rpm + row.fix_way
+            if tmp_key not in tmp:
+                tmp[tmp_key] = {
+                    "installed_rpm": row.installed_rpm,
+                    "available_rpm": row.available_rpm,
+                    "fix_way": row.fix_way,
+                    "host_list": [row.host_id],
+                }
+            else:
+                tmp[tmp_key]["host_list"].append(row.host_id)
+
+        return SUCCEED, list(tmp.values())
+
+    @BaseResponse.handle(schema=TaskCveRpmInfoSchema, proxy=TaskProxy)
+    def post(self, callback: TaskProxy, **params):
+        """
+        Args:
+            task_id (str)
+            cve_id (str)
+
+        Returns:
+            dict: response body
+        """
+
+        status_code, data = self._handle(callback, params["task_id"], params["cve_id"])
+        return self.response(code=status_code, data=data)
