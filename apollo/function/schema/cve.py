@@ -76,7 +76,7 @@ class GetCveHostsSchema(PaginationSchema):
 
 class PackageInfoSchema(Schema):
     """
-    single package's info of a cve from
+    single package's info of a cve form
     """
     installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     available_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
@@ -88,7 +88,7 @@ class CveTaskHostSchemaOfCveInfo(Schema):
     cve info schema for /vulnerability/cve/task/host/get
     """
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    rpms = fields.List(fields.Nested(PackageInfoSchema), required=False)
+    rpms = fields.List(fields.Nested(PackageInfoSchema), required=True)
 
 
 class GetCveTaskHostSchema(Schema):
