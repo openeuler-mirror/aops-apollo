@@ -47,24 +47,27 @@ class CveRollbackCallback(TaskCallback):
                     ],
                     "host_ip": "172.168.63.86",
                     "host_name": "host1_12001",
-                    "status": "fail"
+                    "status": "fail",
+                    "username": "admin",
+                    "execution_time":""
             }
         """
         result = {
             "task_id": task_id,
             "host_id": host_id,
             "task_type": task_type,
-            "latest_execute_time": int(time.time()),
+            "latest_execute_time": task_result.pop("execution_time"),
             "task_result": task_result,
         }
-        self.proxy.save_task_info(task_id, host_id, log=json.dumps(result))
+        username = task_result.pop("username")
+        self.proxy.save_task_info(task_id, host_id, log=json.dumps(result), username=username)
 
-    def callback(self, cve_rollback_result: dict) -> str:
+    def callback(self, task_result: dict) -> str:
         """
         Update cve status for the host and add the progress for the cves.
 
         Args:
-            cve_rollback_result: e.g
+            task_result: e.g
                 {
                     "task_id": "string",
                     "host_id": "string",
@@ -85,25 +88,26 @@ class CveRollbackCallback(TaskCallback):
                     ],
                     "host_ip": "172.168.63.86",
                     "host_name": "host1_12001",
-                    "status": "fail"
+                    "status": "fail",
+                    "username": "admin"
                 }
 
         Returns:
             str: status code
         """
-        task_id = cve_rollback_result.pop("task_id")
-        host_id = cve_rollback_result.pop("host_id")
+        task_id = task_result.pop("task_id")
+        host_id = task_result.pop("host_id")
         self._save_result_to_es(
             task_id=task_id,
             host_id=host_id,
             task_type=TaskType.CVE_ROLLBACK,
-            task_result=cve_rollback_result,
+            task_result=task_result,
         )
         update_status_result = []
-        for cve in cve_rollback_result["cves"]:
+        for cve in task_result["cves"]:
             status_code = self.proxy.update_cve_status(task_id, cve["cve_id"], host_id, cve["result"])
             update_status_result.append(status_code)
 
-        if len(cve_rollback_result["cves"]) != len(list(filter(lambda code: code == SUCCEED, update_status_result))):
+        if len(task_result["cves"]) != len(list(filter(lambda code: code == SUCCEED, update_status_result))):
             return PARTIAL_SUCCEED
         return SUCCEED

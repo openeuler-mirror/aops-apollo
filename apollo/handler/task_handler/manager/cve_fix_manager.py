@@ -18,17 +18,11 @@ Description: Task manager for cve fixing
 
 from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import (
-    CveHostStatus,
-    VUL_TASK_CVE_FIX_CALLBACK,
-    TaskType,
-    CveProgressSettingMethod,
-    EXECUTE_CVE_FIX,
-)
+from apollo.conf.constant import VUL_TASK_CVE_FIX_CALLBACK, EXECUTE_CVE_FIX, TaskStatus
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager import Manager
 
@@ -89,44 +83,9 @@ class CveFixManager(Manager):
         pyload = self.task
 
         response = BaseResponse.get_response('POST', manager_url, pyload, header)
-        if response.get('label') != SUCCEED or not response.get("data", dict()):
+        if response.get('label') != SUCCEED:
             LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
-            return
+            self.proxy.init_cve_task(self.task_id, [], TaskStatus.UNKNOWN)
+            return TASK_EXECUTION_FAIL
 
-        LOGGER.info("Cve fixing task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("data", dict()).get("result", {}).get("task_result") or []
-
-    def post_handle(self):
-        """
-        After executing the task, parse the checking and executing result, then
-        save to database.
-        """
-        if not self.result:
-            self.fault_handle()
-            return
-        LOGGER.debug("Cve fixing task %s result: %s", self.task_id, self.result)
-
-        for host in self.result:
-            host['status'] = CveHostStatus.SUCCEED
-            for check_item in host['check_items']:
-                if not check_item.get('result'):
-                    host['status'] = CveHostStatus.FAIL
-                    break
-            if host['status'] == CveHostStatus.FAIL:
-                continue
-            if not host['cves']:
-                host['status'] = CveHostStatus.UNKNOWN
-            for cve in host['cves']:
-                if cve.get('result') is None or cve.get('result') != CveHostStatus.SUCCEED:
-                    host['status'] = CveHostStatus.FAIL
-                    break
-        self._save_result(self.result)
-        self.fault_handle()
-
-    def fault_handle(self):
-        """
-        When the task is completed or execute fail, fill the progress and set the
-        host status to 'unknown'.
-        """
-        self.proxy.set_cve_progress(self.task_id, [], CveProgressSettingMethod.FILL)
-        self.proxy.fix_task_status(self.task_id, TaskType.CVE_FIX)
+        return SUCCEED

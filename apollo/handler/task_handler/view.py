@@ -221,10 +221,12 @@ class VulGetTaskInfo(BaseResponse):
                     "code": 200,
                     "msg": "",
                     "result": {
-                        "task_name": "task",
-                        "description": "",
-                        "host_num": 15,
-                        "latest_execute_time": 11
+                        "description": "xxxxx",
+                        "host_num": 1,
+                        "latest_execute_time": 1690432440,
+                        "task_name": "CVE-xxxx-xxxx",
+                        "accept": true,
+                        "takeover": false
                     }
                 }
         """
@@ -250,12 +252,13 @@ class VulGenerateCveTask(BaseResponse):
             int: status code
             dict: body including task id
         """
-        result = {"task_id": ""}
+        result = dict(task_id=None)
 
         task_id = str(uuid.uuid1()).replace('-', '')
         args['task_id'] = task_id
         args['task_type'] = TaskType.CVE_FIX
         args['create_time'] = int(time.time())
+        args["check_items"] = ",".join(args["check_items"])
         status_code = task_proxy.generate_cve_task(args)
         if status_code != SUCCEED:
             LOGGER.error("Generate cve fix task fail, fail to save task info to database.")
@@ -577,11 +580,7 @@ class VulExecuteTask(BaseResponse):
         if not manager.pre_handle():
             return DATABASE_UPDATE_ERROR
 
-        # run the task in a thread
-        task_thread = threading.Thread(target=manager.execute_task)
-        task_thread.start()
-
-        return SUCCEED
+        return manager.execute_task()
 
     @staticmethod
     def _handle_repo(args, proxy):
@@ -725,7 +724,7 @@ class VulCveFixTaskCallback(BaseResponse):
             int: status code
         """
 
-        return CveFixCallback(proxy).callback(args['task_id'], args['host_id'], args['cves'])
+        return CveFixCallback(proxy).callback(args)
 
     @BaseResponse.handle(schema=CveFixCallbackSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):

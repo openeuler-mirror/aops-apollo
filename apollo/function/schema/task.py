@@ -218,7 +218,7 @@ class PreCheckItemsResultSchema(Schema):
 
 
 class CveFixPackageResultSchema(Schema):
-    rpm = fields.String(required=True, validate=lambda s: len(s) != 0)
+    installed_rpm = fields.String(required=True, validate=lambda s: len(s) != 0)
     result = fields.String(required=True, validate=lambda s: len(s) != 0)
     log = fields.String(required=True, validate=lambda s: len(s) != 0)
 
@@ -229,14 +229,18 @@ class CveFixResultCallbackSchema(Schema):
     rpms = fields.Nested(CveFixPackageResultSchema, many=True)
 
 
-class CveFixCallbackSchema(Schema):
+class CallbackSchma(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
-    cves = fields.Nested(CveFixResultCallbackSchema, many=True)
     host_ip = fields.IP(required=True)
     host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
+    execution_time = fields.Integer(required=True)
+
+
+class CveFixCallbackSchema(CallbackSchma):
+    check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
+    cves = fields.Nested(CveFixResultCallbackSchema, many=True)
 
 
 class RepoSetCallbackSchema(Schema):
@@ -294,14 +298,9 @@ class CveRollbackResultSchema(Schema):
     log = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
-class CveRollbackCallbackSchema(Schema):
-    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+class CveRollbackCallbackSchema(CallbackSchma):
     check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
     cves = fields.Nested(CveRollbackResultSchema, many=True)
-    host_ip = fields.IP(required=True)
-    host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
-    status = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
 __all__ = [

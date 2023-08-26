@@ -91,12 +91,6 @@ class TaskType:
         return [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET]
 
 
-class CveProgressSettingMethod:
-    ADD = "add"
-    FILL = "fill"
-    ZERO = "zero"
-
-
 class TaskStatus(CveHostStatus):
     pass
 
@@ -115,7 +109,6 @@ VUL_CVE_INFO_GET = "/vulnerability/cve/info/get"
 VUL_CVE_HOST_GET = "/vulnerability/cve/host/get"
 VUL_CVE_TASK_HOST_GET = "/vulnerability/cve/task/host/get"
 VUL_CVE_STATUS_SET = "/vulnerability/cve/status/set"
-VUL_CVE_ACTION_QUERY = "/vulnerability/cve/action/query"
 VUL_CVE_UPLOAD_ADVISORY = "/vulnerability/cve/advisory/upload"
 VUL_CVE_UPLOAD_UNAFFECTED = "/vulnerability/cve/unaffected/upload"
 VUL_EXPORT_EXCEL = "/vulnerability/cve/info/export"

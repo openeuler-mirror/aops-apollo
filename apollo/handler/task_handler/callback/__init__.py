@@ -17,6 +17,7 @@ Description: callback function of the cve task.
 """
 
 from apollo.database.proxy.task import TaskProxy
+from abc import abstractmethod
 
 
 class TaskCallback:
@@ -30,3 +31,7 @@ class TaskCallback:
             proxy (object): database proxy
         """
         self.proxy = proxy
+
+    @abstractmethod
+    def callback(self, task_result: dict) -> str:
+        """task execution result is saved"""
