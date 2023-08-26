@@ -197,21 +197,41 @@ class TaskMysqlProxy(MysqlProxy):
         Args:
             task_info (dict): task info, e.g.
                 {
-                    "status":"succeed" / "fail" / "unknown",
-                    "host_id":1,
-                    "installed_packages":[{
-                                            "name":"kernel",
-                                            "version":"0.2.3"
-                                         }],
-                    "os_version":"string",
-                    "unfixed_cves":[{
-                            "cve_id": "CVE-1-1",
-                            "support_hp": true
-                    }]，
-                    "fixed_cves":[{
-                        "cve_id": "CVE-1-1",
-                        "fixed_by_hp": true
-                    }]
+                    "task_id": "string",
+                    "host_id": "string",
+                    "host_ip": "172.168.63.86",
+                    "host_name": "host1_12001",
+                    "status": "string",
+                    "os_version": "string",
+                    "check_items":[
+                        {
+                            "item":"network",
+                            "result":true,
+                            "log":"xxxx"
+                        }
+                    ],
+                    "installed_packages": [
+                        {
+                            "name": "string",
+                            "version": true
+                        }
+                    ],
+                    "unfixed_cves":[
+                        {
+                            "cve_id": "CVE-2023-1513",
+                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
+                            "available_rpm":"kernel-4.19.90-2304.1.0.0196.oe1.x86_64",
+                            "support_way":"hotpatch/coldpatch/none"
+                        }
+                    ],
+                    "fixed_cves": [
+                        {
+                            "cve_id": "CVE-2022-4904",
+                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
+                            "fix_way": "hotpatch/coldpatch",
+                            "hp_status": "ACCEPTED/ACTIVED"
+                        }
+                    ],
                 }
         Returns:
             int: status code
@@ -222,7 +242,8 @@ class TaskMysqlProxy(MysqlProxy):
                 LOGGER.info(f"scan result failed with status {status}.")
                 return WRONG_DATA
 
-            status_code = self._save_cve_scan_result(task_info)
+            self._save_cve_scan_result(task_info)
+            status_code = self._update_host_scan("finish", [task_info["host_id"]])
             self.session.commit()
             LOGGER.debug("Finish saving scan result.")
             return status_code
@@ -238,21 +259,41 @@ class TaskMysqlProxy(MysqlProxy):
         Args:
             task_info (dict): task info, e.g.
                 {
-                    "status":"succeed" / "fail" / "unknown",
-                    "host_id":1,
-                    "installed_packages":[{
-                                            "name":"kernel",
-                                            "version":"0.2.3"
-                                         }],
-                    "os_version":"string",
-                    "unfixed_cves":[{
-                            "cve_id": "CVE-1-1",
-                            "support_hp": true
-                    }],
-                    "fixed_cves":[{
-                        "cve_id": "CVE-1-2",
-                        "fixed_by_hp": true
-                    }]
+                    "task_id": "string",
+                    "host_id": "string",
+                    "host_ip": "172.168.63.86",
+                    "host_name": "host1_12001",
+                    "status": "string",
+                    "os_version": "string",
+                    "check_items":[
+                        {
+                            "item":"network",
+                            "result":true,
+                            "log":"xxxx"
+                        }
+                    ],
+                    "installed_packages": [
+                        {
+                            "name": "string",
+                            "version": true
+                        }
+                    ],
+                    "unfixed_cves":[
+                        {
+                            "cve_id": "CVE-2023-1513",
+                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
+                            "available_rpm":"kernel-4.19.90-2304.1.0.0196.oe1.x86_64",
+                            "support_way":"hotpatch/coldpatch/none"
+                        }
+                    ],
+                    "fixed_cves": [
+                        {
+                            "cve_id": "CVE-2022-4904",
+                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
+                            "fix_way": "hotpatch/coldpatch",
+                            "hp_status": "ACCEPTED/ACTIVED"
+                        }
+                    ],
                 }
         Returns:
             int: status code
@@ -262,42 +303,48 @@ class TaskMysqlProxy(MysqlProxy):
         host_id = task_info["host_id"]
         installed_packages = [package["name"] for package in task_info["installed_packages"]]
         os_version = task_info["os_version"]
-        unfixed_cves = {cve["cve_id"]: cve["support_hp"] for cve in task_info["unfixed_cves"]}
 
-        cve_info_dict = {}
+        waiting_to_save_cve_info = []
+
         for unaffected_cve in self._query_unaffected_cve(os_version, installed_packages):
-            cve_info_dict[unaffected_cve.cve_id] = {
-                "cve_id": unaffected_cve.cve_id,
-                "host_id": host_id,
-                "affected": False,
-            }
+            waiting_to_save_cve_info.append(
+                {
+                    "cve_id": unaffected_cve.cve_id,
+                    "host_id": host_id,
+                    "affected": False,
+                }
+            )
 
-        for cve in unfixed_cves.keys():
-            cve_info_dict[cve] = {
-                "cve_id": cve,
-                "host_id": host_id,
-                "affected": True,
-                "fixed": False,
-                "support_hp": unfixed_cves[cve],
-            }
+        for unfixed_vulnerability_info in task_info.get("unfixed_cves"):
+            waiting_to_save_cve_info.append(
+                {
+                    "cve_id": unfixed_vulnerability_info.get("cve_id"),
+                    "host_id": host_id,
+                    "affected": True,
+                    "fixed": False,
+                    "support_way": unfixed_vulnerability_info.get("support_way"),
+                    "installed_rpm": unfixed_vulnerability_info.get("installed_rpm"),
+                    "available_rpm": unfixed_vulnerability_info.get("available_rpm"),
+                }
+            )
 
-        for fix_cve in task_info.get("fixed_cves", []):
-            cve_info_dict[fix_cve.get("cve_id")] = {
-                "cve_id": fix_cve.get("cve_id"),
-                "host_id": host_id,
-                "affected": True,
-                "fixed": True,
-                "fixed_by_hp": fix_cve.get("fixed_by_hp"),
-                "support_hp": None,
-                "hp_status": fix_cve.get("hp_status"),
-            }
-
+        for fixed_vulnerability_info in task_info.get("fixed_cves", []):
+            waiting_to_save_cve_info.append(
+                {
+                    "cve_id": fixed_vulnerability_info.get("cve_id"),
+                    "host_id": host_id,
+                    "affected": True,
+                    "fixed": True,
+                    "fixed_way": fixed_vulnerability_info.get("fix_way"),
+                    "installed_rpm": fixed_vulnerability_info.get("installed_rpm"),
+                    "hp_status": fixed_vulnerability_info.get("hp_status"),
+                }
+            )
         self.session.query(CveHostAssociation).filter(CveHostAssociation.host_id == host_id).delete(
             synchronize_session=False
         )
 
-        self.session.bulk_insert_mappings(CveHostAssociation, cve_info_dict.values())
-        return SUCCEED
+        self.session.bulk_insert_mappings(CveHostAssociation, waiting_to_save_cve_info)
 
     def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
         """
@@ -2024,9 +2071,8 @@ class TaskMysqlProxy(MysqlProxy):
             "task_type": TaskType.REPO_SET,
             "check_items": [],
             "repo_info": {"name": repo_name, "repo_content": repo_info["repo_data"], "dest": REPO_FILE},
-            "tasks": [dict(host_id=host["host_id"], check=False) for host in host_info["result"]],
+            "total_hosts": [host["host_id"] for host in host_info["result"]],
         }
-        task_template["total_hosts"] = [task["host_id"] for task in task_template["tasks"]]
 
         return SUCCEED, task_template
 
@@ -2128,7 +2174,7 @@ class TaskMysqlProxy(MysqlProxy):
                 self.session.query(
                     CveHostAssociation.host_id,
                     CveHostAssociation.cve_id,
-                    CveHostAssociation.support_hp,
+                    CveHostAssociation.fixed_way,
                     case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
                     case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity"),
                 )

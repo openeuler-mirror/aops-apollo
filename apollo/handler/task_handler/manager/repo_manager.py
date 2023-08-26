@@ -17,7 +17,7 @@ Description: Task manager for repo setting
 """
 from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
+from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
@@ -88,24 +88,5 @@ class RepoManager(Manager):
 
         if response.get('label') != SUCCEED:
             LOGGER.error("Set repo task %s execute failed.", self.task_id)
-            return
-
-        LOGGER.info("Set repo task %s end, begin to handle result.", self.task_id)
-        self.result = response.get("data", dict()).get("result")
-
-    def post_handle(self):
-        """
-        After executing the task, parse the checking and executing result, then
-        save to database.
-        """
-        if self.result:
-            LOGGER.debug("Set repo task %s result: %s", self.task_id, self.result)
-            task_result = self.result.get("task_result")
-            self._save_result(task_result)
-        self.fault_handle()
-
-    def fault_handle(self):
-        """
-        When the task is completed or execute fail, set the host status to 'unknown'.
-        """
-        self.proxy.fix_task_status(self.task_id, TaskType.REPO_SET)
+            return TASK_EXECUTION_FAIL
+        return SUCCEED

@@ -26,44 +26,59 @@ class CveScanCallback(TaskCallback):
     Callback function for cve scanning.
     """
 
-    def callback(self, task_info: dict) -> int:
+    def callback(self, task_result: dict) -> str:
         """
         Set the callback after the cve scan task is completed
+
         Args:
-            task_id: task id,
-            task_info: task info, e.g.:
+            task_result: single host cve scan result, e.g.
                 {
-                    "task_id": task id,
-                    "host_id": 1
-                    "status":succeed,
-                    "host_id":1,
-                    "installed_packages":[{
-                                            "name":"kernel",
-                                            "version":"0.2.3"
-                                         }],
-                    "os_version":"string",
-                    "unfixed_cves":[{
-                            "cve_id": "CVE-1-1",
-                            "support_hp": true
-                    }],
-                    "fixed_cves":[
+                    "task_id": "string",
+                    "host_id": "string",
+                    "host_ip": "172.168.63.86",
+                    "host_name": "host1_12001",
+                    "status": "string",
+                    "os_version": "string",
+                    "check_items":[
                         {
-                            "cve_id": "CVE-1-2",
-                            "fixed_by_hp": true
+                            "item":"network",
+                            "result":true,
+                            "log":"xxxx"
                         }
-                    ]
+                    ],
+                    "installed_packages": [
+                        {
+                            "name": "string",
+                            "version": true
+                        }
+                    ],
+                    "unfixed_cves":[
+                        {
+                            "cve_id": "CVE-2023-1513",
+                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
+                            "available_rpm":"kernel-4.19.90-2304.1.0.0196.oe1.x86_64",
+                            "support_way":"hotpatch/coldpatch/none"
+                        }
+                    ],
+                    "fixed_cves": [
+                        {
+                            "cve_id": "CVE-2022-4904",
+                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
+                            "fix_way": "hotpatch/coldpatch",
+                            "hp_status": "ACCEPTED/ACTIVED"
+                        }
+                    ],
                 }
 
         Returns:
             status_code: cve scan setting status
         """
-        status_code = self.proxy.save_cve_scan_result(task_info)
-        self.proxy.update_host_scan("finish", [task_info["host_id"]])
+        status_code = self.proxy.save_cve_scan_result(task_result)
 
         if status_code != SUCCEED:
             LOGGER.error(
-                f"cve scan to hosts and update cve host state failed, status: {task_info['status']},"
-                f" task id: {task_info['task_id']}."
+                f"cve scan to hosts and update cve host state failed, status: {task_result['status']},"
+                f" task id: {task_result['task_id']}."
             )
             return DATABASE_UPDATE_ERROR
 
