@@ -447,7 +447,7 @@ class CveMysqlProxy(MysqlProxy):
         result = {}
         for cve_info in cve_info_list:
             cve_id = cve_info["cve_id"]
-            if cve_info["rpms"]:
+            if cve_info.get("rpms"):
                 host_id_set = set()
                 for rpm_info in cve_info["rpms"]:
                     filtered_rows = filter(lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id and
