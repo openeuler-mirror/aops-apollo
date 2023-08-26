@@ -135,6 +135,7 @@ VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
 VUL_TASK_CVE_ROLLBACK_GENERATE = "/vulnerability/task/cve-rollback/generate"
+VUL_TASK_CVE_RPM_INFO_GET = "/vulnerability/task/cve/rpm/get"
 
 # route of callback
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"

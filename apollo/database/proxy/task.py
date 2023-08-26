@@ -3263,3 +3263,34 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         except SQLAlchemyError as error:
             LOGGER.error(error)
             return False
+
+    def query_task_cve_rpm_info(self, task_id: str, cve_id: str) -> Tuple[str, list]:
+        """
+        query cve's rpm info about cve-fix task
+
+        Args:
+            task_id(str): task id which need to query
+            cve_id(str): cve id which need to query
+
+        Returns:
+            Tuple[str, list]
+            a tuple containing two elements (return code, database query rows).
+        """
+        try:
+            rows = (
+                self.session.query(
+                    TaskCveHostAssociation.host_id,
+                    TaskCveHostRpmAssociation.installed_rpm,
+                    TaskCveHostRpmAssociation.available_rpm,
+                    TaskCveHostRpmAssociation.fix_way,
+                )
+                .join(
+                    TaskCveHostRpmAssociation,
+                    TaskCveHostAssociation.task_cve_host_id == TaskCveHostRpmAssociation.task_cve_host_id,
+                )
+                .filter(TaskCveHostAssociation.task_id == task_id, TaskCveHostAssociation.cve_id == cve_id)
+            ).all()
+            return SUCCEED, rows
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, []

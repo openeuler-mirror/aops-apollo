@@ -303,6 +303,11 @@ class CveRollbackCallbackSchema(CallbackSchma):
     cves = fields.Nested(CveRollbackResultSchema, many=True)
 
 
+class TaskCveRpmInfoSchema(Schema):
+    cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+
+
 __all__ = [
     'GetTaskListSchema',
     'GetTaskProgressSchema',
@@ -323,4 +328,5 @@ __all__ = [
     'CveScanCallbackSchema',
     'GenerateCveRollbackTaskSchema',
     'CveRollbackCallbackSchema',
+    'TaskCveRpmInfoSchema',
 ]
