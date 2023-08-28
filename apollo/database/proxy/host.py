@@ -499,7 +499,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
 
         processed_query, total_page = sort_and_page(host_cve_query, sort_column, direction, per_page, page)
         description_dict = self._get_cve_description([row.cve_id for row in processed_query])
-        cve_packages = self._get_cve_packages()
+        cve_packages = self._get_cve_packages([row.cve_id for row in processed_query])
         result['result'] = self._host_cve_row2dict(processed_query, description_dict, cve_packages)
         result['total_page'] = total_page
         result['total_count'] = total_count
@@ -569,15 +569,24 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
 
         return host_cve_query
 
-    def _get_cve_packages(self):
+    def _get_cve_packages(self, cves):
         """
-        query cve with its affected packages
+        query cve with its affected source packages
+
+        Args:
+            cves(list): cve id list which needs to query its source packages
 
         Returns:
-            sqlalchemy.orm.query.Query
+            Dict[str, set]
+            a dictionary containing the cve with its source packages set, where
+            the keys are cve id and the values are their source packages set
         """
         cve_packages = defaultdict(set)
-        query_rows = self.session.query(CveAffectedPkgs.cve_id, CveAffectedPkgs.package).all()
+        query_rows = (
+            self.session.query(CveAffectedPkgs.cve_id, CveAffectedPkgs.package)
+            .filter(CveAffectedPkgs.cve_id.in_(cves))
+            .all()
+        )
         if len(query_rows) == 0:
             return {}
 
@@ -606,7 +615,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                 "severity": row.severity,
                 "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
                 "cvss_score": row.cvss_score,
-                "packages": ",".join(cve_pkgs_dict.get(cve_id, ())),
+                "package": ",".join(list(cve_pkgs_dict.get(cve_id, ()))),
             }
             result.append(cve_info)
         return result
