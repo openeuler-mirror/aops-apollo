@@ -380,10 +380,10 @@ class CveMysqlProxy(MysqlProxy):
         # host_info_dict: {host_id1: {"host_name": "name1", "host_ip": "1.1.1.1"}
         for row in cve_task_hosts_rows:
             pkg_fixed_by_hp = True if row.fixed_way == "hotpatch" else False
-            if row.host_id not in cve_host_dict["row.cve_id"]:
-                cve_host_dict["row.cve_id"][row.host_id] = pkg_fixed_by_hp
+            if row.host_id not in cve_host_dict[row.cve_id]:
+                cve_host_dict[row.cve_id][row.host_id] = pkg_fixed_by_hp
             else:
-                cve_host_dict["row.cve_id"][row.host_id] |= pkg_fixed_by_hp
+                cve_host_dict[row.cve_id][row.host_id] |= pkg_fixed_by_hp
             if row.host_id not in host_info_dict:
                 host_info_dict[row.host_id] = {"host_name": row.host_name, "host_ip": row.host_ip}
 
@@ -451,7 +451,8 @@ class CveMysqlProxy(MysqlProxy):
                 host_id_set = set()
                 for rpm_info in cve_info["rpms"]:
                     filtered_rows = filter(lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id and
-                                                                cve_host_rpm.installed_rpm == rpm_info["installed_rpm"] and
+                                                                cve_host_rpm.installed_rpm == rpm_info[
+                                                                    "installed_rpm"] and
                                                                 cve_host_rpm.available_rpm == rpm_info["available_rpm"],
                                            cve_task_hosts_rows)
                     host_id_set |= set([row.host_id for row in filtered_rows])
@@ -666,7 +667,9 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         processed_query, total_page = sort_and_page(cve_query, sort_column, direction, per_page, page)
         description_dict = self._get_cve_description([row.cve_id for row in processed_query])
 
-        result['result'] = self._cve_list_row2dict(processed_query, description_dict)
+        cve_id_list = [row.cve_id for row in processed_query]
+        cve_package_dict = self._get_cve_packages(cve_id_list)
+        result['result'] = self._cve_list_row2dict(processed_query, description_dict, cve_package_dict)
         result['total_page'] = total_page
         result['total_count'] = total_count
 
@@ -701,26 +704,49 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             self.session.query(
                 CveHostAssociation.cve_id,
                 case([(Cve.publish_time == None, "")], else_=Cve.publish_time).label("publish_time"),
-                case([(CveAffectedPkgs.package == None, "")], else_=CveAffectedPkgs.package).label("package"),
                 case([(Cve.severity == None, "")], else_=Cve.severity).label("severity"),
                 case([(Cve.cvss_score == None, "")], else_=Cve.cvss_score).label("cvss_score"),
                 func.count(distinct(CveHostAssociation.host_id)).label("host_num"),
             )
             .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id)
             .outerjoin(Host, Host.host_id == CveHostAssociation.host_id)
-            .outerjoin(CveAffectedPkgs, CveHostAssociation.cve_id == CveAffectedPkgs.cve_id)
             .filter(*filters)
-            .group_by(CveHostAssociation.cve_id, CveAffectedPkgs.package)
+            .group_by(CveHostAssociation.cve_id)
         )
         return cve_query
 
+    def _get_cve_packages(self, cve_id_list: list) -> dict:
+        """
+        query CVEs' affected source packages
+        Args:
+            cve_id_list: cve id list
+        Returns:
+            dict: key is cve_id, value is a set
+        """
+        if not cve_id_list:
+            return {}
+
+        cve_packages = defaultdict(set)
+        query_rows = (
+            self.session.query(CveAffectedPkgs.cve_id, CveAffectedPkgs.package)
+            .filter(CveAffectedPkgs.cve_id.in_(cve_id_list))
+            .all()
+        )
+        if len(query_rows) == 0:
+            return {}
+
+        for row in query_rows:
+            cve_packages[row.cve_id].add(row.package)
+        return cve_packages
+
     @staticmethod
-    def _cve_list_row2dict(rows, description_dict):
+    def _cve_list_row2dict(rows, description_dict, cve_package_dict):
         """
         reformat queried rows to list of dict and add description for each cve
         Args:
             rows:
             description_dict (dict): key is cve's id, value is cve's description
+            cve_package_dict (dict): key is cve's id, value is cve's packages set
 
         Returns:
             list
@@ -731,7 +757,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             cve_info = {
                 "cve_id": cve_id,
                 "publish_time": row.publish_time,
-                "package": row.package,
+                "package": ",".join(list(cve_package_dict.get(cve_id, set()))),
                 "severity": row.severity,
                 "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
                 "cvss_score": row.cvss_score,
