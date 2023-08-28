@@ -263,9 +263,9 @@ class RepoSetCallbackSchema(Schema):
 
 class UnfixedCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
-    available_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
-    support_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch", "-"]), required=True)
+    installed_rpm = fields.String(required=True, validate=lambda s: 0 <= len(s) <= 100)
+    available_rpm = fields.String(required=True, validate=lambda s: 0 <= len(s) <= 100)
+    support_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch", ""]), required=True)
 
 
 class InstallPcakageInfoSchema(Schema):
@@ -276,7 +276,7 @@ class InstallPcakageInfoSchema(Schema):
 class FixedCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
-    fix_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch", "-"]), required=True)
+    fix_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch"]), required=True)
     hp_status = fields.String(validate=validate.OneOf(["ACCEPTED", "ACTIVED"]), required=False)
 
 
