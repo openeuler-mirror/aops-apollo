@@ -28,10 +28,12 @@ from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
 from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import (
+    CveBinaryPackageSchema,
     GetCveListSchema,
     GetCveInfoSchema,
     GetCveHostsSchema,
-    GetCveTaskHostSchema
+    GetCveTaskHostSchema,
+    GetGetCvePackageHostSchema,
 )
 from apollo.function.utils import make_download_response
 from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
@@ -461,3 +463,65 @@ class VulExportExcel(BaseResponse):
         if result == SUCCEED:
             return make_download_response(os.path.join(self.filepath, self.filename), self.filename)
         return self.response(code=result)
+
+
+class VulUnfixedCvePackage(BaseResponse):
+    """
+    Restful interface for get unfixed cve package
+    """
+
+    @BaseResponse.handle(proxy=CveProxy, schema=CveBinaryPackageSchema)
+    def post(self, callback: CveProxy, **params):
+        """
+        Get unfixed cve package by host
+
+        Returns:
+            dict: response body
+        """
+        status_code, unfix_cve_packages = callback.get_cve_unfixed_packages(
+            cve_id=params["cve_id"], host_ids=params.get("host_ids")
+        )
+        return self.response(code=status_code, data=unfix_cve_packages)
+
+
+class VulFixedCvePackage(BaseResponse):
+    """
+    Restful interface for get fixed cve package
+    """
+
+    @BaseResponse.handle(proxy=CveProxy, schema=CveBinaryPackageSchema)
+    def post(self, callback: CveProxy, **params):
+        """
+        Get fixed cve package by host
+
+        Returns:
+            dict: response body
+        """
+        status_code, unfix_cve_packages = callback.get_cve_fixed_packages(
+            cve_id=params["cve_id"], host_ids=params.get("host_ids")
+        )
+        return self.response(code=status_code, data=unfix_cve_packages)
+
+
+class VulGetCvePackageHost(BaseResponse):
+    """
+    Restful interface for get cve package host list
+    """
+
+    @BaseResponse.handle(proxy=CveProxy, schema=GetGetCvePackageHostSchema)
+    def post(self, callback: CveProxy, **params):
+        """
+        Get cve package host list
+
+        Args:
+            cve_id (str): cve id
+            package (str): binary package
+            direction (str): asc or desc, default asc (optional)
+            page (int): current page in front (optional)
+            per_page (int): host number of each page (optional)
+
+        Returns:
+            dict: response body
+        """
+        status_code, hosts = callback.get_cve_packages_host(params)
+        return self.response(code=status_code, data=hosts)

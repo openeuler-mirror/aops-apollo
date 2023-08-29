@@ -246,7 +246,7 @@ class CveMysqlProxy(MysqlProxy):
                 Host.host_group_name,
                 Host.repo_name,
                 Host.last_scan,
-                CveHostAssociation.fixed
+                CveHostAssociation.fixed,
             )
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id)
             .filter(Host.user == username, CveHostAssociation.cve_id == cve_id)
@@ -265,7 +265,7 @@ class CveMysqlProxy(MysqlProxy):
                 "host_ip": row.host_ip,
                 "host_group": row.host_group_name,
                 "repo": row.repo_name,
-                "last_scan": row.last_scan
+                "last_scan": row.last_scan,
             }
             result.append(host_info)
         return result
@@ -463,8 +463,13 @@ class CveMysqlProxy(MysqlProxy):
 
             host_info_list = []
             for host_id in host_id_list:
-                host_info_list.append({"host_id": host_id, "host_ip": host_info_dict[host_id]["host_ip"],
-                                       "host_name": host_info_dict[host_id]["host_name"]})
+                host_info_list.append(
+                    {
+                        "host_id": host_id,
+                        "host_ip": host_info_dict[host_id]["host_ip"],
+                        "host_name": host_info_dict[host_id]["host_name"],
+                    }
+                )
             result[cve_id] = {"package": cve_pkg_dict[cve_id], "hosts": host_info_list}
 
         return result
@@ -489,7 +494,7 @@ class CveMysqlProxy(MysqlProxy):
                 Host.host_ip,
                 CveHostAssociation.fixed_way,
                 CveHostAssociation.installed_rpm,
-                CveHostAssociation.available_rpm
+                CveHostAssociation.available_rpm,
             )
             .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id)
             .filter(CveHostAssociation.cve_id.in_(cve_list))
@@ -1385,3 +1390,231 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             return host_info.host_name, cve_list
         LOGGER.error(f"{host_id} not found in database")
         return "", cve_query
+
+    def get_cve_unfixed_packages(self, cve_id, host_ids: list):
+        """
+        Get unfixed packages of the cve
+
+        Args:
+            cve_id: cve id
+            host_ids: host list
+
+        Returns:
+            status_code: str
+            unfixed_rpms:[
+                {
+                    "installed_rpm":"kernel-5",
+                    "available_rpm":"kernel-6",
+                    "support_way": "coldpatch/hotpatch/None",
+                    "host_num": 10
+                }
+            ]
+        """
+        try:
+            status_code, unfixed_rpms = self._get_cve_unfixed_packages(cve_id, host_ids)
+            if status_code != SUCCEED:
+                LOGGER.debug("Description Failed to query unfixed rpm packages of the cve, cve id: %s" % cve_id)
+
+            return status_code, unfixed_rpms
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, []
+
+    def _get_cve_unfixed_packages(self, cve_id, host_ids):
+        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == False}
+        if host_ids:
+            filters.add(CveHostAssociation.host_id.in_(host_ids))
+
+        cve_unfixed_packages = (
+            self.session.query(
+                CveHostAssociation.installed_rpm,
+                CveHostAssociation.available_rpm,
+                CveHostAssociation.support_way,
+                func.count(CveHostAssociation.host_id).label("host_num"),
+            )
+            .filter(*filters)
+            .group_by('installed_rpm', 'available_rpm', 'support_way')
+            .all()
+        )
+        if not cve_unfixed_packages:
+            return NO_DATA, []
+
+        return SUCCEED, self._cve_unfixed_packages_row2dict(cve_unfixed_packages)
+
+    @staticmethod
+    def _cve_unfixed_packages_row2dict(rows):
+        """
+        Unfixed cve package row data converted to dictionary
+        Args:
+            rows:
+
+        Returns:
+            list
+        """
+        result = []
+        for row in rows:
+            unfix_rpm = {
+                "installed_rpm": row.installed_rpm,
+                "available_rpm": row.available_rpm,
+                "support_way": row.support_way,
+                "host_num": row.host_num,
+            }
+            result.append(unfix_rpm)
+        return result
+
+    def get_cve_fixed_packages(self, cve_id, host_ids: list):
+        """
+        Get fixed packages of the cve
+
+        Args:
+            cve_id: cve id
+            host_ids: host list
+
+        Returns:
+            status_code: str
+            fixed_rpms: [
+                        {
+                            "installed_rpm": "kernel-5",
+                            "fixed_way": "coldpatch/hotpatch_accepted/hotpatch_actived/",
+                            "host_num": 10
+                        }
+                    ]
+        """
+        try:
+            status_code, fixed_rpms = self._get_cve_fixed_packages(cve_id, host_ids)
+            if status_code != SUCCEED:
+                LOGGER.debug("Description Failed to query fixed rpm packages of the cve, cve id: %s" % cve_id)
+
+            return status_code, fixed_rpms
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, []
+
+    def _get_cve_fixed_packages(self, cve_id, host_ids):
+        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == True}
+        if host_ids:
+            filters.add(CveHostAssociation.host_id.in_(host_ids))
+
+        cve_fixed_packages = (
+            self.session.query(
+                CveHostAssociation.installed_rpm,
+                CveHostAssociation.fixed_way,
+                func.count(CveHostAssociation.host_id).label("host_num"),
+            )
+            .filter(*filters)
+            .group_by('installed_rpm', 'fixed_way')
+            .all()
+        )
+        if not cve_fixed_packages:
+            return NO_DATA, []
+
+        return SUCCEED, self._cve_fixed_packages_row2dict(cve_fixed_packages)
+
+    @staticmethod
+    def _cve_fixed_packages_row2dict(rows):
+        """
+        Fixed cve package row data converted to dictionary
+        Args:
+            rows:
+
+        Returns:
+            list
+        """
+        result = []
+        for row in rows:
+            fixed_rpm = {
+                "installed_rpm": row.installed_rpm,
+                "fixed_way": row.fixed_way,
+                "host_num": row.host_num,
+            }
+            result.append(fixed_rpm)
+        return result
+
+    def get_cve_packages_host(self, data):
+        """
+        Get cve packages host list
+
+        Args:
+            data(dict): Fix the query without passing the available_rpm field, e.g.
+                {
+                    "direction": "asc",
+                    "page": 1,
+                    "per_page": 10,
+                    "username": "admin",
+                    "cve_id": "CVE-2023-0120",
+                    "available_rpm": "kernel-4.9-ACC"/null,
+                    "installed_rpm": "kernel-4.9"
+                }
+
+        Returns:
+            str: status code
+            dict: query result. e.g.
+                {
+                    "total_count": 1,
+                    "total_page": 1,
+                    "result": [
+                        {
+                            "host_name":"主机1",
+                            "host_ip":"127.0.0.1"
+                        }
+                    ]
+                }
+        """
+        result = {}
+        try:
+            result = self._get_processed_cve_packages_host(data)
+            LOGGER.debug("Finished getting cve package host list.")
+            return SUCCEED, result
+        except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
+            LOGGER.error(error)
+            LOGGER.error("Getting cve package host list failed due to internal error.")
+            return DATABASE_QUERY_ERROR, result
+
+    def _get_processed_cve_packages_host(self, data):
+        result = {"total_count": 0, "total_page": 0, "result": []}
+        filters = {
+            CveHostAssociation.cve_id == data["cve_id"],
+            CveHostAssociation.installed_rpm == data["installed_rpm"],
+        }
+        if data.get("available_rpm"):
+            filters.add(CveHostAssociation.available_rpm == data["available_rpm"])
+        cve_package_host_query = self._query_cve_package_host(filters)
+
+        total_count = cve_package_host_query.count()
+        if not total_count:
+            return result
+
+        direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
+
+        processed_query, total_page = sort_and_page(cve_package_host_query, None, direction, per_page, page)
+
+        result['result'] = self._cve_pacakge_host_row2dict(processed_query)
+        result['total_page'] = total_page
+        result['total_count'] = total_count
+
+        return result
+
+    def _query_cve_package_host(self, filters):
+        host_id_subquery = (
+            self.session.query(
+                CveHostAssociation.host_id,
+            )
+            .filter(*filters)
+            .group_by(CveHostAssociation.host_id)
+            .subquery()
+        )
+        cve_package_host_query = self.session.query(Host.host_name, Host.host_ip).filter(
+            Host.host_id.in_(host_id_subquery)
+        )
+        return cve_package_host_query
+
+    @staticmethod
+    def _cve_pacakge_host_row2dict(rows):
+        result = []
+        for row in rows:
+            host_info = {
+                "host_name": row.host_name,
+                "host_ip": row.host_ip,
+            }
+            result.append(host_info)
+        return result
