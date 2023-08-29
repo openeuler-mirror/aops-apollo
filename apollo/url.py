@@ -39,6 +39,9 @@ SPECIFIC_URLS = {
         (cve_view.VulUploadAdvisory, VUL_CVE_UPLOAD_ADVISORY),
         (cve_view.VulUploadUnaffected, VUL_CVE_UPLOAD_UNAFFECTED),
         (cve_view.VulExportExcel, VUL_EXPORT_EXCEL),
+        (cve_view.VulUnfixedCvePackage, VUL_CVE_UNFIXED_PACKAGES),
+        (cve_view.VulFixedCvePackage, VUL_CVE_FIXED_PACKAGES),
+        (cve_view.VulGetCvePackageHost, VUL_CVE_PACKAGES_HOST),
     ],
     "CVE_HOST_URLS": [
         (cve_host_view.VulGetHostStatus, VUL_HOST_STATUS_GET),

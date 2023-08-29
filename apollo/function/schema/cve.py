@@ -78,6 +78,7 @@ class PackageInfoSchema(Schema):
     """
     single package's info of a cve form
     """
+
     installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     available_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     fix_way = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
@@ -87,6 +88,7 @@ class CveTaskHostSchemaOfCveInfo(Schema):
     """
     cve info schema for /vulnerability/cve/task/host/get
     """
+
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     rpms = fields.List(fields.Nested(PackageInfoSchema), required=True)
 
@@ -95,5 +97,26 @@ class GetCveTaskHostSchema(Schema):
     """
     validators for parameter of /vulnerability/cve/task/host/get
     """
+
     cve_list = fields.List(fields.Nested(CveTaskHostSchemaOfCveInfo), required=True, validate=lambda s: len(s) != 0)
     fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
+
+
+class CveBinaryPackageSchema(Schema):
+    """
+    validators for parameter of /vulnerability/cve/unfixed/packages/get or /vulnerability/cve/fixed/packages/get
+    """
+
+    cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    host_ids = fields.List(fields.Integer(), required=False)
+
+
+class GetGetCvePackageHostSchema(PaginationSchema):
+    """
+    validators for parameter of /vulnerability/cve/packages/host/get
+    """
+
+    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
+    cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
+    available_rpm = fields.String(required=False, validate=lambda s: 0 < len(s) <= 100)

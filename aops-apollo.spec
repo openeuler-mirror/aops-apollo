@@ -46,6 +46,8 @@ popd
 
 # install for aops-apollo
 %py3_install
+mkdir -p %{buildroot}/opt/aops/
+cp -r database %{buildroot}/opt/aops/
 
 # install for aops-apollo-tool
 pushd aops-apollo-tool
@@ -59,11 +61,12 @@ cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %files
 %doc README.*
 %attr(0644,root,root) %{_sysconfdir}/aops/apollo.ini
-%attr(0644,root,root) %{_sysconfdir}/aops/apollo_crontab.ini
+%attr(0644,root,root) %{_sysconfdir}/aops/apollo_crontab.yml
 %attr(0755,root,root) %{_bindir}/aops-apollo
 %attr(0755,root,root) %{_unitdir}/aops-apollo.service
 %{python3_sitelib}/aops_apollo*.egg-info/*
 %{python3_sitelib}/apollo/*
+%attr(0755, root, root) /opt/aops/database/*
 
 %files -n dnf-hotpatch-plugin
 %{python3_sitelib}/dnf-plugins/*

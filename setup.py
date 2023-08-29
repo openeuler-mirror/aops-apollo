@@ -36,6 +36,7 @@ setup(
         ('/etc/aops', ['conf/apollo.ini']),
         ('/etc/aops', ['conf/apollo_crontab.yml']),
         ('/usr/lib/systemd/system', ['aops-apollo.service']),
+        ("/opt/aops/database", ["database/apollo.sql"]),
     ],
     scripts=['aops-apollo'],
     zip_safe=False,

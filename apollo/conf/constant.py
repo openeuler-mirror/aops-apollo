@@ -162,3 +162,7 @@ EXECUTE_REPO_SET = '/manage/vulnerability/repo/set'
 EXECUTE_CVE_FIX = '/manage/vulnerability/cve/fix'
 EXECUTE_CVE_SCAN = '/manage/vulnerability/cve/scan'
 EXECUTE_CVE_ROLLBACK = "/manage/vulnerability/cve/rollback"
+
+VUL_CVE_UNFIXED_PACKAGES = "/vulnerability/cve/unfixed/packages/get"
+VUL_CVE_FIXED_PACKAGES = "/vulnerability/cve/fixed/packages/get"
+VUL_CVE_PACKAGES_HOST = "/vulnerability/cve/packages/host/get"
