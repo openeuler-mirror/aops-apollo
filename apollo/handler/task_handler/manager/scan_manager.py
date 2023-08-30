@@ -69,8 +69,6 @@ class ScanManager(Manager):
             "callback": VUL_TASK_CVE_SCAN_CALLBACK,
         }
 
-        _, self.last_scan_result = self.proxy.query_host_cve_info(self.username)
-
         return SUCCEED
 
     def pre_handle(self):

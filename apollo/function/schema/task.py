@@ -256,7 +256,7 @@ class RepoSetCallbackSchema(Schema):
     host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     execution_time = fields.Integer(required=True)
-    repo_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    repo = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     check_items = fields.List(fields.Nested(CheckItemsSchema(), required=False), required=False)
     log = fields.String(required=True, validate=lambda s: len(s) != 0)
 

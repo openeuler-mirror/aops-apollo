@@ -36,26 +36,20 @@ class RepoSetCallback(TaskCallback):
         Args:
             task_id(str): Unique code for identifying task
             host_id(int): host id
-            task_result(dict): repo set result and its log. e.g
-                {
-                    "result": "Succeed/Fail",
-                    "log": "set succeed / fail reason",
-                    "execution_time": 1692864499,//The timestamp of the task execution
-                }
+            task_result(dict): repo set result
 
         Return:
             None
         """
-        log = json.dumps(
-            {
-                "task_id": task_id,
-                "host_id": host_id,
-                "task_type": TaskType.REPO_SET,
-                "latest_execute_time": task_result.pop("execution_time"),
-                "task_result": task_result,
-            }
-        )
-        self.proxy.save_task_info(task_id, host_id, log)
+        username = task_result.pop("username")
+        result = {
+            "task_id": task_id,
+            "host_id": host_id,
+            "task_type": TaskType.REPO_SET,
+            "latest_execute_time": task_result.pop("execution_time"),
+            "task_result": task_result,
+        }
+        self.proxy.save_task_info(task_id, host_id, json.dumps(result), **{"username": username})
 
     def callback(self, task_result: dict) -> str:
         """
@@ -78,22 +72,17 @@ class RepoSetCallback(TaskCallback):
                         }
                     ],
                     "repo_name": "string",
-                    "log": "xxx"
+                    "log": "xxx",
+                    "username": admin
                 }
         Returns:
             status_code(str): database operation result when save repo_set result to elasticsearch and mysql
         """
-        task_id = task_result.get("task_id")
-        host_id = task_result.get("host_id")
-        data = dict(task_id=task_id, status=task_result['status'], repo_name=task_result['repo_name'])
+        task_id = task_result.pop("task_id")
+        host_id = task_result.pop("host_id")
+        data = dict(task_id=task_id, status=task_result['status'], repo_name=task_result['repo'])
         status_code = self.proxy.update_repo_host_status_and_host_reponame(data, [host_id])
-
-        to_save_result = {
-            "log": task_result["log"],
-            "result": task_result["status"],
-            "execution_time": task_result["execution_time"],
-        }
-        self._save_repo_set_result_to_es(task_id, host_id, to_save_result)
+        self._save_repo_set_result_to_es(task_id, host_id, task_result)
 
         if status_code != SUCCEED:
             LOGGER.debug(

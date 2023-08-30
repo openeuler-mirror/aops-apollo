@@ -238,11 +238,11 @@ class TaskMysqlProxy(MysqlProxy):
         """
         try:
             status = task_info["status"]
-            if status != TaskStatus.SUCCEED:
+            if status == TaskStatus.SUCCEED:
+                self._save_cve_scan_result(task_info)
+            else:
                 LOGGER.info(f"scan result failed with status {status}.")
-                return WRONG_DATA
 
-            self._save_cve_scan_result(task_info)
             status_code = self._update_host_scan("finish", [task_info["host_id"]])
             self.session.commit()
             LOGGER.debug("Finish saving scan result.")
@@ -963,7 +963,7 @@ class TaskMysqlProxy(MysqlProxy):
         filters = set()
 
         if filter_dict.get("cve_id"):
-            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+            filters.add(TaskCveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         return filters
 
     def _query_cve_task(self, username, task_id, filters):
@@ -990,8 +990,7 @@ class TaskMysqlProxy(MysqlProxy):
                 TaskCveHostAssociation.host_id,
                 TaskCveHostAssociation.status,
             )
-            .outerjoin(CveHostAssociation, CveHostAssociation.cve_id == TaskCveHostAssociation.cve_id)
-            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == TaskCveHostAssociation.cve_id)
             .outerjoin(Task, Task.task_id == TaskCveHostAssociation.task_id)
             .filter(Task.task_id == task_id, Task.username == username)
             .filter(*filters)
@@ -2459,7 +2458,6 @@ class TaskEsProxy(ElasticsearchProxy):
         task_id = data["task_id"]
 
         # task log is in the format of returned dict of func
-        # 'get_task_cve_result'
         status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
         if status_code != SUCCEED:
             return status_code, []
@@ -2527,8 +2525,7 @@ class TaskEsProxy(ElasticsearchProxy):
         task_id = data["task_id"]
         host_list = data["host_list"]
         # task log is in the format of returned dict of func
-        # 'get_task_cve_result'
-        status_code, task_log = self.get_task_log_info(task_id, username)
+        status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
         if status_code != SUCCEED:
             return status_code, []
 
@@ -2632,7 +2629,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         host_set = set()
         for task_info in cve_host_info:
             wait_fix_rpms[task_info["cve_id"]] = dict(
-                rpms=task_info["rpms"], host_ids=[host['host_id'] for host in task_info["host_info"]]
+                rpms=task_info.get("rpms", []), host_ids=[host['host_id'] for host in task_info["host_info"]]
             )
 
             for host in task_info["host_info"]:
@@ -2642,8 +2639,12 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                     self._task_cve_host_row_dict(task_cve_host_id, task_id, task_info["cve_id"], host)
                 )
         data["host_num"] = len(host_set)
-        task_package_rows = self._gen_task_cve_host_rpm_rows(wait_fix_rpms, task_id)
+        task_package_rows, wait_rm_cve_host = self._gen_task_cve_host_rpm_rows(wait_fix_rpms, task_id)
         # insert data into mysql tables
+        if wait_rm_cve_host:
+            task_cve_host_rows = list(
+                filter(lambda cve_host: cve_host["task_cve_host_id"] not in wait_rm_cve_host, task_cve_host_rows)
+            )
         self._insert_cve_task_tables(data, task_package_rows, task_cve_host_rows)
 
     def _gen_task_cve_host_rpm_rows(self, fix_rpms: dict, task_id) -> list:
@@ -2674,16 +2675,19 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             task_id: task id
         """
         task_package_rows = []
-
+        wait_rm_cve_host = []
         for cve_id, host_rpms in fix_rpms.items():
             host_cve_packages = self._get_host_cve_packages(cve_id, host_rpms)
             for host_id, cve_packages in host_cve_packages.items():
                 task_cve_host_id = hash_value(text=task_id + cve_id + str(host_id))
+                if not cve_packages:
+                    wait_rm_cve_host.append(task_cve_host_id)
+                    continue
                 for pacakge in cve_packages:
                     wait_fix_rpm = copy.deepcopy(pacakge)
                     wait_fix_rpm.update(dict(task_cve_host_id=task_cve_host_id))
                     task_package_rows.append(wait_fix_rpm)
-        return task_package_rows
+        return task_package_rows, wait_rm_cve_host
 
     def _get_host_cve_packages(self, cve_id, host_rpms: dict):
         """
@@ -2735,7 +2739,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 filter_host_package = filter(
                     lambda host_package: host_package.installed_rpm in host_rpm_dict, filter_host_package
                 )
-            installed_rpm = self._filter_installed_rpm(filter_host_package, host_rpm_dict)
+            installed_rpm = self._filter_installed_rpm(list(filter_host_package), host_rpm_dict)
             cve_host_package_dict[host_id] = installed_rpm
 
         return cve_host_package_dict
@@ -2762,6 +2766,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         # If the rpm package is not selected, query all rpm packages affected by cve on a host
         if not host_rpm_dict:
             for package in host_packages:
+                if not package.available_rpm:
+                    continue
                 if package.installed_rpm in host_rpm_dict:
                     host_rpm_dict[package.installed_rpm].append(package.available_rpm)
                 else:
@@ -2769,11 +2775,13 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         for install_rpm, available_rpms in host_rpm_dict.items():
             package = self._priority_fix_package(host_packages, install_rpm, available_rpms)
+            if not package:
+                continue
             cve_host_packages.append(
                 dict(
                     installed_rpm=package.installed_rpm,
                     available_rpm=package.available_rpm,
-                    fix_way=package.fixed_way,
+                    fix_way=package.support_way,
                 )
             )
 
