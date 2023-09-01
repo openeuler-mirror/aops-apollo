@@ -18,12 +18,14 @@ import dnf.exceptions
 import hawkey
 from dnf.cli import commands
 from dnf.cli.option_parser import OptionParser
+
 # from dnf.cli.output import Output
 from dnfpluginscore import _, logger
 
 from .hot_updateinfo import HotUpdateinfoCommand
 from .updateinfo_parse import HotpatchUpdateInfo
 from .syscare import Syscare
+from .version import Versions
 
 EMPTY_TAG = "-"
 
@@ -44,6 +46,9 @@ class HotupgradeCommand(dnf.cli.Command):
             help=_('Package to upgrade'),
             action=OptionParser.ParseSpecGroupFileCallback,
             metavar=_('PACKAGE'),
+        )
+        parser.add_argument(
+            "--takeover", default=False, action='store_true', help=_('kernel cold patch takeover operation')
         )
 
     def configure(self):
@@ -68,6 +73,7 @@ class HotupgradeCommand(dnf.cli.Command):
             cve_pkgs = self.get_hotpatch_based_on_cve(self.opts.cves)
             advisory_pkgs = self.get_hotpatch_based_on_advisory(self.opts.advisory)
             self.hp_list = cve_pkgs + advisory_pkgs
+
         else:
             self.hp_list = self.get_hotpatch_of_all_cve()
             if self.hp_list:
@@ -83,7 +89,7 @@ class HotupgradeCommand(dnf.cli.Command):
             self._remove_hot_patches(applied_old_patches)
         else:
             self.syscare.save()
-        success = self._install_hot_patch(list(available_hp_dict.keys()))
+        success = self._install_rpm_pkg(list(available_hp_dict.keys()))
         if not success:
             logger.info(_("Error: Install hot patch failed, try to rollback."))
             output, status = self.syscare.restore()
@@ -91,6 +97,9 @@ class HotupgradeCommand(dnf.cli.Command):
                 raise dnf.exceptions.Error(_('Roll back failed.'))
             logger.info(_("Roll back succeed."))
             return
+
+        if self.opts.takeover:
+            self.takeover_operation()
         return
 
     def run_transaction(self) -> None:
@@ -104,12 +113,18 @@ class HotupgradeCommand(dnf.cli.Command):
         if not self.base.transaction:
             for hp in self.hp_list:
                 self._apply_hp(hp)
+                if self.opts.takeover and self.is_need_accept_kernel_hp:
+                    self._accept_kernel_hp(hp)
             return
 
         for ts_item in self.base.transaction:
             if ts_item.action not in dnf.transaction.FORWARD_ACTIONS:
                 continue
+            if not str(ts_item.pkg).startswith("patch"):
+                continue
             self._apply_hp(str(ts_item.pkg))
+            if self.opts.takeover and self.is_need_accept_kernel_hp:
+                self._accept_kernel_hp(str(ts_item.pkg))
 
     def _apply_hp(self, hp_full_name):
         pkg_info = self._parse_hp_name(hp_full_name)
@@ -131,8 +146,9 @@ class HotupgradeCommand(dnf.cli.Command):
             str
         """
         hp_subname = (
-            "-".join([pkg_info["target_name"], pkg_info["target_version"], pkg_info["target_release"]]) + '/' +
-            "-".join([pkg_info["hp_name"], pkg_info["hp_version"], pkg_info["hp_release"]])
+            "-".join([pkg_info["target_name"], pkg_info["target_version"], pkg_info["target_release"]])
+            + '/'
+            + "-".join([pkg_info["hp_name"], pkg_info["hp_version"], pkg_info["hp_release"]])
         )
         return hp_subname
 
@@ -264,8 +280,9 @@ class HotupgradeCommand(dnf.cli.Command):
             dict: rpm info. {"target_name": "", "target_version": "", "target_release": "", "hp_name": "",
                              "hp_version": "", "hp_release": ""}
         """
-        hp_filename_format = ("patch-{pkg_name}-{pkg_version}-{pkg_release}-{patch_name}-"
-                              "{patch_version}-{patch_release}.{arch}")
+        hp_filename_format = (
+            "patch-{pkg_name}-{pkg_version}-{pkg_release}-{patch_name}-" "{patch_version}-{patch_release}.{arch}"
+        )
 
         remove_suffix_filename = hp_filename.rsplit(".", 1)[0]
         splitted_hp_filename = remove_suffix_filename.split('-')
@@ -276,18 +293,22 @@ class HotupgradeCommand(dnf.cli.Command):
                 "target_name": "-".join(splitted_hp_filename[1:-5]),
                 "hp_name": splitted_hp_filename[-3],
                 "hp_version": splitted_hp_filename[-2],
-                "hp_release": splitted_hp_filename[-1]
+                "hp_release": splitted_hp_filename[-1],
             }
         except IndexError as e:
-            raise dnf.exceptions.Error(_("Parse hot patch name failed. Please insert correct hot patch name "
-                                         "with the format: \n %s" % hp_filename_format))
+            raise dnf.exceptions.Error(
+                _(
+                    "Parse hot patch name failed. Please insert correct hot patch name "
+                    "with the format: \n %s" % hp_filename_format
+                )
+            )
         return rpm_info
 
-    def _install_hot_patch(self, pkg_specs: list) -> bool:
+    def _install_rpm_pkg(self, pkg_specs: list) -> bool:
         """
-        install hot patches
+        install rpm package
         Args:
-            pkg_specs: hot patches' full name
+            pkg_specs: rpm package's full name
 
         Returns:
             bool
@@ -378,3 +399,93 @@ class HotupgradeCommand(dnf.cli.Command):
             if display_line[3] != EMPTY_TAG:
                 cve_set.add(display_line[0])
         return list(cve_set)
+
+    def takeover_operation(self):
+        """
+        process takeover operation.
+        """
+        kernel_coldpatch = self.get_target_installed_kernel_coldpatch_of_hotpatch()
+        self.is_need_accept_kernel_hp = False
+        if kernel_coldpatch:
+            logger.info(_("Gonna takeover kernel cold patch: ['%s']" % kernel_coldpatch))
+            success = self._install_rpm_pkg([kernel_coldpatch])
+            if success:
+                return
+            logger.info(_("Takeover operation failed."))
+        else:
+            logger.info(_('No kernel cold patch matched for takeover.'))
+        self.is_need_accept_kernel_hp = True
+        logger.info(
+            _(
+                'To maintain the effectiveness of kernel hot patch after rebooting, gonna accept available kernel hot patch.'
+            )
+        )
+        return
+
+    def get_target_installed_kernel_coldpatch_of_hotpatch(self) -> str:
+        """
+        get the highest kernel cold patch of hot patch in "dnf hot-updateinfo list cves", if the corresponding
+        kernel cold patch exists.
+
+        Returns:
+            str: full name of cold patch. e.g. kernel-5.10.0-1.x86_64
+        """
+        hp_hawkey = HotpatchUpdateInfo(self.cli.base, self.cli)
+        hot_updateinfo = HotUpdateinfoCommand(self.cli)
+        hot_updateinfo.opts = self.opts
+        hot_updateinfo.hp_hawkey = hp_hawkey
+        hot_updateinfo.filter_cves = None
+        all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
+        kernel_highest_vere = ""
+        target_kernel_coldpatch = None
+        version = Versions()
+        for display_line in all_cves.display_lines:
+            if display_line[3] not in self.hp_list:
+                continue
+            kernel_pkg_spec = display_line[2]
+            if kernel_pkg_spec == EMPTY_TAG:
+                continue
+            pkg_name, pkg_ver = self._get_pkg_name_and_ver(kernel_pkg_spec)
+            if pkg_name != "kernel":
+                continue
+            if kernel_highest_vere == "":
+                kernel_highest_vere = pkg_ver
+                target_kernel_coldpatch = kernel_pkg_spec
+                continue
+            if version.larger_than(kernel_highest_vere, pkg_ver):
+                kernel_highest_vere = pkg_ver
+                target_kernel_coldpatch = kernel_pkg_spec
+
+        return target_kernel_coldpatch
+
+    def _get_pkg_name_and_ver(self, pkg_spec: str):
+        """
+        get the "name" and "version-release" string of package.
+
+        Args:
+            str: pkg_specs: full name of cold patch. e.g. kernel-5.10.0-1.x86_64
+        """
+        subj = dnf.subject.Subject(pkg_spec)
+        parsed_nevras = subj.get_nevra_possibilities(forms=[hawkey.FORM_NEVRA])
+        if len(parsed_nevras) != 1:
+            logger.info(_('Cannot parse NEVRA for package "{nevra}"').format(nevra=pkg_spec))
+            return ""
+        parsed_nevra = parsed_nevras[0]
+        return parsed_nevra.name, "%s-%s" % (parsed_nevra.version, parsed_nevra.release)
+
+    def _accept_kernel_hp(self, hp_full_name: str):
+        """
+        accept kernel hot patch
+
+        Args:
+            str: hp_full_name: full name of hot patch. e.g. patch-kernel-5.10.0-1-ACC-1-1.x86_64
+        """
+        pkg_info = self._parse_hp_name(hp_full_name)
+        if pkg_info['target_name'] != "kernel":
+            return
+        hp_subname = self._get_hp_subname_for_syscare(pkg_info)
+        output, status = self.syscare.accept(hp_subname)
+        if status:
+            logger.info(_('Accept kernel hot patch failed: %s.'), hp_subname)
+        else:
+            logger.info(_('Accept kernel hot patch succeed: %s.'), hp_subname)
