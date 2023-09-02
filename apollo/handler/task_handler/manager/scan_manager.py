@@ -17,10 +17,12 @@ Description: Task manager for cve scanning.
 """
 import re
 import time
+from collections import defaultdict
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from io import BytesIO
+from typing import List
 
 from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
@@ -30,6 +32,7 @@ from vulcanus.send_email import Email
 
 from apollo.conf import configuration
 from apollo.conf.constant import EXECUTE_CVE_SCAN, VUL_TASK_CVE_SCAN_CALLBACK
+from apollo.database.proxy.task import TaskProxy
 from apollo.handler.task_handler.manager import Manager
 
 
@@ -69,8 +72,6 @@ class ScanManager(Manager):
             "callback": VUL_TASK_CVE_SCAN_CALLBACK,
         }
 
-        _, self.last_scan_result = self.proxy.query_host_cve_info(self.username)
-
         return SUCCEED
 
     def pre_handle(self):
@@ -107,6 +108,16 @@ class ScanManager(Manager):
             return TASK_EXECUTION_FAIL
         return SUCCEED
 
+
+class EmailNoticeManager:
+    """
+    email notice method manager
+    """
+
+    def __init__(self, username: str, proxy: TaskProxy) -> None:
+        self.username = username
+        self.proxy = proxy
+
     def send_email_to_user(self) -> None:
         """
         send email to user with cve scan result
@@ -120,7 +131,7 @@ class ScanManager(Manager):
         # Get user email address
         status, receiver = self.proxy.query_user_email(self.username)
         if status != SUCCEED:
-            LOGGER.warning("Query user email address failed!Can't send email")
+            LOGGER.warning(f"Query {self.username} email address failed!Can't send email")
             return
 
         # Generate email body
@@ -142,7 +153,7 @@ class ScanManager(Manager):
             MIMEMultipart: Mail Object
         """
         message = MIMEMultipart('mixed')
-        status, rows = self.proxy.query_host_cve_info(self.username)
+        status, host_cve_info_list = self.proxy.query_host_cve_info(self.username)
         if status != SUCCEED:
             return message
 
@@ -152,7 +163,7 @@ class ScanManager(Manager):
         message['To'] = receivers
 
         # set email text content and file content
-        file, table_data = self._generate_cve_info_file(rows)
+        file, table_data = self._generate_cve_info_file(host_cve_info_list)
 
         body_head = "<p>下表为各主机CVE扫描结果简略统计表：</p>"
         body_tail = (
@@ -174,42 +185,61 @@ class ScanManager(Manager):
 
         return message
 
-    def _generate_cve_info_file(self, rows) -> tuple:
+    def _generate_cve_info_file(self, host_cve_info_list: List[dict]) -> tuple:
         """
         Generate CSV files and email content for cve information
 
         Args:
-            rows: Information on host and cve found from the database
+            host_cve_info_list(list): Information on host and cve found from the database.e.g
+                {
+                    "host_id": 1,
+                    "host_ip": "127.0.0.1",
+                    "host_name": "client",
+                    "cve_id": "CVE-XXXX-XXXX",
+                    "cvss_score": 7.5,
+                    "severity": "Important",
+                    "installed_rpm": "rpm-name-6.2.5-1.x86_64",
+                    "source_package": {"rpm-name.src.rpm"},
+                    "available_rpms": {"rpm-name-6.2.5-2.x86_64","patch-rpm-name-6.2.5-1-ACC...."},
+                    "support_ways": {"hotpatch", "coldpatch"},
+                }
 
         Return:
             BytesIO: Generate CSV files
             list: email content for cve information
         """
-        tmp = {}
+        host_cve_count, host_info = defaultdict(set), {}
         chart_data = []
-        file_content = "序号,CVE_ID,主机IP,主机名称,CVSS评分,评分级别,是否支持热补丁\n"
+        file_content = "序号,主机IP,主机名称,CVE_ID,CVSS评分,评分级别,受影响软件包(source),受影响软件包(rpm),可安装修复包,修复方式\n"
         excel_row_num = 1
-        for row in rows:
-            if row.host_ip in tmp:
-                tmp[row.host_ip]["count"] += 1
-                file_content += (
-                    f"{excel_row_num},{row.cve_id},{row.host_ip},"
-                    f"{row.host_name},{row.cvss_score},{row.severity},{'是' if row.support_hp else '否'}\n"
-                )
-                excel_row_num += 1
-            else:
-                if row.cve_id is not None:
-                    tmp[row.host_ip] = {"count": 1, "host_name": row.host_name}
-                    file_content += (
-                        f"{excel_row_num},{row.cve_id},{row.host_ip},"
-                        f"{row.host_name},{row.cvss_score},{row.severity}\n"
-                    )
-                    excel_row_num += 1
-                else:
-                    tmp[row.host_ip] = {"count": 0, "host_name": row.host_name}
 
-        for num, host_ip in enumerate(tmp.keys(), 1):
-            chart_data.append([num, tmp[host_ip].get("host_name"), host_ip, tmp[host_ip].get("count")])
+        for info in host_cve_info_list:
+            if info["host_id"] not in host_info:
+                host_info[info["host_id"]] = (info["host_name"], info["host_ip"])
+
+            if info.get("cve_id"):
+                host_cve_count[info["host_id"]].add(info["cve_id"])
+            else:
+                host_cve_count[info["host_id"]]
+                continue
+
+            file_content += (
+                f'{excel_row_num},{info["host_ip"]},{info["host_name"]},{info["cve_id"]},{info["cvss_score"]},'
+                f'{info["severity"]},{";".join(info["source_package"])},{info["installed_rpm"]},'
+                f'{";".join(info["available_rpms"])},{";".join(info["support_ways"])},\n'
+            )
+            excel_row_num += 1
+
+        for serial_number, host_cve_count_info in enumerate(host_cve_count.items(), 1):
+            host_id = host_cve_count_info[0]
+            chart_data.append(
+                [
+                    serial_number,
+                    host_info.get(host_id)[0],
+                    host_info.get(host_id)[1],
+                    len(host_cve_count_info[1]),
+                ]
+            )
 
         return self._generate_file_object(file_content), chart_data
 

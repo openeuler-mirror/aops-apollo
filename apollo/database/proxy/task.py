@@ -20,7 +20,7 @@ import json
 import math
 from collections import defaultdict
 from time import time
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
@@ -2154,11 +2154,11 @@ class TaskMysqlProxy(MysqlProxy):
         except SQLAlchemyError as error:
             LOGGER.error(error)
             LOGGER.error("update task_cve_host table status failed.")
-            return DATABASE_QUERY_ERROR
+            return DATABASE_QUERY_ERROR, ""
 
         return SUCCEED, user.email
 
-    def query_host_cve_info(self, username: str) -> tuple:
+    def query_host_cve_info(self, username: str) -> Tuple[str, list]:
         """
         query cve info with host info from database
 
@@ -2166,35 +2166,113 @@ class TaskMysqlProxy(MysqlProxy):
             username (str)
 
         Returns:
-            str: status code
-            rows: query rows
+            Tuple[str, list]
+            a tuple containing two elements (status code, host with its cve info list).
         """
         try:
-            subquery = (
-                self.session.query(
-                    CveHostAssociation.host_id,
-                    CveHostAssociation.cve_id,
-                    CveHostAssociation.fixed_way,
-                    case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
-                    case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity"),
-                )
-                .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id)
-                .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed == False)
-                .subquery()
-            )
-
-            rows = (
-                self.session.query(Host.host_ip, Host.host_name, subquery)
-                .outerjoin(subquery, Host.host_id == subquery.c.host_id)
-                .filter(Host.user == username)
-                .all()
-            )
+            host_cve_info_list = self._quer_processed_host_cve_info(username)
         except SQLAlchemyError as error:
             LOGGER.error(error)
             LOGGER.error("update task_cve_host table status failed.")
             return DATABASE_QUERY_ERROR, []
 
-        return SUCCEED, rows
+        return SUCCEED, host_cve_info_list
+
+    def _quer_processed_host_cve_info(self, username: str) -> List[dict]:
+        """
+        query and process host with its cve info
+
+        Args:
+            username(str)
+
+        Returns:
+            list: host cve info list. e.g
+                [{
+                    "host_id": 1,
+                    "host_ip": "127.0.0.1",
+                    "host_name": "client",
+                    "cve_id": "CVE-XXXX-XXXX",
+                    "cvss_score": 7.5,
+                    "severity": "Important",
+                    "installed_rpm": "rpm-name-6.2.5-1.x86_64",
+                    "source_package": {"rpm-name.src.rpm"},
+                    "available_rpms": {"rpm-name-6.2.5-2.x86_64","patch-rpm-name-6.2.5-1-ACC...."},
+                    "support_ways": {"hotpatch", "coldpatch"},
+                }]
+        """
+        subquery = (
+            self.session.query(
+                CveHostAssociation.host_id,
+                CveHostAssociation.cve_id,
+                CveHostAssociation.installed_rpm,
+                CveHostAssociation.available_rpm,
+                CveHostAssociation.support_way,
+                case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
+                case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity"),
+                case([(CveAffectedPkgs.package == None, "-")], else_=CveAffectedPkgs.package).label("package"),
+            )
+            .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id)
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)
+            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed == False)
+            .subquery()
+        )
+
+        query_rows = (
+            self.session.query(
+                Host.host_ip,
+                Host.host_name,
+                subquery.c.host_id,
+                subquery.c.cve_id,
+                subquery.c.installed_rpm,
+                func.ifnull(subquery.c.available_rpm, "-").label("available_rpm"),
+                func.ifnull(subquery.c.support_way, "-").label("support_way"),
+                subquery.c.cvss_score,
+                subquery.c.severity,
+                func.ifnull(subquery.c.package, "-").label("package"),
+            )
+            .outerjoin(subquery, Host.host_id == subquery.c.host_id)
+            .filter(Host.user == username)
+            .all()
+        )
+
+        host_cve_info = self._host_cve_info_rows_to_dict(query_rows)
+        return host_cve_info
+
+    @staticmethod
+    def _host_cve_info_rows_to_dict(rows: list) -> List[dict]:
+        """
+        turn query rows to dict
+
+        Args:
+            rows(list): sqlalchemy query result list
+
+        Returns:
+            list
+        """
+        result = dict()
+
+        for row in rows:
+            key = f"{row.host_id}-{row.cve_id}-{row.installed_rpm}"
+
+            if key in result:
+                result[key]["available_rpms"].add(row.available_rpm)
+                result[key]["support_ways"].add(row.support_way)
+                result[key]["source_package"].add(row.package)
+            else:
+                result[key] = {
+                    "host_id": row.host_id,
+                    "host_ip": row.host_ip,
+                    "host_name": row.host_name,
+                    "cve_id": row.cve_id,
+                    "cvss_score": row.cvss_score,
+                    "severity": row.severity,
+                    "installed_rpm": row.installed_rpm,
+                    "source_package": {row.package},
+                    "available_rpms": {row.available_rpm},
+                    "support_ways": {row.support_way},
+                }
+
+        return list(result.values())
 
     def get_cve_rollback_task_info(self, task_id):
         """

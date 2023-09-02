@@ -72,6 +72,7 @@ SPECIFIC_URLS = {
         (cve_task_view.VulRepoSetTaskCallback, VUL_TASK_REPO_SET_CALLBACK),
         (cve_task_view.VulCveScanTaskCallback, VUL_TASK_CVE_SCAN_CALLBACK),
         (cve_task_view.VulCveRollbackTaskCallback, VUL_TASK_CVE_ROLLBACK_CALLBACK),
+        (cve_task_view.VulCveScanNotice, VUL_TASK_CVE_SCAN_NOTICE),
     ],
 }
 

@@ -43,7 +43,7 @@ from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.manager.cve_rollback_manager import CveRollbackManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
-from apollo.handler.task_handler.manager.scan_manager import ScanManager
+from apollo.handler.task_handler.manager.scan_manager import ScanManager, EmailNoticeManager
 
 
 class VulScanHost(BaseResponse):
@@ -919,3 +919,14 @@ class VulGetTaskCveRpmInfo(BaseResponse):
 
         status_code, data = self._handle(callback, params["task_id"], params["cve_id"])
         return self.response(code=status_code, data=data)
+
+
+class VulCveScanNotice(BaseResponse):
+    @BaseResponse.handle(proxy=TaskProxy)
+    def post(self, callback: TaskProxy, **params):
+        """
+        Restful interface for email notifications
+        """
+        manager = EmailNoticeManager(params["username"], callback)
+        manager.send_email_to_user()
+        return self.response(code=SUCCEED)
