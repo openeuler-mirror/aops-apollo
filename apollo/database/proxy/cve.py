@@ -385,7 +385,11 @@ class CveMysqlProxy(MysqlProxy):
             else:
                 cve_host_dict[row.cve_id][row.host_id] |= pkg_fixed_by_hp
             if row.host_id not in host_info_dict:
-                host_info_dict[row.host_id] = {"host_name": row.host_name, "host_ip": row.host_ip}
+                host_info_dict[row.host_id] = {
+                    "host_id": row.host_id,
+                    "host_name": row.host_name,
+                    "host_ip": row.host_ip,
+                }
 
         # query cve affected source pacakge
         queried_cve_list = list(cve_host_dict.keys())

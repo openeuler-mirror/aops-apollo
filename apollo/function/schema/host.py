@@ -88,6 +88,7 @@ class HostCvesFilterSchema(Schema):
     cve_id = fields.String(required=False, validate=lambda s: len(s) != 0)
     severity = fields.List(fields.String(validate=validate.OneOf(CveSeverity.attribute())), required=False)
     affected = fields.Boolean(required=False, default=True)
+    package = fields.String(required=False, validate=lambda s: 0 < len(s) <= 40)
     fixed = fields.Boolean(validate=validate.OneOf([True, False]))
 
 
