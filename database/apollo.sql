@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS `task_cve_host`  (
   `host_id` int(11) NOT NULL,
   `host_name` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `host_ip` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
   `hotpatch` tinyint(4) NULL DEFAULT NULL,
   PRIMARY KEY (`task_cve_host_id`) USING BTREE,
   INDEX `task_cve_host_vul_fk1`(`task_id`) USING BTREE
