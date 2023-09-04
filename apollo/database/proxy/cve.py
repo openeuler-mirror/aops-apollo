@@ -450,11 +450,12 @@ class CveMysqlProxy(MysqlProxy):
             if cve_info.get("rpms"):
                 host_id_set = set()
                 for rpm_info in cve_info["rpms"]:
-                    filtered_rows = filter(lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id and
-                                                                cve_host_rpm.installed_rpm == rpm_info[
-                                                                    "installed_rpm"] and
-                                                                cve_host_rpm.available_rpm == rpm_info["available_rpm"],
-                                           cve_task_hosts_rows)
+                    filtered_rows = filter(
+                        lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id
+                        and cve_host_rpm.installed_rpm == rpm_info["installed_rpm"]
+                        and cve_host_rpm.available_rpm == rpm_info["available_rpm"],
+                        cve_task_hosts_rows,
+                    )
                     host_id_set |= set([row.host_id for row in filtered_rows])
                 host_id_list = list(host_id_set)
             else:
@@ -1421,7 +1422,11 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             return DATABASE_QUERY_ERROR, []
 
     def _get_cve_unfixed_packages(self, cve_id, host_ids):
-        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == False}
+        filters = {
+            CveHostAssociation.cve_id == cve_id,
+            CveHostAssociation.fixed == False,
+            CveHostAssociation.available_rpm != "",
+        }
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))
 

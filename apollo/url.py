@@ -66,6 +66,7 @@ SPECIFIC_URLS = {
         (cve_task_view.VulDeleteTask, VUL_TASK_DELETE),
         (cve_task_view.VulGenerateCveRollback, VUL_TASK_CVE_ROLLBACK_GENERATE),
         (cve_task_view.VulGetTaskCveRpmInfo, VUL_TASK_CVE_RPM_INFO_GET),
+        (cve_task_view.VulTaskCveRpmHost, VUL_TASK_CVE_RPM_HOST),
     ],
     "CVE_TASK_CALLBACK_URLS": [
         (cve_task_view.VulCveFixTaskCallback, VUL_TASK_CVE_FIX_CALLBACK),

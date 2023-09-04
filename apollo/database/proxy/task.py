@@ -737,6 +737,8 @@ class TaskMysqlProxy(MysqlProxy):
             return TaskStatus.RUNNING
         if TaskStatus.UNKNOWN in status_set:
             return TaskStatus.UNKNOWN
+        if None in status_set:
+            return TaskStatus.UNKNOWN
         if TaskStatus.FAIL in status_set:
             return TaskStatus.FAIL
         return TaskStatus.SUCCEED
@@ -1281,9 +1283,11 @@ class TaskMysqlProxy(MysqlProxy):
                 status = TaskStatus.UNKNOWN
             elif row.fail:
                 status = TaskStatus.FAIL
+            elif row.none:
+                status = TaskStatus.UNKNOWN
             else:
                 status = TaskStatus.SUCCEED
-            result[cve_id] = {"progress": row.progress, "status": status}
+            result[cve_id] = {"progress": row.total - row.running - row.none, "status": status}
 
         succeed_list = list(result.keys())
         fail_list = list(set(cve_list) - set(succeed_list))
@@ -1319,7 +1323,8 @@ class TaskMysqlProxy(MysqlProxy):
                 func.sum(case([(TaskCveHostAssociation.status == TaskStatus.RUNNING, 1)], else_=0)).label("running"),
                 func.sum(case([(TaskCveHostAssociation.status == TaskStatus.UNKNOWN, 1)], else_=0)).label("unknown"),
                 func.sum(case([(TaskCveHostAssociation.status == TaskStatus.FAIL, 1)], else_=0)).label("fail"),
-                func.sum(case([(TaskCveHostAssociation.status == TaskStatus.RUNNING, 0)], else_=1)).label("progress"),
+                func.sum(case([(TaskCveHostAssociation.status == None, 1)], else_=0)).label("none"),
+                func.count().label("total"),
             )
             .join(Task, Task.task_id == TaskCveHostAssociation.task_id)
             .filter(*filters)
@@ -2535,9 +2540,7 @@ class TaskEsProxy(ElasticsearchProxy):
         """
         username = data["username"]
         task_id = data["task_id"]
-
         # task log is in the format of returned dict of func
-        # 'get_task_cve_result'
         status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
         if status_code != SUCCEED:
             return status_code, []
@@ -2605,8 +2608,7 @@ class TaskEsProxy(ElasticsearchProxy):
         task_id = data["task_id"]
         host_list = data["host_list"]
         # task log is in the format of returned dict of func
-        # 'get_task_cve_result'
-        status_code, task_log = self.get_task_log_info(task_id, username)
+        status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
         if status_code != SUCCEED:
             return status_code, []
 
@@ -2710,7 +2712,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         host_set = set()
         for task_info in cve_host_info:
             wait_fix_rpms[task_info["cve_id"]] = dict(
-                rpms=task_info["rpms"], host_ids=[host['host_id'] for host in task_info["host_info"]]
+                rpms=task_info.get("rpms", []), host_ids=[host['host_id'] for host in task_info["host_info"]]
             )
 
             for host in task_info["host_info"]:
@@ -2720,11 +2722,15 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                     self._task_cve_host_row_dict(task_cve_host_id, task_id, task_info["cve_id"], host)
                 )
         data["host_num"] = len(host_set)
-        task_package_rows = self._gen_task_cve_host_rpm_rows(wait_fix_rpms, task_id)
+        task_package_rows, wait_rm_cve_host = self._gen_task_cve_host_rpm_rows(wait_fix_rpms, task_id)
         # insert data into mysql tables
+        if wait_rm_cve_host:
+            task_cve_host_rows = list(
+                filter(lambda cve_host: cve_host["task_cve_host_id"] not in wait_rm_cve_host, task_cve_host_rows)
+            )
         self._insert_cve_task_tables(data, task_package_rows, task_cve_host_rows)
 
-    def _gen_task_cve_host_rpm_rows(self, fix_rpms: dict, task_id) -> list:
+    def _gen_task_cve_host_rpm_rows(self, fix_rpms: dict, task_id) -> tuple:
         """
         Generate the cve package for the host of the task
         1. Filter The list of Cves with only CVes but no rpm package
@@ -2752,16 +2758,21 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             task_id: task id
         """
         task_package_rows = []
-
+        wait_rm_cve_host = []
         for cve_id, host_rpms in fix_rpms.items():
             host_cve_packages = self._get_host_cve_packages(cve_id, host_rpms)
             for host_id, cve_packages in host_cve_packages.items():
                 task_cve_host_id = hash_value(text=task_id + cve_id + str(host_id))
+                # If the cve has no recoverable rpm packages, remove them
+                if not cve_packages:
+                    wait_rm_cve_host.append(task_cve_host_id)
+                    LOGGER.debug("No available rpm was found while repairing %s of host %s" % (cve_id, str(host_id)))
+                    continue
                 for pacakge in cve_packages:
                     wait_fix_rpm = copy.deepcopy(pacakge)
                     wait_fix_rpm.update(dict(task_cve_host_id=task_cve_host_id))
                     task_package_rows.append(wait_fix_rpm)
-        return task_package_rows
+        return task_package_rows, wait_rm_cve_host
 
     def _get_host_cve_packages(self, cve_id, host_rpms: dict):
         """
@@ -2813,7 +2824,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 filter_host_package = filter(
                     lambda host_package: host_package.installed_rpm in host_rpm_dict, filter_host_package
                 )
-            installed_rpm = self._filter_installed_rpm(filter_host_package, host_rpm_dict)
+            installed_rpm = self._filter_installed_rpm(list(filter_host_package), host_rpm_dict)
             cve_host_package_dict[host_id] = installed_rpm
 
         return cve_host_package_dict
@@ -2822,6 +2833,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         """
 
         Args:
+            host_packages: list CveHostAssociation table data
             host_rpm_dict: If you do not expand to select rpm, this is None e.g
                 {
                     "kernel-4.19": ["kernel-5-ACC","kernel-5-SGL","kernel"]
@@ -2840,6 +2852,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         # If the rpm package is not selected, query all rpm packages affected by cve on a host
         if not host_rpm_dict:
             for package in host_packages:
+                if not package.available_rpm:
+                    continue
                 if package.installed_rpm in host_rpm_dict:
                     host_rpm_dict[package.installed_rpm].append(package.available_rpm)
                 else:
@@ -2847,11 +2861,13 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         for install_rpm, available_rpms in host_rpm_dict.items():
             package = self._priority_fix_package(host_packages, install_rpm, available_rpms)
+            if not package:
+                continue
             cve_host_packages.append(
                 dict(
                     installed_rpm=package.installed_rpm,
                     available_rpm=package.available_rpm,
-                    fix_way=package.fixed_way,
+                    fix_way=package.support_way,
                 )
             )
 
@@ -2913,7 +2929,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
             "host_ip": host_info["host_ip"],
-            "status": TaskStatus.UNKNOWN,
+            # "status": TaskStatus.UNKNOWN,
+            "status": None,
             "hotpatch": host_info.get("hotpatch", False),
         }
 
@@ -3418,3 +3435,60 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         except SQLAlchemyError as error:
             LOGGER.error(error)
             return DATABASE_QUERY_ERROR, []
+
+    def get_task_cve_rpm_host(self, data):
+        """
+        Obtain the host list of the rpm corresponding to the cve in the repair task
+
+        Args:
+            data: dict e.g.
+                {
+                    "task_id":"a99aca2a47ad11eebf2752540030a9b2",
+                    "cve_id":"CVE-2023-0120",
+                    "installed_rpm":"kernel-tools-5.10.0-153.12.0.92.oe2203sp2.x86_64",
+                    "available_rpm":"kernel-tools-5.10.0-153.24.0.100.oe2203sp2.x86_64"
+                }
+
+        Returns:
+            status_code (str)
+            host_list (list): e.g
+                [
+                    {
+                        "host_name":"主机1",
+                        "host_ip":"127.0.0.1"
+                    }
+                ]
+        """
+        try:
+            host_list = self._get_task_cve_rpm_host(data)
+            if not host_list:
+                return NO_DATA, host_list
+            LOGGER.debug("Finished getting cve package host list.")
+            return SUCCEED, host_list
+        except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
+            LOGGER.error(error)
+            LOGGER.error("Getting cve package host list failed due to internal error.")
+            return DATABASE_QUERY_ERROR, []
+
+    def _get_task_cve_rpm_host(self, data):
+        host_id_list = (
+            self.session.query(TaskCveHostAssociation.host_id)
+            .outerjoin(
+                TaskCveHostRpmAssociation,
+                TaskCveHostAssociation.task_cve_host_id == TaskCveHostRpmAssociation.task_cve_host_id,
+            )
+            .filter(
+                TaskCveHostAssociation.task_id == data["task_id"],
+                TaskCveHostAssociation.cve_id == data["cve_id"],
+                TaskCveHostRpmAssociation.installed_rpm == data["installed_rpm"],
+                TaskCveHostRpmAssociation.available_rpm == data["available_rpm"],
+            )
+            .group_by(TaskCveHostAssociation.host_id)
+            .all()
+        )
+        if not host_id_list:
+            return []
+        host_ids = [host.host_id for host in host_id_list]
+        hosts = self.session.query(Host.host_ip, Host.host_name).filter(Host.host_id.in_(host_ids)).all()
+        host_info_list = [dict(host_name=host.host_name, host_ip=host.host_ip) for host in hosts]
+        return host_info_list

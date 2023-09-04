@@ -21,6 +21,7 @@ import uuid
 from typing import Dict, Tuple
 
 from flask import request
+from apollo.function.schema.task import TaskCveRpmHostSchema
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
     REPEAT_TASK_EXECUTION,
@@ -918,6 +919,28 @@ class VulGetTaskCveRpmInfo(BaseResponse):
         """
 
         status_code, data = self._handle(callback, params["task_id"], params["cve_id"])
+        return self.response(code=status_code, data=data)
+
+
+class VulTaskCveRpmHost(BaseResponse):
+    """
+    Obtain the host list of the rpm corresponding to the cve in the repair task
+    """
+
+    @BaseResponse.handle(schema=TaskCveRpmHostSchema, proxy=TaskProxy)
+    def post(self, callback: TaskProxy, **params):
+        """
+        Args:
+            task_id (str)
+            cve_id (str)
+            available_rpm (str)
+            installed_rpm (str)
+
+        Returns:
+            dict: response body
+        """
+
+        status_code, data = callback.get_task_cve_rpm_host(params)
         return self.response(code=status_code, data=data)
 
 
