@@ -142,6 +142,7 @@ VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
 VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerability/task/callback/cve/scan"
 VUL_TASK_CVE_ROLLBACK_CALLBACK = "/vulnerability/task/callback/cve/rollback"
+VUL_TASK_CVE_SCAN_NOTICE = "/vulnerability/task/callback/cve/scan/notice"
 # elasticsearch index
 CVE_INDEX = 'cve'
 TASK_INDEX = "task"
