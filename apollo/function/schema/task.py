@@ -323,6 +323,13 @@ class TaskCveRpmInfoSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 
+class TaskCveRpmHostSchema(Schema):
+    cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+    available_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
+    installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
+
+
 __all__ = [
     'GetTaskListSchema',
     'GetTaskProgressSchema',
