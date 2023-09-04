@@ -238,11 +238,11 @@ class TaskMysqlProxy(MysqlProxy):
         """
         try:
             status = task_info["status"]
-            if status != TaskStatus.SUCCEED:
+            if status == TaskStatus.SUCCEED:
+                self._save_cve_scan_result(task_info)
+            else:
                 LOGGER.info(f"scan result failed with status {status}.")
-                return WRONG_DATA
 
-            self._save_cve_scan_result(task_info)
             status_code = self._update_host_scan("finish", [task_info["host_id"]])
             self.session.commit()
             LOGGER.debug("Finish saving scan result.")
@@ -963,7 +963,7 @@ class TaskMysqlProxy(MysqlProxy):
         filters = set()
 
         if filter_dict.get("cve_id"):
-            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+            filters.add(TaskCveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         return filters
 
     def _query_cve_task(self, username, task_id, filters):
@@ -990,8 +990,7 @@ class TaskMysqlProxy(MysqlProxy):
                 TaskCveHostAssociation.host_id,
                 TaskCveHostAssociation.status,
             )
-            .outerjoin(CveHostAssociation, CveHostAssociation.cve_id == TaskCveHostAssociation.cve_id)
-            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == TaskCveHostAssociation.cve_id)
             .outerjoin(Task, Task.task_id == TaskCveHostAssociation.task_id)
             .filter(Task.task_id == task_id, Task.username == username)
             .filter(*filters)

@@ -34,6 +34,7 @@ from apollo.function.schema.cve import (
     GetCveHostsSchema,
     GetCveTaskHostSchema,
     GetGetCvePackageHostSchema,
+    ExportCveExcelSchema,
 )
 from apollo.function.utils import make_download_response
 from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
@@ -422,22 +423,22 @@ class VulExportExcel(BaseResponse):
         Returns:
             int: status code
         """
-        username = args.get("username")
-        host_id_list = args.get("host_list")
 
         if not os.path.exists(CSV_SAVED_PATH):
             os.makedirs(CSV_SAVED_PATH)
-        self.filepath = os.path.join(CSV_SAVED_PATH, username)
+        self.filepath = os.path.join(CSV_SAVED_PATH, args["username"])
         if os.path.exists(self.filepath):
             shutil.rmtree(self.filepath)
         os.mkdir(self.filepath)
 
-        for host_id in host_id_list:
-            host_name, cve_info_list = proxy.query_host_name_and_related_cves(host_id, username)
-            if host_name:
-                self.filename = f"{host_name}.csv"
-                csv_head = ["cve_id", "status", "fix_status", "support_hp", "fixed_by_hp"]
-                export_csv(cve_info_list, os.path.join(self.filepath, self.filename), csv_head)
+        status, cve_body = proxy.query_host_name_and_related_cves(args["host_list"], args["username"])
+        if status != SUCCEED:
+            return status
+
+        self.filename = "host_cve_info.csv"
+        csv_head = ["host_ip", "host_name", "cve_id", "installed_rpm", "available_rpm", "support_way", "fixed_way"]
+
+        export_csv(cve_body, os.path.join(self.filepath, self.filename), csv_head)
 
         if len(os.listdir(self.filepath)) == 0:
             return NO_DATA
@@ -451,7 +452,7 @@ class VulExportExcel(BaseResponse):
                 return SERVER_ERROR
         return SUCCEED
 
-    @BaseResponse.handle(proxy=CveProxy)
+    @BaseResponse.handle(proxy=CveProxy, schema=ExportCveExcelSchema)
     def post(self, callback: CveProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data into database

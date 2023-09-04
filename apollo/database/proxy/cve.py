@@ -386,7 +386,11 @@ class CveMysqlProxy(MysqlProxy):
             else:
                 cve_host_dict[row.cve_id][row.host_id] |= pkg_fixed_by_hp
             if row.host_id not in host_info_dict:
-                host_info_dict[row.host_id] = {"host_name": row.host_name, "host_ip": row.host_ip}
+                host_info_dict[row.host_id] = {
+                    "host_id": row.host_id,
+                    "host_name": row.host_name,
+                    "host_ip": row.host_ip,
+                }
 
         # query cve affected source pacakge
         queried_cve_list = list(cve_host_dict.keys())
@@ -451,11 +455,12 @@ class CveMysqlProxy(MysqlProxy):
             if cve_info.get("rpms"):
                 host_id_set = set()
                 for rpm_info in cve_info["rpms"]:
-                    filtered_rows = filter(lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id and
-                                                                cve_host_rpm.installed_rpm == rpm_info[
-                                                                    "installed_rpm"] and
-                                                                cve_host_rpm.available_rpm == rpm_info["available_rpm"],
-                                           cve_task_hosts_rows)
+                    filtered_rows = filter(
+                        lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id
+                        and cve_host_rpm.installed_rpm == rpm_info["installed_rpm"]
+                        and cve_host_rpm.available_rpm == rpm_info["available_rpm"],
+                        cve_task_hosts_rows,
+                    )
                     host_id_set |= set([row.host_id for row in filtered_rows])
                 host_id_list = list(host_id_set)
             else:
@@ -1387,45 +1392,62 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         insert_cve_list = [row["cve_id"] for row in insert_cve_rows]
         self.session.query(Cve).filter(Cve.cve_id.in_(insert_cve_list)).delete(synchronize_session=False)
 
-    def query_host_name_and_related_cves(self, host_id, username):
+    def query_host_name_and_related_cves(self, host_list: list, username: str):
         """
         query all cve by host_id
         Args:
-            host_id: host's id
+            host_list(list): host id list which you want to query cve info
             username: username
         Returns:
-            str:host name
-            list: cve list, each element is cve id and status, e.g.
+            str: operation status code
+            list: cve info list, e.g.
                 [
-                    ["CVE-2022-12343","affected"]
+                    [1, "CVE-XXXX-XXXX", "redis-4.2.5-1", "redis-4.2.5-2", "coldpatch", ""]
                 ]
 
         """
+        try:
+            filters = {Host.user == username}
+            if host_list:
+                filters.add(CveHostAssociation.host_id.in_(host_list))
+            query_rows = self._query_host_cve_info(filters)
 
+            result = []
+            for row in query_rows:
+                result.append(
+                    [
+                        row.host_ip,
+                        row.host_name,
+                        row.CveHostAssociation.cve_id,
+                        row.CveHostAssociation.installed_rpm,
+                        row.CveHostAssociation.available_rpm,
+                        row.CveHostAssociation.support_way,
+                        row.CveHostAssociation.fixed_way,
+                    ]
+                )
+
+            return SUCCEED, result
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, []
+
+    def _query_host_cve_info(self, filters: set):
+        """
+        query needed cve info
+
+        Args:
+            filters (set): filter given by user
+
+        Returns:
+            sqlalchemy.orm.query.Query
+        """
         cve_query = (
-            self.session.query(CveHostAssociation)
+            self.session.query(CveHostAssociation, Host.host_ip, Host.host_name)
             .join(Host, CveHostAssociation.host_id == Host.host_id)
-            .filter(CveHostAssociation.host_id == host_id, Host.user == username)
+            .filter(*filters)
             .all()
         )
-        cve_list = []
-        for cve in cve_query:
-            cve_list.append(
-                [
-                    cve.cve_id,
-                    "affected" if cve.affected else "affected",
-                    "fixed" if cve.fixed else "unfixed",
-                    "-" if cve.support_hp is None else "是" if cve.support_hp else "否",
-                    "-" if cve.fixed_by_hp is None else "是" if cve.fixed_by_hp else "否",
-                ]
-            )
-
-        host_info_query = self.session.query(Host).filter(Host.host_id == host_id, Host.user == username).all()
-        if host_info_query:
-            host_info = host_info_query[0]
-            return host_info.host_name, cve_list
-        LOGGER.error(f"{host_id} not found in database")
-        return "", cve_query
+        return cve_query
 
     def get_cve_unfixed_packages(self, cve_id, host_ids: list):
         """

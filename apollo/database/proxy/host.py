@@ -15,9 +15,11 @@ Time:
 Author:
 Description: Host table operation
 """
+import math
 from collections import defaultdict
+from typing import List, Tuple
 
-from sqlalchemy import func, or_, and_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy
@@ -488,19 +490,23 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
 
         host_id = data["host_id"]
         filters = self._get_host_cve_filters(data.get("filter", {}))
-        host_cve_query = self._query_host_cve(data["username"], host_id, filters)
+        host_cve_query = self._query_host_cve(data["username"], host_id, filters).all()
 
-        total_count = host_cve_query.count()
+        total_count = len(host_cve_query)
         if not total_count:
             return SUCCEED, result
 
-        sort_column = getattr(Cve, data['sort']) if "sort" in data else None
+        cve_info_list, cve_packages_dict = self._preprocess_cve_list_query(host_cve_query)
+        sort_column = data['sort'] if "sort" in data else "cve_id"
         direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
 
-        processed_query, total_page = sort_and_page(host_cve_query, sort_column, direction, per_page, page)
-        description_dict = self._get_cve_description([row.cve_id for row in processed_query])
-        cve_packages = self._get_cve_packages([row.cve_id for row in processed_query])
-        result['result'] = self._host_cve_row2dict(processed_query, description_dict, cve_packages)
+        processed_cve_list, total_page = self._sort_and_page_host_cve_info(
+            cve_info_list, page, per_page, sort_column, direction
+        )
+        description_dict = self._get_cve_description(list(cve_packages_dict.keys()))
+        result['result'] = self._add_additional_info_to_cve_list(
+            processed_cve_list, description_dict, cve_packages_dict
+        )
         result['total_page'] = total_page
         result['total_count'] = total_count
 
@@ -517,6 +523,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                     "cve_id": "",
                     "severity": ["high", "unknown"],
                     "affected": True,
+                    "package": "vim",
                     "fixed": False  // The default is false if the field is null.
                 }
 
@@ -534,6 +541,8 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
+        if filter_dict.get("package"):
+            filters.add(CveAffectedPkgs.package.like("%" + filter_dict["package"] + "%"))
 
         if "affected" in filter_dict:
             filters.add(CveHostAssociation.affected == filter_dict["affected"])
@@ -549,73 +558,97 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-
         host_cve_query = (
             self.session.query(
                 CveHostAssociation.cve_id,
-                Cve.publish_time,
-                Cve.severity,
-                Cve.cvss_score,
-                CveHostAssociation.fixed,
-                CveHostAssociation.support_way,
-                CveHostAssociation.fixed_way,
+                case([(Cve.publish_time == None, "")], else_=Cve.publish_time).label("publish_time"),
+                case([(Cve.severity == None, "")], else_=Cve.severity).label("severity"),
+                case([(Cve.cvss_score == None, "")], else_=Cve.cvss_score).label("cvss_score"),
+                case([(CveAffectedPkgs.package == None, "")], else_=CveAffectedPkgs.package).label("package"),
             )
             .select_from(CveHostAssociation)
             .outerjoin(Cve, CveHostAssociation.cve_id == Cve.cve_id)
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)
             .outerjoin(Host, Host.host_id == CveHostAssociation.host_id)
             .filter(CveHostAssociation.host_id == host_id, Host.user == username)
             .filter(*filters)
-        ).distinct()
+        ).group_by(CveHostAssociation.cve_id, CveAffectedPkgs.package)
 
         return host_cve_query
 
-    def _get_cve_packages(self, cves):
+    @staticmethod
+    def _preprocess_cve_list_query(cve_list_query: List[dict]) -> Tuple[List[dict], dict]:
         """
-        query cve with its affected source packages
+        get each cve's source package set and deduplication cve info list
 
         Args:
-            cves(list): cve id list which needs to query its source packages
-
+            cve_list_query(list):   cve info list(two rows may have same cve id
+                                    with different source package)
         Returns:
-            Dict[str, set]
-            a dictionary containing the cve with its source packages set, where
-            the keys are cve id and the values are their source packages set
+            list: list of cve info without package and description.
+            dict: key is cve id, value is cve affected source package set. e.g
+                { "cve-xxxx-xxxx": {"vim"}, "cve-xxxx-xxxx":{"kernel"} }
         """
-        cve_packages = defaultdict(set)
-        query_rows = (
-            self.session.query(CveAffectedPkgs.cve_id, CveAffectedPkgs.package)
-            .filter(CveAffectedPkgs.cve_id.in_(cves))
-            .all()
-        )
-        if len(query_rows) == 0:
-            return {}
+        cve_packages_dict, cve_info_list = defaultdict(set), []
 
-        for row in query_rows:
-            cve_packages[row.cve_id].add(row.package)
+        for row in cve_list_query:
+            if row.cve_id not in cve_packages_dict:
+                cve_info_list.append(
+                    {
+                        "cve_id": row.cve_id,
+                        "publish_time": row.publish_time,
+                        "severity": row.severity,
+                        "cvss_score": row.cvss_score,
+                    }
+                )
+            cve_packages_dict[row.cve_id].add(row.package)
 
-        return cve_packages
+        return cve_info_list, cve_packages_dict
 
     @staticmethod
-    def _host_cve_row2dict(rows, description_dict, cve_pkgs_dict):
+    def _sort_and_page_host_cve_info(cve_info_list, page, per_page, sort_column=None, direction="desc"):
         """
-        reformat queried rows to list of dict and add description for each cve
+        sort and page cve info list
+
         Args:
-            rows:
+            cve_info_list (list): cve info list. not empty.
+            page(int)
+            per_page(int): number of record per page
+            sort_column(str): the column that sort based on
+            direction(str): desc or asc
+
+        Returns:
+            query result, total number of pages
+        """
+        total_page = 1
+        total_count = len(cve_info_list)
+
+        if sort_column:
+            cve_info_list.sort(
+                key=lambda cve_info: cve_info[sort_column], reverse=True if direction == "desc" else False
+            )
+
+        if page and per_page:
+            total_page = math.ceil(total_count / per_page)
+            return cve_info_list[per_page * (page - 1) : per_page * page], total_page
+
+        return cve_info_list, total_page
+
+    @staticmethod
+    def _add_additional_info_to_cve_list(cve_info_list: list, description_dict: dict, cve_packages_dict: list) -> list:
+        """
+        add description and affected source packages for each cve
+
+        Args:
+            cve_info_list:
             description_dict (dict): key is cve's id, value is cve's description
             cve_pkgs_dict (dict): key is cve's id, value is cve's affected packages set
+
         Returns:
             list
         """
-        result = []
-        for row in rows:
-            cve_id = row.cve_id
-            cve_info = {
-                "cve_id": cve_id,
-                "publish_time": row.publish_time,
-                "severity": row.severity,
-                "description": description_dict[cve_id] if description_dict.get(cve_id) else "",
-                "cvss_score": row.cvss_score,
-                "package": ",".join(list(cve_pkgs_dict.get(cve_id, ()))),
-            }
-            result.append(cve_info)
-        return result
+        for cve_info in cve_info_list:
+            cve_id = cve_info["cve_id"]
+            cve_info["description"] = description_dict[cve_id] if description_dict.get(cve_id) else ""
+            cve_info["package"] = ",".join(cve_packages_dict[cve_id])
+        return cve_info_list
