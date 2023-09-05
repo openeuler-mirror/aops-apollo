@@ -2894,7 +2894,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             if package:
                 package = package[0]
                 break
-        if not package:
+        if not package and installed_host_packages:
             package = installed_host_packages[0]
         return package
 
