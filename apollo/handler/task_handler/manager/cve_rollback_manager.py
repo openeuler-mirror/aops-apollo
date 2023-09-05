@@ -66,7 +66,7 @@ class CveRollbackManager(Manager):
         header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
 
         response = BaseResponse.get_response('POST', manager_url, self.task, header)
-        if response.get('label') != SUCCEED or not response.get("data", dict()):
+        if response.get('label') != SUCCEED:
             LOGGER.error("Cve rollback task %s execute failed.", self.task_id)
             self.proxy.init_cve_rollback_task(self.task_id, [], TaskStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
