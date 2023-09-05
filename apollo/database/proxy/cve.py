@@ -498,7 +498,7 @@ class CveMysqlProxy(MysqlProxy):
         # when query host to fix, only query the ones which have available rpm to fix
         if not fixed:
             filters.add(CveHostAssociation.available_rpm != "")
-        else:
+        elif host_list:
             filters.add(Host.host_id.in_(host_list))
 
         cve_query = (
