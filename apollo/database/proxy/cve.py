@@ -292,6 +292,7 @@ class CveMysqlProxy(MysqlProxy):
                             "rpms": []
                         }
                     ],
+                    "host_list": [id1, id2] // optional param. Only return the filtered host info when fixed is True
                     "fixed": false
                 }
 
@@ -337,7 +338,8 @@ class CveMysqlProxy(MysqlProxy):
         cve_info_list = data["cve_list"]
 
         cve_id_list = [cve_info["cve_id"] for cve_info in cve_info_list]
-        cve_task_hosts_rows = self._query_cve_task_host_pkg(username, fixed_flag, cve_id_list)
+        host_list = data.get("host_list", [])
+        cve_task_hosts_rows = self._query_cve_task_host_pkg(username, fixed_flag, cve_id_list, host_list)
 
         if data["fixed"]:
             result = self._get_cve_task_hosts_for_hp_remove(cve_task_hosts_rows)
@@ -480,13 +482,14 @@ class CveMysqlProxy(MysqlProxy):
 
         return result
 
-    def _query_cve_task_host_pkg(self, username: str, fixed: bool, cve_list: list):
+    def _query_cve_task_host_pkg(self, username: str, fixed: bool, cve_list: list, host_list: list):
         """
         query needed cve hosts basic info
         Args:
             username (str): filter given by user
             fixed (bool): query fixed package or not
             cve_list (list): cve id list
+            host_list (list): host id list
 
         Returns:
             sqlalchemy.orm.query.Query
@@ -495,6 +498,8 @@ class CveMysqlProxy(MysqlProxy):
         # when query host to fix, only query the ones which have available rpm to fix
         if not fixed:
             filters.add(CveHostAssociation.available_rpm != "")
+        else:
+            filters.add(Host.host_id.in_(host_list))
 
         cve_query = (
             self.session.query(
@@ -820,7 +825,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         if page and per_page:
             total_page = math.ceil(total_count / per_page)
-            return cve_info_list[per_page * (page - 1): per_page * page], total_page
+            return cve_info_list[per_page * (page - 1) : per_page * page], total_page
 
         return cve_info_list, total_page
 
