@@ -2813,12 +2813,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 host_rpm_dict[rpm["installed_rpm"]] = [rpm["available_rpm"]]
         cve_host_packages = (
             self.session.query(CveHostAssociation)
-            .filter(CveHostAssociation.cve_id == cve_id, CveHostAssociation.host_id.in_(host_rpms["host_ids"]))
+            .filter(
+                CveHostAssociation.cve_id == cve_id,
+                CveHostAssociation.fixed == False,
+                CveHostAssociation.available_rpm != None,
+                CveHostAssociation.host_id.in_(host_rpms["host_ids"]),
+            )
             .all()
         )
         cve_host_package_dict = dict()
         for host_id in host_rpms["host_ids"]:
-            filter_host_package = filter(lambda host_package: host_package.host_id == host_id, cve_host_packages)
+            filter_host_package = filter(lambda host_package: host_package.host_id == int(host_id), cve_host_packages)
             if host_rpm_dict:
                 filter_host_package = filter(
                     lambda host_package: host_package.installed_rpm in host_rpm_dict, filter_host_package
@@ -2851,8 +2856,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         # If the rpm package is not selected, query all rpm packages affected by cve on a host
         if not host_rpm_dict:
             for package in host_packages:
-                if not package.available_rpm:
-                    continue
                 if package.installed_rpm in host_rpm_dict:
                     host_rpm_dict[package.installed_rpm].append(package.available_rpm)
                 else:
@@ -2889,7 +2892,10 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         package = None
         for priority_fun in priority:
             package = list(
-                filter(lambda host_rpm: host_rpm.available_rpm.endswith(priority_fun), installed_host_packages)
+                filter(
+                    lambda host_rpm: host_rpm.available_rpm and host_rpm.available_rpm.endswith(priority_fun),
+                    installed_host_packages,
+                )
             )
             if package:
                 package = package[0]

@@ -99,6 +99,7 @@ class GetCveTaskHostSchema(Schema):
     validators for parameter of /vulnerability/cve/task/host/get
     """
 
+    host_list = fields.List(fields.Integer(), required=False)
     cve_list = fields.List(fields.Nested(CveTaskHostSchemaOfCveInfo), required=True, validate=lambda s: len(s) != 0)
     fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
 
