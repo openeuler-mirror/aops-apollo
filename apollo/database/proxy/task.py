@@ -322,9 +322,9 @@ class TaskMysqlProxy(MysqlProxy):
                     "host_id": host_id,
                     "affected": True,
                     "fixed": False,
-                    "support_way": unfixed_vulnerability_info.get("support_way"),
-                    "installed_rpm": unfixed_vulnerability_info.get("installed_rpm"),
-                    "available_rpm": unfixed_vulnerability_info.get("available_rpm"),
+                    "support_way": unfixed_vulnerability_info.get("support_way") or None,
+                    "installed_rpm": unfixed_vulnerability_info.get("installed_rpm") or None,
+                    "available_rpm": unfixed_vulnerability_info.get("available_rpm") or None,
                 }
             )
 
