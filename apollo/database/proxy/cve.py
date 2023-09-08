@@ -21,7 +21,7 @@ from typing import List, Tuple
 from collections import defaultdict
 
 from elasticsearch import ElasticsearchException
-from sqlalchemy import func, tuple_, case, distinct
+from sqlalchemy import func, tuple_, case, distinct, or_
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
@@ -497,7 +497,7 @@ class CveMysqlProxy(MysqlProxy):
         filters = {Host.user == username, CveHostAssociation.fixed == fixed}
         # when query host to fix, only query the ones which have available rpm to fix
         if not fixed:
-            filters.add(CveHostAssociation.available_rpm != "")
+            filters.add(CveHostAssociation.available_rpm != None)
         elif host_list:
             filters.add(Host.host_id.in_(host_list))
 
@@ -627,11 +627,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     "per_page": 10,
                     "username": "admin",
                     "filter": {
-                        "cve_id": "cve-2021",
+                        "search_key ": "cve-2021",
                         "severity": "medium",
                         "affected": True,
                         "fixed": True,
-                        "package": "kernel"
                     }
                 }
 
@@ -717,12 +716,15 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         if not filter_dict:
             return filters
 
-        if filter_dict.get("cve_id"):
-            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+        if filter_dict.get("search_key"):
+            filters.add(
+                or_(
+                    CveHostAssociation.cve_id.like("%" + filter_dict["search_key"] + "%"),
+                    CveAffectedPkgs.package.like("%" + filter_dict["search_key"] + "%"),
+                )
+            )
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
-        if filter_dict.get("package"):
-            filters.add(CveAffectedPkgs.package.like("%" + filter_dict["package"] + "%"))
         if "fixed" in filter_dict:
             filters.add(CveHostAssociation.fixed == filter_dict["fixed"])
         if "affected" in filter_dict:
@@ -1487,7 +1489,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         filters = {
             CveHostAssociation.cve_id == cve_id,
             CveHostAssociation.fixed == False,
-            CveHostAssociation.available_rpm != "",
+            CveHostAssociation.available_rpm != None,
         }
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))

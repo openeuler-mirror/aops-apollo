@@ -28,8 +28,7 @@ class CveListFilterSchema(Schema):
     filter schema of cve list getting interface
     """
 
-    cve_id = fields.String(required=False, validate=lambda s: 0 < len(s) <= 20)
-    package = fields.String(required=False, validate=lambda s: 0 < len(s) <= 40)
+    search_key = fields.String(required=False, validate=lambda s: 0 < len(s) <= 40)
     severity = fields.List(fields.String(validate=validate.OneOf(CveSeverity.attribute())), required=False)
     affected = fields.Boolean(required=False, default=True)
     fixed = fields.Boolean(required=True, default=True, validate=validate.OneOf([True, False]))

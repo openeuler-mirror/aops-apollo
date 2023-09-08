@@ -442,7 +442,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
                     "per_page": 10,
                     "username": "admin",
                     "filter": {
-                        "cve_id": "",
+                        "search_key": "",
                         "severity": ["high"],
                         "affected": True,
                         "fixed": True
@@ -537,12 +537,15 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
         if not filter_dict:
             return filters
 
-        if filter_dict.get("cve_id"):
-            filters.add(CveHostAssociation.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+        if filter_dict.get("search_key"):
+            filters.add(
+                or_(
+                    CveHostAssociation.cve_id.like("%" + filter_dict["search_key"] + "%"),
+                    CveAffectedPkgs.package.like("%" + filter_dict["search_key"] + "%"),
+                )
+            )
         if filter_dict.get("severity"):
             filters.add(Cve.severity.in_(filter_dict["severity"]))
-        if filter_dict.get("package"):
-            filters.add(CveAffectedPkgs.package.like("%" + filter_dict["package"] + "%"))
 
         if "affected" in filter_dict:
             filters.add(CveHostAssociation.affected == filter_dict["affected"])
