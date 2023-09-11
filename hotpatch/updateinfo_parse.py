@@ -43,6 +43,7 @@ class HotpatchUpdateInfo(object):
     UNINSTALLABLE = 0
     INSTALLED = 1
     INSTALLABLE = 2
+    UNRELATED = 3
 
     syscare = Syscare()
     version = Versions()
@@ -219,7 +220,7 @@ class HotpatchUpdateInfo(object):
             require_pkgs[pkg_name] = pkg_vere
         return require_pkgs
 
-    def _store_advisory_info(self, advisory_kwargs: dict()):
+    def _store_advisory_info(self, advisory_kwargs: dict):
         """
         Instantiate Cve, Hotpatch and Advisory object according to the advisory kwargs
         """
@@ -256,30 +257,47 @@ class HotpatchUpdateInfo(object):
 
     def _init_hotpatch_state(self):
         """
-        Initialize the hotpatch state
-
-        each hotpatch has three states:
-        1. UNINSTALLABLE: can not be installed due to the target required package version mismatch
-        2. INSTALLED: has been installed and actived in syscare
-        3. INSTALLABLE: can be installed
-
+        Initialize the hotpatch state, according to the target require package information and status
+        information in syscare list.
         """
         for advisory in self._hotpatch_advisories.values():
             for hotpatch in advisory.hotpatches:
-                for required_pkg_name, required_pkg_vere in hotpatch.required_pkgs_info.items():
-                    inst_pkgs = self._inst_pkgs_query.filter(name=required_pkg_name)
+                self._set_hotpatch_state(hotpatch)
+
+    def _set_hotpatch_state(self, hotpatch: Hotpatch):
+        """
+        Set hotpatch state.
+
+        each hotpatch has four states:
+        1. UNRELATED: the target required pakcage version is smaller than the version of package
+                      installed on this machine or not installed on this machine
+        2. UNINSTALLABLE: can not be installed due to the target required package version is bigger
+        3. INSTALLED: has been installed and actived/accepted in syscare
+        4. INSTALLABLE: can be installed
+
+        Args:
+            hotpatch(Hotpatch)
+        """
+        hotpatch.state = self.UNRELATED
+        for required_pkg_name, required_pkg_vere in hotpatch.required_pkgs_info.items():
+            inst_pkgs = self._inst_pkgs_query.filter(name=required_pkg_name)
+            # check whether the relevant target required package is installed on this machine
+            if not inst_pkgs:
+                return
+            for inst_pkg in inst_pkgs:
+                inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
+                if not self.version.larger_than(required_pkg_vere, inst_pkg_vere):
+                    hotpatch.state = self.UNRELATED
+                    return
+                if required_pkg_vere != inst_pkg_vere:
                     hotpatch.state = self.UNINSTALLABLE
-                    # check whether the relevant target required package is installed on this machine
-                    if not inst_pkgs:
-                        continue
-                    for inst_pkg in inst_pkgs:
-                        inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
-                        if required_pkg_vere != inst_pkg_vere:
-                            continue
-                        elif self._get_hotpatch_aggregated_status_in_syscare(hotpatch) in ('ACTIVED', "ACCEPTED"):
-                            hotpatch.state = self.INSTALLED
-                        else:
-                            hotpatch.state = self.INSTALLABLE
+                    return
+
+        if self._get_hotpatch_aggregated_status_in_syscare(hotpatch) in ('ACTIVED', "ACCEPTED"):
+            hotpatch.state = self.INSTALLED
+        else:
+            hotpatch.state = self.INSTALLABLE
+        return
 
     def _parse_and_store_from_xml(self, updateinfoxml: str):
         """
@@ -395,39 +413,81 @@ class HotpatchUpdateInfo(object):
             return 1
         return 0
 
-    def update_mapping_cve_hotpatches(self, priority: str, mapping_cve_hotpatches: dict(), cve_id: str):
+    def update_mapping_cve_hotpatches(self, priority: str, mapping_cve_hotpatches: dict, cve_id: str):
         """
         Update mapping_cve_hotpatches. Specifically, get the hotpatches corresponding to the cve_id, if find
         at least one installable hotpatch, append hotpatches in mapping_cve_hotpatches for cve_id, in which
         only the hotpatch with the highest version (priority first) for each targeted required package is
         returned. Otherwise, do not update mapping_cve_hotpatches.
+
+        Args:
+            priority(str): ACC or SGL
+            mapping_cve_hotpatches(dict): cve and corresponding hotpatches
+                e.g.
+                {
+                    cve_id: [Hotpatch.nevra]
+                }
+            cve_id(str): cve id.  e.g. "CVE-2023-1111"
         """
         mapping_required_pkg_to_hotpatches = dict()
+        fixed_required_pkgs_str = [
+            hotpatch.required_pkgs_str
+            for hotpatch in self.hotpatch_cves[cve_id].hotpatches
+            if hotpatch.state == self.INSTALLED
+        ]
         for hotpatch in self.hotpatch_cves[cve_id].hotpatches:
+            if hotpatch.state != self.INSTALLABLE:
+                continue
+            if hotpatch.required_pkgs_str in fixed_required_pkgs_str:
+                continue
             mapping_required_pkg_to_hotpatches.setdefault(hotpatch.required_pkgs_str, []).append(hotpatch)
+            if hotpatch.hotpatch_name == "ACC":
+                self.append_related_hotpatches(mapping_required_pkg_to_hotpatches)
 
-        # append the hotpatches corresponding to the target required package
+        if not mapping_required_pkg_to_hotpatches:
+            return
+
+        # find the hotpatch with the highest version for the same target required package
+        for hotpatches in mapping_required_pkg_to_hotpatches.values():
+            prefered_hotpatch = self.get_preferred_hotpatch(hotpatches, priority)
+            if not prefered_hotpatch:
+                continue
+            if prefered_hotpatch.state == self.INSTALLABLE:
+                mapping_cve_hotpatches[cve_id].append(prefered_hotpatch.nevra)
+
+    def append_related_hotpatches(self, mapping_required_pkg_to_hotpatches: dict):
+        """
+        Append the hotpatches corresponding to the target required package in
+        mapping_required_pkg_to_hotpatches.
+
+        Args:
+            mapping_required_pkg_to_hotpatches(dict): target required pkg and corresponding hotpatches
+            e.g.
+            {
+                "redis,redis-cli": [Hotpatch]
+            }
+
+        """
         for cve in self.hotpatch_cves.values():
             for hotpatch in cve.hotpatches:
+                if hotpatch.hotpatch_name != "ACC":
+                    continue
                 if hotpatch.required_pkgs_str not in mapping_required_pkg_to_hotpatches:
                     continue
                 if hotpatch in mapping_required_pkg_to_hotpatches[hotpatch.required_pkgs_str]:
                     continue
                 mapping_required_pkg_to_hotpatches[hotpatch.required_pkgs_str].append(hotpatch)
 
-        # find the hotpatch with the highest version for the same target required package
-        for _, hotpatches in mapping_required_pkg_to_hotpatches.items():
-            prefered_hotpatch = self.get_preferred_hotpatch(hotpatches, priority)
-            if not prefered_hotpatch:
-                continue
-            if prefered_hotpatch.state == self.INSTALLED:
-                continue
-            if prefered_hotpatch.state == self.INSTALLABLE:
-                mapping_cve_hotpatches[cve_id].append(prefered_hotpatch.nevra)
-
     def get_preferred_hotpatch(self, hotpatches: list, priority: str):
         """
-        Get the preferred hotpatch with priority in their name.
+        Get the preferred hotpatch with priority in their hotpatch_name.
+
+        Args:
+            hotpatches(list): hotpatches
+            priority(str): ACC or SGL
+
+        Returns:
+            Hotpatch or None
         """
         if not hotpatches:
             return None

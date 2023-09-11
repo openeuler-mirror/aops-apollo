@@ -452,7 +452,7 @@ class HotupgradeCommand(dnf.cli.Command):
                 kernel_highest_vere = pkg_ver
                 target_kernel_coldpatch = kernel_pkg_spec
                 continue
-            if version.larger_than(kernel_highest_vere, pkg_ver):
+            if version.larger_than(pkg_ver, kernel_highest_vere):
                 kernel_highest_vere = pkg_ver
                 target_kernel_coldpatch = kernel_pkg_spec
 
