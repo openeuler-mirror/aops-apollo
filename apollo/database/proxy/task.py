@@ -21,6 +21,7 @@ import math
 from collections import defaultdict
 from time import time
 from typing import Dict, List, Tuple
+import threading
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
@@ -62,6 +63,8 @@ class TaskMysqlProxy(MysqlProxy):
     """
     Task related mysql table operation
     """
+
+    lock = threading.Lock()
 
     def get_scan_host_info(self, username, host_list):
         """
@@ -340,9 +343,11 @@ class TaskMysqlProxy(MysqlProxy):
                     "hp_status": fixed_vulnerability_info.get("hp_status"),
                 }
             )
-        self.session.query(CveHostAssociation).filter(CveHostAssociation.host_id == host_id).delete(
-            synchronize_session=False
-        )
+        with self.lock:
+            self.session.query(CveHostAssociation).filter(CveHostAssociation.host_id == host_id).delete(
+                synchronize_session=False
+            )
+            self.session.commit()
 
         self.session.bulk_insert_mappings(CveHostAssociation, waiting_to_save_cve_info)
 
@@ -2824,24 +2829,29 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         cve_host_package_dict = dict()
         for host_id in host_rpms["host_ids"]:
             filter_host_package = filter(lambda host_package: host_package.host_id == int(host_id), cve_host_packages)
-            if host_rpm_dict:
-                filter_host_package = filter(
-                    lambda host_package: host_package.installed_rpm in host_rpm_dict, filter_host_package
+            if not host_rpm_dict:
+                installed_rpm = self._filter_installed_rpm(list(filter_host_package))
+                cve_host_package_dict[host_id] = installed_rpm
+                continue
+
+            host_packages = []
+            for rpm in host_rpms["rpms"]:
+                host_package = list(
+                    filter(lambda host_rpm: host_rpm.installed_rpm == rpm["installed_rpm"], filter_host_package)
                 )
-            installed_rpm = self._filter_installed_rpm(list(filter_host_package), host_rpm_dict)
-            cve_host_package_dict[host_id] = installed_rpm
+                if not host_package:
+                    continue
+                host_packages.append(rpm)
+
+            cve_host_package_dict[host_id] = host_packages
 
         return cve_host_package_dict
 
-    def _filter_installed_rpm(self, host_packages: list, host_rpm_dict: dict):
+    def _filter_installed_rpm(self, host_packages: list):
         """
 
         Args:
             host_packages: list CveHostAssociation table data
-            host_rpm_dict: If you do not expand to select rpm, this is None e.g
-                {
-                    "kernel-4.19": ["kernel-5-ACC","kernel-5-SGL","kernel"]
-                }
 
         Return:
             [
@@ -2854,15 +2864,9 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         """
         cve_host_packages = list()
         # If the rpm package is not selected, query all rpm packages affected by cve on a host
-        if not host_rpm_dict:
-            for package in host_packages:
-                if package.installed_rpm in host_rpm_dict:
-                    host_rpm_dict[package.installed_rpm].append(package.available_rpm)
-                else:
-                    host_rpm_dict[package.installed_rpm] = [package.available_rpm]
-
-        for install_rpm, available_rpms in host_rpm_dict.items():
-            package = self._priority_fix_package(host_packages, install_rpm, available_rpms)
+        host_installed_rpm = set([package.installed_rpm for package in host_packages])
+        for installed_rpm in host_installed_rpm:
+            package = self._priority_fix_package(host_packages, installed_rpm)
             if not package:
                 continue
             cve_host_packages.append(
@@ -2875,33 +2879,33 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         return cve_host_packages
 
-    def _priority_fix_package(self, host_packages, install_rpm, available_rpms):
-        installed_host_packages = list(
-            filter(
-                lambda host_rpm: host_rpm.installed_rpm == install_rpm,
-                host_packages,
-            )
-        )
-        if list(filter(lambda rpm: rpm.endswith("ACC"), available_rpms)):
-            priority = ["ACC", "SGL"]
-        elif list(filter(lambda rpm: rpm.endswith("SGL"), available_rpms)):
-            priority = ["SGL"]
-        else:
-            priority = ["ACC", "SGL"]
+    def _priority_fix_package(self, host_packages, installed_rpm):
+        """
+        If multiple hot patches are available for repair, the patch package is preferred
 
+        """
+        installed_host_packages = filter(
+            lambda host_rpm: host_rpm.installed_rpm == installed_rpm,
+            host_packages,
+        )
         package = None
-        for priority_fun in priority:
-            package = list(
-                filter(
-                    lambda host_rpm: host_rpm.available_rpm and host_rpm.available_rpm.endswith(priority_fun),
-                    installed_host_packages,
-                )
-            )
-            if package:
-                package = package[0]
-                break
-        if not package and installed_host_packages:
-            package = installed_host_packages[0]
+
+        for rpm in installed_host_packages:
+            if not rpm.available_rpm:
+                continue
+            try:
+                # rpm.installed_rpm e.g redis-6.2.5-1.x86_64 or samba-common-4.17.5-6.oe2203sp2.x86_64
+                available_rpm = rpm.available_rpm.split(rpm.installed_rpm.rsplit('.', 1)[0] + "-")[1]
+            except IndexError:
+                continue
+            if available_rpm.startswith("ACC"):
+                return rpm
+            if available_rpm.startswith("SGL"):
+                package = rpm
+                continue
+            if package is None:
+                package = rpm
+
         return package
 
     def _insert_cve_task_tables(self, task_data, task_package_rows, task_cve_host_rows):
