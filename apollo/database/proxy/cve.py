@@ -1486,11 +1486,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             return DATABASE_QUERY_ERROR, []
 
     def _get_cve_unfixed_packages(self, cve_id, host_ids):
-        filters = {
-            CveHostAssociation.cve_id == cve_id,
-            CveHostAssociation.fixed == False,
-            CveHostAssociation.available_rpm != None,
-        }
+        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == False}
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))
 
