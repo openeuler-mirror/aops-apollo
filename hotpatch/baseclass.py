@@ -22,6 +22,7 @@ class Hotpatch(object):
         '_state',
         '_required_pkgs_info',
         '_required_pkgs_str',
+        '_required_pkgs_name_str',
     ]
 
     def __init__(self, name, version, arch, filename, release):
@@ -42,6 +43,7 @@ class Hotpatch(object):
         self._release = release
         self._required_pkgs_info = dict()
         self._required_pkgs_str = ''
+        self._required_pkgs_name_str = ''
 
     @property
     def state(self):
@@ -98,11 +100,15 @@ class Hotpatch(object):
 
         self._required_pkgs_info = required_pkgs_info
         required_pkgs_str_list = []
+        required_pkgs_name_str_list = []
         # sort the _required_pkgs_info and concatenate the str to get _required_pkgs_str
         for required_pkgs_name, required_pkgs_vere in self._required_pkgs_info.items():
             required_pkgs_str_list.append("%s-%s" % (required_pkgs_name, required_pkgs_vere))
+            required_pkgs_name_str_list.append(required_pkgs_name)
         sorted(required_pkgs_str_list)
+        sorted(required_pkgs_name_str_list)
         self._required_pkgs_str = ",".join(required_pkgs_str_list)
+        self._required_pkgs_name_str = ",".join(required_pkgs_name_str_list)
 
     @property
     def required_pkgs_str(self):
@@ -113,6 +119,16 @@ class Hotpatch(object):
             'redis-6.2.5-1,redis-cli-6.2.5-1'
         """
         return self._required_pkgs_str
+
+    @property
+    def required_pkgs_name_str(self):
+        """
+        The truly fixed rpm package name mark, which is composed of keys of required_pkgs_info.
+
+        e.g.
+            'redis,redis-cli'
+        """
+        return self._required_pkgs_name_str
 
     @property
     def src_pkg_nevre(self):
