@@ -289,9 +289,6 @@ class VulGenerateCveTask(BaseResponse):
                     "task_id": "id1"
                 }
         """
-        host_ids = [host["host_id"] for hosts in params["info"] for host in hosts["host_info"]]
-        if not callback.validate_hosts(host_id=list(set(host_ids))):
-            return self.response(code=PARAM_ERROR)
 
         cve_ids = [cve["cve_id"] for cve in params["info"]]
         if not callback.validate_cves(cve_id=list(set(cve_ids))):
@@ -457,31 +454,6 @@ class VulGenerateRepoTask(BaseResponse):
     Restful interface for generating a task which sets repo for host.
     """
 
-    @staticmethod
-    def _handle(task_proxy, args):
-        """
-        Handle repo task generating
-
-        Args:
-            args (dict): request parameter
-
-        Returns:
-            int: status code
-            dict: body including task id
-        """
-        task_id = str(uuid.uuid1()).replace('-', '')
-        task_info = dict(
-            task_id=task_id, task_type=TaskType.REPO_SET, create_time=int(time.time()), username=args["username"]
-        )
-        task_info.update(args)
-
-        # save task info to database
-        status_code = task_proxy.generate_repo_task(task_info)
-        if status_code != SUCCEED:
-            LOGGER.error("Generate repo setting task fail.")
-
-        return status_code, dict(task_id=task_id)
-
     @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
         """
@@ -499,11 +471,17 @@ class VulGenerateRepoTask(BaseResponse):
                     "task_id": "1"
                 }
         """
-        host_ids = [host["host_id"] for host in params["info"]]
-        if not callback.validate_hosts(host_id=list(set(host_ids))):
-            return self.response(code=PARAM_ERROR)
-
-        status_code, data = self._handle(callback, params)
+        task_id = str(uuid.uuid1()).replace('-', '')
+        task_info = dict(
+            task_id=task_id, task_type=TaskType.REPO_SET, create_time=int(time.time()), username=params["username"]
+        )
+        task_info.update(params)
+        data = dict(task_id=task_id)
+        # save task info to database
+        status_code = callback.generate_repo_task(task_info)
+        if status_code != SUCCEED:
+            LOGGER.error("Generate repo setting task fail.")
+            data = None
         return self.response(code=status_code, data=data)
 
 

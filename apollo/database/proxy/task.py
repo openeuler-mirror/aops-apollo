@@ -40,7 +40,7 @@ from vulcanus.restful.resp.state import (
     SUCCEED,
     SERVER_ERROR,
     PARTIAL_SUCCEED,
-    WRONG_DATA,
+    PARAM_ERROR,
 )
 
 from apollo.conf.constant import REPO_FILE, TASK_INDEX, HostStatus, TaskStatus, TaskType
@@ -2672,9 +2672,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                             ]
                             "host_info": [
                                 {
-                                    "host_id": "id1",
-                                    "host_name": "",
-                                    "host_ip": ""
+                                    "host_id": "id1"
                                 }
                             ]
                         }
@@ -2685,17 +2683,19 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             int: status code
         """
         try:
-            self._generate_cve_fix_task(data)
+            status_code= self._generate_cve_fix_task(data)
+            if status_code!=SUCCEED:
+                return status_code
             self.session.commit()
             LOGGER.debug("Finished generating cve task.")
-            return SUCCEED
+            return status_code
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("Generating cve task failed due to internal error.")
             return DATABASE_INSERT_ERROR
 
-    def _generate_cve_fix_task(self, data):
+    def _generate_cve_fix_task(self, data)->str:
         """
         generate cve task. Process data, then:
         1. insert task basic info into mysql Task table
@@ -2705,8 +2705,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Args:
             data (dict): cve task info
 
-        Raises:
-            EsOperationError
         """
         task_id = data["task_id"]
         cve_host_info = data.pop("info")
@@ -2715,11 +2713,16 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         task_package_rows = []
         host_set = set()
         for task_info in cve_host_info:
-            wait_fix_rpms[task_info["cve_id"]] = dict(
-                rpms=task_info.get("rpms", []), host_ids=[host['host_id'] for host in task_info["host_info"]]
+            host_ids = list(set([host['host_id'] for host in task_info["host_info"]]))
+            wait_fix_rpms[task_info["cve_id"]] = dict(rpms=task_info.get("rpms", []), host_ids=host_ids)
+            host_list = (
+                self.session.query(Host.host_id, Host.host_name, Host.host_ip).filter(Host.host_id.in_(host_ids)).all()
             )
-
-            for host in task_info["host_info"]:
+            if len(host_list) != len(host_ids):
+                LOGGER.error("Host id is different.")
+                return PARAM_ERROR
+            for host_info in host_list:
+                host = dict(host_id=host_info.host_id, host_ip=host_info.host_ip, host_name=host_info.host_name)
                 task_cve_host_id = hash_value(text=task_id + task_info["cve_id"] + str(host["host_id"]))
                 host_set.add(host["host_id"])
                 task_cve_host_rows.append(
@@ -2733,6 +2736,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 filter(lambda cve_host: cve_host["task_cve_host_id"] not in wait_rm_cve_host, task_cve_host_rows)
             )
         self._insert_cve_task_tables(data, task_package_rows, task_cve_host_rows)
+        return SUCCEED
 
     def _gen_task_cve_host_rpm_rows(self, fix_rpms: dict, task_id) -> tuple:
         """
@@ -2959,9 +2963,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                     "create_time": 1,
                     "info": [
                         {
-                            "host_id": "",
-                            "host_name": "",
-                            "host_ip": ""
+                            "host_id": ""
                         }
                     ]
                 }
@@ -2970,7 +2972,9 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             int: status code
         """
         try:
-            self._gen_repo_task(data)
+            status_code = self._gen_repo_task(data)
+            if status_code != SUCCEED:
+                return status_code
             self.session.commit()
             LOGGER.debug("Finished generating repo task.")
             return SUCCEED
@@ -2995,15 +2999,23 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         """
         task_id = data["task_id"]
         repo_name = data.pop("repo_name")
-        host_list = data.pop("info")
 
         task_repo_host_rows = []
-        for host_info in host_list:
+        host_ids = list(set([host["host_id"] for host in data.pop("info")]))
+        host_list = (
+            self.session.query(Host.host_id, Host.host_name, Host.host_ip).filter(Host.host_id.in_(host_ids)).all()
+        )
+        if len(host_list) != len(host_ids):
+            return PARAM_ERROR
+
+        for host in host_list:
+            host_info = dict(host_id=host.host_id, host_name=host.host_name, host_ip=host.host_ip)
             task_repo_host_rows.append(self._task_repo_host_row_dict(task_id, repo_name, host_info))
 
         # insert data into mysql tables
-        data["host_num"] = len(host_list)
+        data["host_num"] = len(host_ids)
         self._insert_repo_task_tables(data, task_repo_host_rows)
+        return SUCCEED
 
     @staticmethod
     def _task_repo_host_row_dict(task_id, repo_name, host_info):

@@ -64,8 +64,6 @@ class CveHostInfoDictSchema(Schema):
     """
 
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
-    host_ip = fields.IP(required=True)
 
 
 class PackageInfoSchema(Schema):
