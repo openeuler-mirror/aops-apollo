@@ -261,9 +261,11 @@ class RepoSetCallbackSchema(Schema):
 
 class UnfixedCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    installed_rpm = fields.String(required=True, validate=lambda s: 0 <= len(s) <= 100)
-    available_rpm = fields.String(required=True, validate=lambda s: 0 <= len(s) <= 100)
-    support_way = fields.String(validate=validate.OneOf(["hotpatch", "coldpatch", ""]), required=True)
+    installed_rpm = fields.String(allow_none=True, required=True, validate=lambda s: 0 <= len(s) <= 100)
+    available_rpm = fields.String(allow_none=True, required=True, validate=lambda s: 0 <= len(s) <= 100)
+    support_way = fields.String(
+        allow_none=True, validate=validate.OneOf(["hotpatch", "coldpatch", None]), required=True
+    )
 
 
 class InstallPcakageInfoSchema(Schema):
