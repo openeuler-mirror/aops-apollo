@@ -2683,8 +2683,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             int: status code
         """
         try:
-            status_code= self._generate_cve_fix_task(data)
-            if status_code!=SUCCEED:
+            status_code = self._generate_cve_fix_task(data)
+            if status_code != SUCCEED:
                 return status_code
             self.session.commit()
             LOGGER.debug("Finished generating cve task.")
@@ -2695,7 +2695,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             LOGGER.error("Generating cve task failed due to internal error.")
             return DATABASE_INSERT_ERROR
 
-    def _generate_cve_fix_task(self, data)->str:
+    def _generate_cve_fix_task(self, data) -> str:
         """
         generate cve task. Process data, then:
         1. insert task basic info into mysql Task table
@@ -2895,6 +2895,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         package = None
 
         for rpm in installed_host_packages:
+            if rpm.support_way == "coldpatch":
+                return rpm
             if not rpm.available_rpm:
                 continue
             try:
