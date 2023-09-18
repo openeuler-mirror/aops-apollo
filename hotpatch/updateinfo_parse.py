@@ -284,14 +284,18 @@ class HotpatchUpdateInfo(object):
             # check whether the relevant target required package is installed on this machine
             if not inst_pkgs:
                 return
+            is_find_installable_hp = False
             for inst_pkg in inst_pkgs:
                 inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
                 if not self.version.larger_than(required_pkg_vere, inst_pkg_vere):
                     hotpatch.state = self.UNRELATED
-                    return
-                if required_pkg_vere != inst_pkg_vere:
+                elif required_pkg_vere != inst_pkg_vere:
                     hotpatch.state = self.UNINSTALLABLE
-                    return
+                else:
+                    is_find_installable_hp = True
+
+        if not is_find_installable_hp:
+            return
 
         if self._get_hotpatch_aggregated_status_in_syscare(hotpatch) in ('ACTIVED', "ACCEPTED"):
             hotpatch.state = self.INSTALLED

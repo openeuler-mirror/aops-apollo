@@ -63,6 +63,22 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         with_cve_cmds = ['cve', 'cves']
         parser.add_argument('with_cve', nargs=1, choices=with_cve_cmds, help=_('show cves'))
 
+        availability = parser.add_mutually_exclusive_group()
+        availability.add_argument(
+            "--available",
+            dest="availability",
+            const='available',
+            action='store_const',
+            help=_("cves about newer versions of installed packages (default)"),
+        )
+        availability.add_argument(
+            "--installed",
+            dest="availability",
+            const='installed',
+            action='store_const',
+            help=_("cves about equal and older versions of installed packages"),
+        )
+
     def configure(self):
         demands = self.cli.demands
         demands.sack_activation = True
@@ -89,7 +105,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             }
         """
 
-        apkg_adv_insts = self.get_available_apkg_adv_insts()
+        apkg_adv_insts = self.get_apkg_adv_insts()
 
         mapping_nevra_cve = dict()
         for apkg, advisory, _ in apkg_adv_insts:
@@ -103,9 +119,10 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                 )
         return mapping_nevra_cve
 
-    def get_available_apkg_adv_insts(self):
+    def get_apkg_adv_insts(self):
         """
-        Configure UpdateInfoCommand with 'dnf updateinfo list cves', and get available package, advisory
+        Configure UpdateInfoCommand with 'dnf updateinfo list cves --available' (default) or
+        'dnf updateinfo list cves --installed' according to the args, and get available package, advisory
         and package installation information.
 
         Returns:
@@ -119,10 +136,14 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         updateinfo.opts.with_cve = True
         updateinfo.opts.spec = '*'
         updateinfo.opts._advisory_types = set()
-        updateinfo.opts.availability = 'available'
+        updateinfo.opts.availability = self.opts.availability
         self.updateinfo = updateinfo
 
-        apkg_adv_insts = updateinfo.available_apkg_adv_insts(updateinfo.opts.spec)
+        if self.updateinfo.opts.availability == 'installed':
+            apkg_adv_insts = updateinfo.installed_apkg_adv_insts(updateinfo.opts.spec)
+        else:
+            apkg_adv_insts = updateinfo.available_apkg_adv_insts(updateinfo.opts.spec)
+
         return apkg_adv_insts
 
     def get_fixed_cve_id_and_hotpatch_require_info(self, fixed_cve_id_and_hotpatch: set):
@@ -230,6 +251,100 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         return is_iterated
 
     def get_filtered_display_item(
+        self,
+        format_lines: set,
+        fixed_cve_id_and_hotpatch: set,
+        installable_cve_id_and_hotpatch: set,
+        iterated_cve_id_and_hotpatch: set,
+    ):
+        """
+        Get filtered display item.
+
+        Args:
+            format_lines(set):
+            {
+                (cve_id, adv_type, coldpatch, hotpatch)
+            }
+
+            fixed_cve_id_and_hotpatch(set):
+            e.g.
+            {
+                ('CVE-2023-1111', Hotpatch)
+            }
+
+            iterated_cve_id_and_hotpatch(set):
+            e.g.
+            {
+                ('CVE-2023-1111', Hotpatch)
+            }
+
+        Returns:
+            DisplayItem: for display
+        """
+        if self.updateinfo.opts.availability == 'installed':
+            display_item = self.get_installed_filtered_display_item(format_lines, installable_cve_id_and_hotpatch)
+            return display_item
+        display_item = self.get_available_filtered_display_item(
+            format_lines, fixed_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch
+        )
+        return display_item
+
+    def get_installed_filtered_display_item(self, format_lines: set, installable_cve_id_and_hotpatch: set):
+        """
+        Get filtered display item by removing installable cve id and hotpatch, and removing iterated cve id
+        and hotpatch. For hotpatch, only show ones which have been installed and been actived/accepted in
+        syscare.
+
+        Args:
+            format_lines(set):
+            {
+                (cve_id, adv_type, coldpatch, hotpatch)
+            }
+
+            installable_cve_id_and_hotpatch(set):
+            e.g.
+            {
+                ('CVE-2023-1111', Hotpatch)
+            }
+
+        Returns:
+            DisplayItem: for display
+
+        """
+        display_lines = set()
+
+        # calculate the width of each column
+        idw = tiw = ciw = 0
+        for format_line in format_lines:
+            cve_id, adv_type, coldpatch, hotpatch = (
+                format_line[self.CVE_ID_INDEX],
+                format_line[self.ADV_SEVERITY_INDEX],
+                format_line[self.COLDPATCH_INDEX],
+                format_line[self.HOTPATCH_INDEX],
+            )
+            if self.filter_cves is not None and cve_id not in self.filter_cves:
+                continue
+            if (cve_id, hotpatch) in installable_cve_id_and_hotpatch:
+                if coldpatch == '-':
+                    continue
+                else:
+                    hotpatch = '-'
+
+            if isinstance(hotpatch, Hotpatch):
+                if hotpatch.state in (self.hp_hawkey.INSTALLABLE, self.hp_hawkey.INSTALLED):
+                    hotpatch = hotpatch.nevra
+                elif hotpatch.state == self.hp_hawkey.UNINSTALLABLE:
+                    continue
+
+            idw = max(idw, len(cve_id))
+            tiw = max(tiw, len(adv_type))
+            ciw = max(ciw, len(coldpatch))
+            display_lines.add((cve_id, adv_type, coldpatch, hotpatch))
+
+        display_item = DisplayItem(idw=idw, tiw=tiw, ciw=ciw, display_lines=display_lines)
+        return display_item
+
+    def get_available_filtered_display_item(
         self, format_lines: set, fixed_cve_id_and_hotpatch: set, iterated_cve_id_and_hotpatch: set
     ):
         """
@@ -258,8 +373,6 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             DisplayItem: for display
         """
         display_lines = set()
-        # lower version ACC hotpatch of fixed ACC hotpatch, is also considered to be fixed
-        fixed_cve_id_and_hotpatch = self.append_fixed_cve_id_and_hotpatch(fixed_cve_id_and_hotpatch)
 
         fixed_cve_id_and_hotpatch_require_info = self.get_fixed_cve_id_and_hotpatch_require_info(
             fixed_cve_id_and_hotpatch
@@ -370,6 +483,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         mapping_nevra_cve = self.get_mapping_nevra_cve()
         echo_lines = set()
         fixed_cve_id_and_hotpatch = set()
+        installable_cve_id_and_hotpatch = set()
         iterated_cve_id_and_hotpatch = set()
 
         for ((nevra), aupdated), id2type in sorted(mapping_nevra_cve.items(), key=lambda x: x[0]):
@@ -397,19 +511,32 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                         # record the iterated cve_id and hotpatch
                         iterated_cve_id_and_hotpatch.add((cve_id, hotpatch))
                     elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
+                        # record the installable cve_id and hotpatch, filter the packages that are bigger
+                        # than the currently installed package
+                        installable_cve_id_and_hotpatch.add((cve_id, hotpatch))
                         iterated_cve_id_and_hotpatch.add((cve_id, hotpatch))
                     echo_line = (cve_id, label, coldpatch, hotpatch)
                     echo_lines.add(echo_line)
 
-        self.add_untraversed_hotpatches(echo_lines, fixed_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch)
+        self.add_untraversed_hotpatches(
+            echo_lines, fixed_cve_id_and_hotpatch, installable_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch
+        )
+        # lower version ACC hotpatch of fixed ACC hotpatch, is also considered to be fixed
+        fixed_cve_id_and_hotpatch = self.append_fixed_cve_id_and_hotpatch(fixed_cve_id_and_hotpatch)
+        # remove fixed cve and hotpatch from installable_cve_id_and_hotpatch
+        installable_cve_id_and_hotpatch = installable_cve_id_and_hotpatch.difference(fixed_cve_id_and_hotpatch)
         display_item = self.get_filtered_display_item(
-            echo_lines, fixed_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch
+            echo_lines, fixed_cve_id_and_hotpatch, installable_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch
         )
 
         return display_item
 
     def add_untraversed_hotpatches(
-        self, echo_lines: set, fixed_cve_id_and_hotpatch: set, iterated_cve_id_and_hotpatch: set
+        self,
+        echo_lines: set,
+        fixed_cve_id_and_hotpatch: set,
+        installable_cve_id_and_hotpatch: set,
+        iterated_cve_id_and_hotpatch: set,
     ):
         """
         Add the echo lines, which are only with hotpatch but no coldpatch. And append
@@ -429,8 +556,8 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                 if hotpatch.state == self.hp_hawkey.INSTALLED:
                     fixed_cve_id_and_hotpatch.add((cve_id, hotpatch))
                     iterated_cve_id_and_hotpatch.add((cve_id, hotpatch))
-                    continue
                 elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
+                    installable_cve_id_and_hotpatch.add((cve_id, hotpatch))
                     iterated_cve_id_and_hotpatch.add((cve_id, hotpatch))
                 echo_line = (cve_id, hotpatch.advisory.severity + '/Sec.', '-', hotpatch)
                 echo_lines.add(echo_line)

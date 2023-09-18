@@ -393,6 +393,7 @@ class HotupgradeCommand(dnf.cli.Command):
         hot_updateinfo.opts = self.opts
         hot_updateinfo.hp_hawkey = hp_hawkey
         hot_updateinfo.filter_cves = None
+        hot_updateinfo.opts.availability = 'available'
         all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
         cve_set = set()
         for display_line in all_cves.display_lines:
@@ -435,6 +436,7 @@ class HotupgradeCommand(dnf.cli.Command):
         hot_updateinfo.opts = self.opts
         hot_updateinfo.hp_hawkey = hp_hawkey
         hot_updateinfo.filter_cves = None
+        hot_updateinfo.opts.availability = 'available'
         all_cves = hot_updateinfo.get_formatting_parameters_and_display_lines()
         kernel_highest_vere = ""
         target_kernel_coldpatch = None
