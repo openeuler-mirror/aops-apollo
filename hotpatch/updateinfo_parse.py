@@ -279,12 +279,12 @@ class HotpatchUpdateInfo(object):
             hotpatch(Hotpatch)
         """
         hotpatch.state = self.UNRELATED
+        is_find_installable_hp = False
         for required_pkg_name, required_pkg_vere in hotpatch.required_pkgs_info.items():
             inst_pkgs = self._inst_pkgs_query.filter(name=required_pkg_name)
             # check whether the relevant target required package is installed on this machine
             if not inst_pkgs:
                 return
-            is_find_installable_hp = False
             for inst_pkg in inst_pkgs:
                 inst_pkg_vere = '%s-%s' % (inst_pkg.version, inst_pkg.release)
                 if not self.version.larger_than(required_pkg_vere, inst_pkg_vere):
