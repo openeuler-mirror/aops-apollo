@@ -1562,21 +1562,25 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         cve_fixed_packages = (
             self.session.query(
+                CveHostAssociation.id,
                 CveHostAssociation.installed_rpm,
                 CveHostAssociation.fixed_way,
                 func.count(CveHostAssociation.host_id).label("host_num"),
             )
             .filter(*filters)
-            .group_by('installed_rpm', 'fixed_way')
+            .group_by('installed_rpm', 'fixed_way', 'id')
             .all()
         )
         if not cve_fixed_packages:
             return NO_DATA, []
+        cve_fixed_packages_status = (
+            self.session.query(CveHostAssociation.id, CveHostAssociation.hp_status).filter(*filters).all()
+        )
 
-        return SUCCEED, self._cve_fixed_packages_row2dict(cve_fixed_packages)
+        return SUCCEED, self._cve_fixed_packages_row2dict(cve_fixed_packages, cve_fixed_packages_status)
 
     @staticmethod
-    def _cve_fixed_packages_row2dict(rows):
+    def _cve_fixed_packages_row2dict(rows, cve_fixed_packages_status):
         """
         Fixed cve package row data converted to dictionary
         Args:
@@ -1586,10 +1590,17 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             list
         """
         result = []
+        cve_fixed_packages_status_dict = {
+            cve_host_match.id: cve_host_match.hp_status for cve_host_match in cve_fixed_packages_status
+        }
         for row in rows:
+            status = cve_fixed_packages_status_dict[row.id] if cve_fixed_packages_status_dict[row.id] else ""
+            fixed_way = row.fixed_way
+            if fixed_way != "coldpatch":
+                fixed_way = fixed_way + f" ({status})"
             fixed_rpm = {
                 "installed_rpm": row.installed_rpm,
-                "fixed_way": row.fixed_way,
+                "fixed_way": fixed_way,
                 "host_num": row.host_num,
             }
             result.append(fixed_rpm)
