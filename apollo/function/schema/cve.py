@@ -121,6 +121,8 @@ class GetGetCvePackageHostSchema(PaginationSchema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     installed_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     available_rpm = fields.String(required=False, validate=lambda s: 0 < len(s) <= 100)
+    hp_status = fields.String(required=False, validate=lambda s: 0 < len(s) <= 20)
+    fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
 
 
 class ExportCveExcelSchema(Schema):
