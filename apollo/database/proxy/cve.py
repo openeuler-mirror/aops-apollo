@@ -1562,25 +1562,22 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         cve_fixed_packages = (
             self.session.query(
-                CveHostAssociation.id,
                 CveHostAssociation.installed_rpm,
                 CveHostAssociation.fixed_way,
+                CveHostAssociation.hp_status,
                 func.count(CveHostAssociation.host_id).label("host_num"),
             )
             .filter(*filters)
-            .group_by('installed_rpm', 'fixed_way', 'id')
+            .group_by('installed_rpm', 'fixed_way', "hp_status")
             .all()
         )
         if not cve_fixed_packages:
             return NO_DATA, []
-        cve_fixed_packages_status = (
-            self.session.query(CveHostAssociation.id, CveHostAssociation.hp_status).filter(*filters).all()
-        )
 
-        return SUCCEED, self._cve_fixed_packages_row2dict(cve_fixed_packages, cve_fixed_packages_status)
+        return SUCCEED, self._cve_fixed_packages_row2dict(cve_fixed_packages)
 
     @staticmethod
-    def _cve_fixed_packages_row2dict(rows, cve_fixed_packages_status):
+    def _cve_fixed_packages_row2dict(rows):
         """
         Fixed cve package row data converted to dictionary
         Args:
@@ -1590,17 +1587,12 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             list
         """
         result = []
-        cve_fixed_packages_status_dict = {
-            cve_host_match.id: cve_host_match.hp_status for cve_host_match in cve_fixed_packages_status
-        }
+
         for row in rows:
-            status = cve_fixed_packages_status_dict[row.id] if cve_fixed_packages_status_dict[row.id] else ""
-            fixed_way = row.fixed_way
-            if fixed_way != "coldpatch":
-                fixed_way = fixed_way + f" ({status})"
             fixed_rpm = {
                 "installed_rpm": row.installed_rpm,
-                "fixed_way": fixed_way,
+                "fixed_way": row.fixed_way,
+                "hp_status": row.hp_status,
                 "host_num": row.host_num,
             }
             result.append(fixed_rpm)
@@ -1619,7 +1611,9 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     "username": "admin",
                     "cve_id": "CVE-2023-0120",
                     "available_rpm": "kernel-4.9-ACC"/null,
-                    "installed_rpm": "kernel-4.9"
+                    "installed_rpm": "kernel-4.9",
+                    "hp_status": "ACCEPTED/ACTIVED",
+                    "fixed": True/False
                 }
 
         Returns:
@@ -1651,9 +1645,13 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         filters = {
             CveHostAssociation.cve_id == data["cve_id"],
             CveHostAssociation.installed_rpm == data["installed_rpm"],
+            CveHostAssociation.fixed == data["fixed"],
         }
         if data.get("available_rpm"):
             filters.add(CveHostAssociation.available_rpm == data["available_rpm"])
+
+        if data.get("hp_status"):
+            filters.add(CveHostAssociation.hp_status == data["hp_status"])
         cve_package_host_query = self._query_cve_package_host(filters)
 
         total_count = cve_package_host_query.count()
