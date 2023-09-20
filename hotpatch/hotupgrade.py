@@ -110,21 +110,10 @@ class HotupgradeCommand(dnf.cli.Command):
         """
         # syscare need a little bit time to process the installed hot patch
         sleep(0.5)
-        if not self.base.transaction:
-            for hp in self.hp_list:
-                self._apply_hp(hp)
-                if self.opts.takeover and self.is_need_accept_kernel_hp:
-                    self._accept_kernel_hp(hp)
-            return
-
-        for ts_item in self.base.transaction:
-            if ts_item.action not in dnf.transaction.FORWARD_ACTIONS:
-                continue
-            if not str(ts_item.pkg).startswith("patch"):
-                continue
-            self._apply_hp(str(ts_item.pkg))
+        for hp in self.hp_list:
+            self._apply_hp(hp)
             if self.opts.takeover and self.is_need_accept_kernel_hp:
-                self._accept_kernel_hp(str(ts_item.pkg))
+                self._accept_kernel_hp(hp)
 
     def _apply_hp(self, hp_full_name):
         pkg_info = self._parse_hp_name(hp_full_name)
