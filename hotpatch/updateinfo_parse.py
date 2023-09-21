@@ -17,6 +17,7 @@ import datetime
 import subprocess
 import xml.etree.ElementTree as ET
 from functools import cmp_to_key
+from typing import List
 from .baseclass import Hotpatch, Cve, Advisory
 from .syscare import Syscare
 from .version import Versions
@@ -377,7 +378,7 @@ class HotpatchUpdateInfo(object):
                 return ''
         return hotpatch_status
 
-    def get_hotpatches_from_cve(self, cves: list[str], priority="ACC") -> dict():
+    def get_hotpatches_from_cve(self, cves: List[str], priority="ACC") -> dict():
         """
         Get hotpatches from specified cve. If there are several hotpatches for the same target required
         package for a cve, only return the hotpatch with the highest version according to the priority.
@@ -501,7 +502,7 @@ class HotpatchUpdateInfo(object):
                 return hotpatch
         return hotpatches[0]
 
-    def get_hotpatches_from_advisories(self, advisories: list[str]) -> dict():
+    def get_hotpatches_from_advisories(self, advisories: List[str]) -> dict():
         """
         Get hotpatches from specified advisories
 
