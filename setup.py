@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 NAME = "aops-apollo"
-VERSION = "1.2.1"
+VERSION = "1.3.3"
 
 # To install the library, run the following
 #
