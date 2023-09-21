@@ -244,7 +244,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         """
         is_iterated = False
         if (
-            hotpatch.state == self.hp_hawkey.UNINSTALLABLE
+            hotpatch.state in (self.hp_hawkey.UNINSTALLABLE, self.hp_hawkey.UNRELATED)
             and (cve_id, hotpatch.required_pkgs_name_str) in iterated_cve_id_and_hotpatch_require_info
         ):
             is_iterated = True
@@ -282,14 +282,18 @@ class HotUpdateinfoCommand(dnf.cli.Command):
             DisplayItem: for display
         """
         if self.updateinfo.opts.availability == 'installed':
-            display_item = self.get_installed_filtered_display_item(format_lines, installable_cve_id_and_hotpatch)
+            display_item = self.get_installed_filtered_display_item(
+                format_lines, fixed_cve_id_and_hotpatch, installable_cve_id_and_hotpatch
+            )
             return display_item
         display_item = self.get_available_filtered_display_item(
             format_lines, fixed_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch
         )
         return display_item
 
-    def get_installed_filtered_display_item(self, format_lines: set, installable_cve_id_and_hotpatch: set):
+    def get_installed_filtered_display_item(
+        self, format_lines: set, fixed_cve_id_and_hotpatch: set, installable_cve_id_and_hotpatch: set
+    ):
         """
         Get filtered display item by removing installable cve id and hotpatch, and removing iterated cve id
         and hotpatch. For hotpatch, only show ones which have been installed and been actived/accepted in
@@ -331,10 +335,13 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                     hotpatch = '-'
 
             if isinstance(hotpatch, Hotpatch):
-                if hotpatch.state in (self.hp_hawkey.INSTALLABLE, self.hp_hawkey.INSTALLED):
+                if (cve_id, hotpatch) in fixed_cve_id_and_hotpatch or hotpatch.state == self.hp_hawkey.INSTALLED:
                     hotpatch = hotpatch.nevra
-                elif hotpatch.state == self.hp_hawkey.UNINSTALLABLE:
-                    continue
+                elif hotpatch.state in (self.hp_hawkey.UNINSTALLABLE, self.hp_hawkey.UNRELATED):
+                    hotpatch = '-'
+
+            if coldpatch == '-' and hotpatch == '-':
+                continue
 
             idw = max(idw, len(cve_id))
             tiw = max(tiw, len(adv_type))
@@ -408,6 +415,10 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                 if hotpatch.state == self.hp_hawkey.INSTALLABLE:
                     hotpatch = hotpatch.nevra
                 elif hotpatch.state == self.hp_hawkey.UNINSTALLABLE:
+                    hotpatch = '-'
+                elif hotpatch.state == self.hp_hawkey.UNRELATED and coldpatch == '-':
+                    continue
+                elif hotpatch.state == self.hp_hawkey.UNRELATED:
                     hotpatch = '-'
 
             idw = max(idw, len(cve_id))
@@ -484,6 +495,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         echo_lines = set()
         fixed_cve_id_and_hotpatch = set()
         installable_cve_id_and_hotpatch = set()
+        uninstallable_cve_id_and_hotpatch = set()
         iterated_cve_id_and_hotpatch = set()
 
         for ((nevra), aupdated), id2type in sorted(mapping_nevra_cve.items(), key=lambda x: x[0]):
@@ -500,26 +512,31 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                 for hotpatch in self.hp_hawkey.hotpatch_cves[cve_id].hotpatches:
                     # if cold patch name does not match with hotpatch required pkg name (target fix pkgs)
                     if pkg_name not in hotpatch._required_pkgs_info.keys():
+                        echo_line = (cve_id, label, coldpatch, '-')
+                        echo_lines.add(echo_line)
                         continue
-                    if hotpatch.state == self.hp_hawkey.UNRELATED:
-                        continue
-                    elif hotpatch.state == self.hp_hawkey.INSTALLED:
+                    if hotpatch.state == self.hp_hawkey.INSTALLED:
                         # record the fixed cve_id and hotpatch, filter the packages that are lower than
                         # the currently installed package for solving the same cve and target required
                         # pakcage
                         fixed_cve_id_and_hotpatch.add((cve_id, hotpatch))
-                        # record the iterated cve_id and hotpatch
                         iterated_cve_id_and_hotpatch.add((cve_id, hotpatch))
                     elif hotpatch.state == self.hp_hawkey.INSTALLABLE:
                         # record the installable cve_id and hotpatch, filter the packages that are bigger
                         # than the currently installed package
                         installable_cve_id_and_hotpatch.add((cve_id, hotpatch))
                         iterated_cve_id_and_hotpatch.add((cve_id, hotpatch))
+                    elif hotpatch.state == self.hp_hawkey.UNINSTALLABLE:
+                        uninstallable_cve_id_and_hotpatch.add((cve_id, hotpatch))
                     echo_line = (cve_id, label, coldpatch, hotpatch)
                     echo_lines.add(echo_line)
 
         self.add_untraversed_hotpatches(
-            echo_lines, fixed_cve_id_and_hotpatch, installable_cve_id_and_hotpatch, iterated_cve_id_and_hotpatch
+            echo_lines,
+            fixed_cve_id_and_hotpatch,
+            installable_cve_id_and_hotpatch,
+            uninstallable_cve_id_and_hotpatch,
+            iterated_cve_id_and_hotpatch,
         )
         # lower version ACC hotpatch of fixed ACC hotpatch, is also considered to be fixed
         fixed_cve_id_and_hotpatch = self.append_fixed_cve_id_and_hotpatch(fixed_cve_id_and_hotpatch)
@@ -536,6 +553,7 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         echo_lines: set,
         fixed_cve_id_and_hotpatch: set,
         installable_cve_id_and_hotpatch: set,
+        uninstallable_cve_id_and_hotpatch: set,
         iterated_cve_id_and_hotpatch: set,
     ):
         """
@@ -545,6 +563,8 @@ class HotUpdateinfoCommand(dnf.cli.Command):
         Args:
             echo_lines(set)
             fixed_cve_id_and_hotpatch(set)
+            installable_cve_id_and_hotpatch(set)
+            uninstallable_cve_id_and_hotpatch(set)
             iterated_cve_id_and_hotpatch(set)
         """
         for cve_id, cve in self.hp_hawkey.hotpatch_cves.items():
@@ -552,6 +572,8 @@ class HotUpdateinfoCommand(dnf.cli.Command):
                 if hotpatch.state == self.hp_hawkey.UNRELATED:
                     continue
                 if (cve_id, hotpatch) in iterated_cve_id_and_hotpatch:
+                    continue
+                if (cve_id, hotpatch) in uninstallable_cve_id_and_hotpatch:
                     continue
                 if hotpatch.state == self.hp_hawkey.INSTALLED:
                     fixed_cve_id_and_hotpatch.add((cve_id, hotpatch))
