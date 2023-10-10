@@ -126,6 +126,7 @@ class CveHostAssociation(Base, MyBase):
     hp_status = Column(String(20))
     installed_rpm = Column(String(100))
     available_rpm = Column(String(100))
+    host_user = Column(String(100))
 
 
 class CveAffectedPkgs(Base, MyBase):
