@@ -485,7 +485,7 @@ class CveMysqlProxy(MysqlProxy):
                 CveHostAssociation.installed_rpm,
                 CveHostAssociation.available_rpm,
             )
-            .join(CveHostAssociation, Host.host_id == CveHostAssociation.host_id)
+            .join(Host, Host.host_id == CveHostAssociation.host_id)
             .filter(CveHostAssociation.cve_id.in_(cve_list))
             .filter(*filters)
             .all()

@@ -1291,7 +1291,7 @@ class TaskMysqlProxy(MysqlProxy):
                 status = TaskStatus.UNKNOWN
             else:
                 status = TaskStatus.SUCCEED
-            result[cve_id] = {"progress": row.total - row.running - row.none, "status": status}
+            result[cve_id] = {"progress": int(row.total - row.running - row.none), "status": status}
 
         succeed_list = list(result.keys())
         fail_list = list(set(cve_list) - set(succeed_list))
