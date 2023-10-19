@@ -1,5 +1,5 @@
 Name:		aops-apollo
-Version:	v1.2.1
+Version:	v1.3.3
 Release:	1
 Summary:	Cve management service, monitor machine vulnerabilities and provide fix functions.
 License:	MulanPSL2
@@ -17,13 +17,6 @@ Provides:   aops-apollo
 
 %description
 Cve management service, monitor machine vulnerabilities and provide fix functions.
-
-%package -n dnf-hotpatch-plugin
-Summary: dnf hotpatch plugin
-Requires: python3-hawkey python3-dnf syscare >= 1.0.1
-
-%description -n dnf-hotpatch-plugin
-dnf hotpatch plugin, it's about hotpatch query and fix
 
 %package -n aops-apollo-tool
 Summary: Small tools for aops-apollo, e.g. updateinfo.xml generater
@@ -54,9 +47,6 @@ pushd aops-apollo-tool
 %py3_install
 popd
 
-#install for aops-dnf-plugin
-cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
-
 
 %files
 %doc README.*
@@ -68,9 +58,6 @@ cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %{python3_sitelib}/apollo/*
 %attr(0755, root, root) /opt/aops/database/*
 
-%files -n dnf-hotpatch-plugin
-%{python3_sitelib}/dnf-plugins/*
-
 %files -n aops-apollo-tool
 %attr(0644,root,root) %{_sysconfdir}/aops_apollo_tool/updateinfo_config.ini
 %attr(0755,root,root) %{_bindir}/gen-updateinfo
@@ -78,6 +65,9 @@ cp -r hotpatch %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %{python3_sitelib}/aops_apollo_tool/*
 
 %changelog
+* Thu Oct 19 2023 gongzhengtang<gong_zhengtang@163.com> - v1.3.3-1
+- Remove hotpatch
+
 * Tue May 23 2023 zhu-yuncheng<zhuyuncheng@huawei.com> - v1.2.1-1
 - Better dnf hotpatch plugin for more syscare command
 - Add updateinfo.xml generation tool
