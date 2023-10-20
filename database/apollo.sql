@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS `task_rollback`(
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
-CREATE PROCEDURE GET_CVE_LIST_PRO(IN username VARCHAR(20), IN search_key VARCHAR(100), IN severity VARCHAR(20), IN fixed TINYINT, IN affected TINYINT,IN order_by_filed VARCHAR(50),IN order_by VARCHAR(20),IN start_limt INT,IN end_limt INT)
+CREATE PROCEDURE GET_CVE_LIST_PRO(IN username VARCHAR(20), IN search_key VARCHAR(100), IN severity VARCHAR(20), IN fixed TINYINT, IN affected TINYINT,IN order_by_filed VARCHAR(100),IN order_by VARCHAR(20),IN start_limt INT,IN end_limt INT)
 BEGIN
 		
 		DROP TABLE IF EXISTS cve_host_user_count;
@@ -183,7 +183,7 @@ BEGIN
         SET @order_by_filed = 'cve_host_user_count.host_num';
     END IF;
 		
-    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', order_by_filed ,' ', order_by,' limit ',start_limt ,' ,', end_limt);
+    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', @order_by_filed ,' ', order_by,' limit ',start_limt ,' ,', end_limt);
 		
 		prepare stmt from @cve_list_sql;
     EXECUTE stmt;
