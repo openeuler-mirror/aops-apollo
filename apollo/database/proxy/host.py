@@ -126,15 +126,18 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             dict
         """
+        subquery = self.session.query(
+            CveHostAssociation.host_id, CveHostAssociation.cve_id, CveHostAssociation.fixed, CveHostAssociation.affected
+        ).filter(CveHostAssociation.host_id.in_(host_ids)).distinct().subquery()
+
 
         host_cve_fixed_list = (
             self.session.query(
-                CveHostAssociation.host_id,
-                func.COUNT(func.IF(CveHostAssociation.fixed == True, 1, None)).label("fixed_cve_num"),
-                func.COUNT(func.IF(CveHostAssociation.fixed == False, 1, None)).label("unfixed_cve_num"),
+                subquery.c.host_id,
+                func.COUNT(func.IF(subquery.c.fixed == True, 1, None)).label("fixed_cve_num"),
+                func.COUNT(func.IF(subquery.c.fixed == False, 1, None)).label("unfixed_cve_num"),
             )
-            .filter(CveHostAssociation.host_id.in_(host_ids))
-            .group_by(CveHostAssociation.host_id)
+            .group_by(subquery.c.host_id)
             .all()
         )
         return host_cve_fixed_list
