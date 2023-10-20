@@ -662,8 +662,9 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
     @staticmethod
     def _sort_and_page_cve_list(data) -> dict:
-        start_limt = int(data["per_page"]) * (int(data["page"]) - 1)
-        end_limt = int(data["per_page"]) * int(data["page"])
+        page, per_page = data.get('page', 1), data.get('per_page', 10)
+        start_limt = int(per_page) * (int(page) - 1)
+        end_limt = int(per_page) * int(page)
 
         # sort by host num by default
         order_by_filed = data.get('sort', "cve_host_user_count.host_num")
@@ -682,11 +683,13 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Returns:
             sqlalchemy.orm.query.Query: attention, two rows may have same cve id with different source package.
         """
-        filters = {"username": data["username"], "search_key": None, "severity": None, "affected": True}
+        filters = {"username": data["username"], "search_key": None, "affected": True}
         filters.update(data.get("filter", {}))
         filters.update(self._sort_and_page_cve_list(data))
         if filters["severity"]:
             filters["severity"] = ",".join(["'" + serverity + "'" for serverity in filters["severity"]])
+        else:
+            filters["severity"] = None
 
         # Call stored procedure: GET_CVE_LIST_PRO
         pro_result_set = self.session.execute(
