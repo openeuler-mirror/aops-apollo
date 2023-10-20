@@ -179,11 +179,13 @@ BEGIN
 				SET @cve_list_page_count_sql = CONCAT(@cve_list_page_count_sql, 'AND cve.severity IN (', severity, ') ');
     END IF;
 		
-		IF order_by_filed IS NULL or order_by_filed ='' THEN
-        SET @order_by_filed = 'cve_host_user_count.host_num';
-    END IF;
+-- 		IF order_by_filed IS NULL or order_by_filed ='' THEN
+--         SET @order_by_filed = 'cve_host_user_count.host_num';
+--     END IF;
+-- 		 MySql 5.7 version '@' index error 
+
+    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', order_by_filed ,' ', order_by);
 		
-    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', @order_by_filed ,' ', order_by);
 		
 		IF end_limt!=0 THEN
 			SET @cve_list_sql = CONCAT(@cve_list_sql, ' limit ',start_limt ,' ,', end_limt);
