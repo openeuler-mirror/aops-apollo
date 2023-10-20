@@ -655,24 +655,26 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         description_dict = self._get_cve_description([cve_info["cve_id"] for cve_info in cve_list])
 
         result['result'] = self._add_description_to_cve(cve_list, description_dict)
-        result['total_page'] = math.ceil(total / data["per_page"])
+        result['total_page'] = math.ceil(total / data.get("per_page", total))
         result['total_count'] = total
 
         return result
 
     @staticmethod
     def _sort_and_page_cve_list(data) -> dict:
-        page, per_page = data.get('page', 1), data.get('per_page', 10)
-        start_limt = int(per_page) * (int(page) - 1)
-        end_limt = int(per_page) * int(page)
+        sort_page = dict(start_limt=0, end_limt=0)
+        page, per_page = data.get('page'), data.get('per_page')
+        if all((page, per_page)):
+            sort_page['start_limt'] = int(per_page) * (int(page) - 1)
+            sort_page['end_limt'] = int(per_page) * int(page)
 
         # sort by host num by default
         order_by_filed = data.get('sort', "cve_host_user_count.host_num")
         if order_by_filed == "host_num":
             order_by_filed = "cve_host_user_count.host_num"
-        order_by = "dsc" if data.get("direction") == "desc" else "asc"
-
-        return {"start_limt": start_limt, "end_limt": end_limt, "order_by_filed": order_by_filed, "order_by": order_by}
+        sort_page["order_by_filed"] = order_by_filed
+        sort_page["order_by"] = "dsc" if data.get("direction") == "desc" else "asc"
+        return sort_page
 
     def _query_cve_list(self, data):
         """
@@ -686,7 +688,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         filters = {"username": data["username"], "search_key": None, "affected": True}
         filters.update(data.get("filter", {}))
         filters.update(self._sort_and_page_cve_list(data))
-        if filters["severity"]:
+        if filters.get("severity"):
             filters["severity"] = ",".join(["'" + serverity + "'" for serverity in filters["severity"]])
         else:
             filters["severity"] = None

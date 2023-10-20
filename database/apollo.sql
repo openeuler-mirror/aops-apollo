@@ -183,7 +183,11 @@ BEGIN
         SET @order_by_filed = 'cve_host_user_count.host_num';
     END IF;
 		
-    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', @order_by_filed ,' ', order_by,' limit ',start_limt ,' ,', end_limt);
+    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', @order_by_filed ,' ', order_by);
+		
+		IF end_limt!=0 THEN
+			SET @cve_list_sql = CONCAT(@cve_list_sql, ' limit ',start_limt ,' ,', end_limt);
+		END IF;
 		
 		prepare stmt from @cve_list_sql;
     EXECUTE stmt;
