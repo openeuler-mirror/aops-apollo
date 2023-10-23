@@ -15,9 +15,6 @@ Time:
 Author:
 Description: Host table operation
 """
-import math
-from collections import defaultdict
-from typing import List, Tuple
 
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import SQLAlchemyError
