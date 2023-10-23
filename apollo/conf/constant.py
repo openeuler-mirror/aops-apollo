@@ -74,11 +74,11 @@ class CveSeverity:
     HIGH = "High"
     MEDIUM = "Medium"
     LOW = "Low"
-    NONE = "None"
+    UNKNOWN = "Unknown"
 
     @staticmethod
     def attribute():
-        return [CveSeverity.CRITICAL, CveSeverity.HIGH, CveSeverity.MEDIUM, CveSeverity.LOW, CveSeverity.NONE]
+        return [CveSeverity.CRITICAL, CveSeverity.HIGH, CveSeverity.MEDIUM, CveSeverity.LOW, CveSeverity.UNKNOWN]
 
 
 class TaskType:

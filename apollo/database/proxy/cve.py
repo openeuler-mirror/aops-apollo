@@ -670,7 +670,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         # sort by host num by default
         sort_page["order_by_filed"] = data.get('sort', "host_num")
-        sort_page["order_by"] = "dsc" if data.get("direction") == "dsc" else "asc"
+        sort_page["order_by"] = data.get("direction", "asc")
         return sort_page
 
     def _query_cve_list(self, data):
