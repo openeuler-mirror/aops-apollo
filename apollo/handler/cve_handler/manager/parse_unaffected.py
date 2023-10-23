@@ -137,5 +137,5 @@ def parse_cve_severity(cve_score: str) -> str:
     elif cvss_score > CvssScore.NONE:
         severity = CveSeverity.LOW
     else:
-        severity = CveSeverity.NONE
+        severity = CveSeverity.UNKNOWN
     return severity
