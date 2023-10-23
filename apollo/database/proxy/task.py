@@ -2832,9 +2832,11 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         )
         cve_host_package_dict = dict()
         for host_id in host_rpms["host_ids"]:
-            filter_host_package = filter(lambda host_package: host_package.host_id == int(host_id), cve_host_packages)
+            filter_host_package = list(
+                filter(lambda host_package: host_package.host_id == int(host_id), cve_host_packages)
+            )
             if not host_rpm_dict:
-                installed_rpm = self._filter_installed_rpm(list(filter_host_package))
+                installed_rpm = self._filter_installed_rpm(filter_host_package)
                 cve_host_package_dict[host_id] = installed_rpm
                 continue
 
