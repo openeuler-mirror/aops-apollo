@@ -130,7 +130,7 @@ BEGIN
 		DROP TABLE IF EXISTS cve_host_user_count;
     SET @tmp_cve_host_count_sql = 'CREATE TEMPORARY TABLE cve_host_user_count SELECT
     cve_id,
-    COUNT(host_id) AS host_num
+    COUNT(DISTINCT host_id) AS host_num
     FROM
         cve_host_match FORCE INDEX (ix_cve_host_match_host_id)
     WHERE 1=1 ';
