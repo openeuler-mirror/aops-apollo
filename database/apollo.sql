@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS `task_rollback`(
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
-CREATE PROCEDURE GET_CVE_LIST_PRO(IN username VARCHAR(20), IN search_key VARCHAR(100), IN severity VARCHAR(20), IN fixed TINYINT, IN affected TINYINT,IN order_by_filed VARCHAR(100),IN order_by VARCHAR(20),IN start_limt INT,IN end_limt INT)
+CREATE PROCEDURE GET_CVE_LIST_PRO(IN username VARCHAR(20), IN search_key VARCHAR(100), IN severity VARCHAR(200), IN fixed TINYINT, IN affected TINYINT,IN order_by_filed VARCHAR(100),IN order_by VARCHAR(20),IN start_limt INT,IN limt_size INT)
 BEGIN
 		
 		DROP TABLE IF EXISTS cve_host_user_count;
@@ -135,9 +135,6 @@ BEGIN
         cve_host_match FORCE INDEX (ix_cve_host_match_host_id)
     WHERE 1=1 ';
 
-    IF search_key is not null and search_key !='' THEN
-        SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql, ' AND LOCATE("', search_key, '", cve_id) > 0 ');
-    END IF;
     IF fixed is not null THEN
         SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql, ' AND fixed = ', fixed, ' ');
     END IF;
@@ -183,12 +180,10 @@ BEGIN
 --         SET @order_by_filed = 'cve_host_user_count.host_num';
 --     END IF;
 -- 		 MySql 5.7 version '@' index error 
+    SET @cve_list_sql = CONCAT('select s.* from ( ', @cve_list_sql,' ) as s ',' ORDER BY ', order_by_filed ,'  ', order_by);
 
-    SET @cve_list_sql = CONCAT(@cve_list_sql, ' ORDER BY ', order_by_filed ,' ', order_by);
-		
-		
-		IF end_limt!=0 THEN
-			SET @cve_list_sql = CONCAT(@cve_list_sql, ' limit ',start_limt ,' ,', end_limt);
+		IF limt_size!=0 THEN
+			SET @cve_list_sql = CONCAT(@cve_list_sql, ' limit ',start_limt ,' ,', limt_size);
 		END IF;
 		
 		prepare stmt from @cve_list_sql;
