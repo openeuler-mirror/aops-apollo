@@ -44,6 +44,5 @@
   type: data_correct
   enable: true
   timed:
-    day_of_week: 0-6
-    hour: 3
-    trigger: cron
+    minutes: 20
+    trigger: interval
