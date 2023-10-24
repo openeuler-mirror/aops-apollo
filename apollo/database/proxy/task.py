@@ -3214,7 +3214,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         task_id_list = task_cve_id_list + task_repo_id_list
 
         task_query = self.session.query(Task).filter(Task.task_id.in_(task_id_list)).all()
-        running_task_list = [(task.task_id, task.task_type, task.create_time) for task in task_query]
+        running_task_list = [(task.task_id, task.create_time) for task in task_query]
         return running_task_list, host_info_list
 
     def update_host_status(self, host_id_list: list):
