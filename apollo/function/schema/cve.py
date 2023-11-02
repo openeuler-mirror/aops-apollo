@@ -15,11 +15,8 @@ Time:
 Author:
 Description: For cve related restful interfaces schema
 """
-from marshmallow import Schema
-from marshmallow import fields
-from marshmallow import validate
+from marshmallow import Schema, fields, validate
 from vulcanus.restful.serialize.validate import PaginationSchema
-
 from apollo.conf.constant import CveSeverity
 
 
