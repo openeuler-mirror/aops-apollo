@@ -144,8 +144,8 @@ def generate_package_list(package_dir: str) -> Element:
 
             filename.text = "%s-%s-%s.%s.rpm" % (
                 package.attrib['name'],
-                package.attrib['release'],
                 package.attrib['version'],
+                package.attrib['release'],
                 package.attrib['arch'],
             )
 
