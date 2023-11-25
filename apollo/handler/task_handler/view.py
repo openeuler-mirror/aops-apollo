@@ -38,11 +38,11 @@ from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
-from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
+from apollo.handler.task_handler.callback.hotpatch_deactivate import HotpatchDeactivateCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
-from apollo.handler.task_handler.manager.cve_rollback_manager import CveRollbackManager
+from apollo.handler.task_handler.manager.hotpatch_deactivate_manager import HotpatchDeactivateManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager, EmailNoticeManager
 
@@ -534,7 +534,7 @@ class VulExecuteTask(BaseResponse):
     type_map = {
         TaskType.CVE_FIX: "_handle_cve_fix",
         TaskType.REPO_SET: "_handle_repo",
-        TaskType.CVE_ROLLBACK: "_handle_cve_rollback",
+        TaskType.HOTPATCH_DEACTIVATE: "_handle_hotpatch_deactivate",
     }
 
     @staticmethod
@@ -591,9 +591,9 @@ class VulExecuteTask(BaseResponse):
         return SUCCEED
 
     @staticmethod
-    def _handle_cve_rollback(args, proxy):
+    def _handle_hotpatch_deactivate(args, proxy):
         """
-        Handle cve rollback task
+        Handle hotpatch deactivate task
 
         Args:
             args (dict)
@@ -604,7 +604,7 @@ class VulExecuteTask(BaseResponse):
         """
         task_id = args['task_id']
 
-        manager = CveRollbackManager(proxy, task_id)
+        manager = HotpatchDeactivateManager(proxy, task_id)
         manager.token = args['token']
         status_code = manager.create_task()
         if status_code != SUCCEED:
@@ -760,15 +760,15 @@ class VulCveScanTaskCallback(BaseResponse):
         return self.response(code=CveScanCallback(callback).callback(params))
 
 
-class VulGenerateCveRollback(BaseResponse):
+class VulGenerateHotpatchDeactivate(BaseResponse):
     """
-    Restful interface for generating a cve rollback task.
+    Restful interface for generating a cve hotpatch deactivate task.
     """
 
     @staticmethod
     def _handle(task_proxy, args):
         """
-        Handle cve rollback task generating
+        Handle hotpatch deactivate task generating
 
         Args:
             args (dict): request parameter
@@ -779,12 +779,15 @@ class VulGenerateCveRollback(BaseResponse):
         """
         task_id = str(uuid.uuid1()).replace('-', '')
         task_info = dict(
-            task_id=task_id, task_type=TaskType.CVE_ROLLBACK, create_time=int(time.time()), username=args["username"]
+            task_id=task_id,
+            task_type=TaskType.HOTPATCH_DEACTIVATE,
+            create_time=int(time.time()),
+            username=args["username"],
         )
         task_info.update(args)
 
         # save task info to database
-        status_code = task_proxy.generate_cve_rollback_task(task_info)
+        status_code = task_proxy.generate_hotpatch_deactivate_task(task_info)
         if status_code != SUCCEED:
             LOGGER.error("Generate cve rollback task fail.")
 
@@ -818,12 +821,12 @@ class VulGenerateCveRollback(BaseResponse):
         return self.response(code=status_code, data=data)
 
 
-class VulCveRollbackTaskCallback(BaseResponse):
+class VulHotpatchDeactivateTaskCallback(BaseResponse):
     """
-    Restful interface for cve rollback task callback.
+    Restful interface for hotpatch deactivate task callback.
     """
 
-    @BaseResponse.handle(schema=CveRollbackCallbackSchema, proxy=TaskProxy)
+    @BaseResponse.handle(schema=HotpatchDeactivateCallbackSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -839,7 +842,7 @@ class VulCveRollbackTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code = CveRollbackCallback(callback).callback(params)
+        status_code = HotpatchDeactivateCallback(callback).callback(params)
         return self.response(code=status_code)
 
 

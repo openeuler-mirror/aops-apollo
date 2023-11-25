@@ -16,28 +16,28 @@ from vulcanus.restful.resp.state import SUCCEED, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_CVE_ROLLBACK_CALLBACK, EXECUTE_CVE_ROLLBACK, TaskStatus
+from apollo.conf.constant import VUL_TASK_HOTPATCH_DEACTIVATE_CALLBACK, EXECUTE_HOTPATCH_DEACTIVATE, TaskStatus
 from apollo.handler.task_handler.manager import Manager
 
 
-class CveRollbackManager(Manager):
+class HotpatchDeactivateManager(Manager):
     """
-    Manager for cve rollback
+    Manager for hotpatch deactivate
     """
 
     def create_task(self) -> int:
         """
-        Create cve rollback task
+        Create hotpatch deactivate task
 
         Returns:
             int: status code
         """
-        status_code, self.task = self.proxy.get_cve_rollback_task_info(self.task_id)
+        status_code, self.task = self.proxy.get_hotpatch_deactivate_task_info(self.task_id)
         if status_code != SUCCEED:
-            LOGGER.error("There is no data about host info, stop cve rollback.")
+            LOGGER.error("There is no data about host info, stop creating a hotpatch deactivate task.")
             return status_code
 
-        self.task['callback'] = VUL_TASK_CVE_ROLLBACK_CALLBACK
+        self.task['callback'] = VUL_TASK_HOTPATCH_DEACTIVATE_CALLBACK
 
         return SUCCEED
 
@@ -48,27 +48,31 @@ class CveRollbackManager(Manager):
         Returns:
             bool: succeed or fail
         """
-        if self.proxy.init_cve_rollback_task(self.task_id, []) != SUCCEED:
-            LOGGER.error("Init the host status in database failed, stop cve rollback task %s.", self.task_id)
+        if self.proxy.init_hotpatch_deactivate_task(self.task_id, []) != SUCCEED:
+            LOGGER.error("Init the host status in database failed, stop hotpatch deactivate task %s.", self.task_id)
             return False
 
         if self.proxy.update_task_execute_time(self.task_id, self.cur_time) != SUCCEED:
-            LOGGER.warning("Update latest execute time for cve rollback task %s failed.", self.task_id)
+            LOGGER.warning("Update latest execute time for hotpatch deactivate task %s failed.", self.task_id)
 
         return True
 
     def handle(self):
         """
-        Executing cve rollback task.
+        Executing hotpatch deactivate task.
         """
-        LOGGER.info("Cve rollback task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_CVE_ROLLBACK)
+        LOGGER.info("hotpatch deactivate task %s start to execute.", self.task_id)
+        manager_url = URL_FORMAT % (
+            configuration.zeus.get('IP'),
+            configuration.zeus.get('PORT'),
+            EXECUTE_HOTPATCH_DEACTIVATE,
+        )
         header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
 
         response = BaseResponse.get_response('POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:
-            LOGGER.error("Cve rollback task %s execute failed.", self.task_id)
-            self.proxy.init_cve_rollback_task(self.task_id, [], TaskStatus.UNKNOWN)
+            LOGGER.error("Hotpatch deactivate task %s execute failed.", self.task_id)
+            self.proxy.init_hotpatch_deactivate_task(self.task_id, [], TaskStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
 
         return SUCCEED

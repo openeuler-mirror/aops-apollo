@@ -18,7 +18,7 @@ Description:
 from unittest import mock
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED
-from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
+from apollo.handler.task_handler.callback.hotpatch_deactivate import HotpatchDeactivateCallback
 from apollo.database.proxy.task import TaskProxy
 from apollo.tests import BaseTestCase
 
@@ -28,7 +28,7 @@ class TestCveRollbackCallback(BaseTestCase):
         super().setUp()
         task_proxy = TaskProxy()
         task_proxy.connect()
-        self.cve_rollback_callback = CveRollbackCallback(proxy=task_proxy)
+        self.cve_rollback_callback = HotpatchDeactivateCallback(proxy=task_proxy)
         self.callback_result = {
             "task_id": "string",
             "host_id": "string",
