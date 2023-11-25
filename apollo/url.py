@@ -64,7 +64,7 @@ SPECIFIC_URLS = {
         (cve_task_view.VulGetRepoTaskInfo, VUL_TASK_REPO_INFO_GET),
         (cve_task_view.VulGetRepoTaskResult, VUL_TASK_REPO_RESULT_GET),
         (cve_task_view.VulDeleteTask, VUL_TASK_DELETE),
-        (cve_task_view.VulGenerateCveRollback, VUL_TASK_CVE_ROLLBACK_GENERATE),
+        (cve_task_view.VulGenerateHotpatchDeactivate, VUL_TASK_HOTPATCH_DEACTIVATE_GENERATE),
         (cve_task_view.VulGetTaskCveRpmInfo, VUL_TASK_CVE_RPM_INFO_GET),
         (cve_task_view.VulTaskCveRpmHost, VUL_TASK_CVE_RPM_HOST),
     ],
@@ -72,7 +72,7 @@ SPECIFIC_URLS = {
         (cve_task_view.VulCveFixTaskCallback, VUL_TASK_CVE_FIX_CALLBACK),
         (cve_task_view.VulRepoSetTaskCallback, VUL_TASK_REPO_SET_CALLBACK),
         (cve_task_view.VulCveScanTaskCallback, VUL_TASK_CVE_SCAN_CALLBACK),
-        (cve_task_view.VulCveRollbackTaskCallback, VUL_TASK_CVE_ROLLBACK_CALLBACK),
+        (cve_task_view.VulHotpatchDeactivateTaskCallback, VUL_TASK_HOTPATCH_DEACTIVATE_CALLBACK),
         (cve_task_view.VulCveScanNotice, VUL_TASK_CVE_SCAN_NOTICE),
     ],
 }

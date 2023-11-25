@@ -1563,9 +1563,9 @@ class TaskMysqlProxy(MysqlProxy):
         status_query.one().status = status
         return SUCCEED
 
-    def init_cve_rollback_task(self, task_id, cve_list, status=None):
+    def init_hotpatch_deactivate_task(self, task_id, cve_list, status=None):
         """
-        Before rollbacking cve, set related host status to 'running'
+        Before hotpatch deactivate, set related host status to 'running'
 
         Args:
             task_id (str): task id
@@ -2283,9 +2283,9 @@ class TaskMysqlProxy(MysqlProxy):
 
         return list(result.values())
 
-    def get_cve_rollback_task_info(self, task_id):
+    def get_hotpatch_deactivate_task_info(self, task_id):
         """
-        Get cve rollback task basic info of the task id, for generating the task info.
+        Get hotpatch deactivate task basic info of the task id, for generating the task info.
 
         Args:
             task_id (str): task_id
@@ -2296,7 +2296,7 @@ class TaskMysqlProxy(MysqlProxy):
                 {
                     "task_id": "1",
                     "task_name": "CVE修复回滚",
-                    "task_type": "cve rollback",
+                    "task_type": "hotpatch deactivate",
                     "total_hosts": ["id1", "id2"],
                     "tasks": [
                         {
@@ -2313,17 +2313,17 @@ class TaskMysqlProxy(MysqlProxy):
         """
         result = dict()
         try:
-            status_code, result = self._get_cve_rollback_task_info(task_id)
-            LOGGER.debug("Finished getting the basic info of cve rollback task.")
+            status_code, result = self._get_hotpatch_deactivate_task_info(task_id)
+            LOGGER.debug("Finished getting the basic info of hotpatch deactivate task.")
             return status_code, result
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("Getting the basic info of cve rollback task failed due to internal error.")
+            LOGGER.error("Getting the basic info of hotpatch deactivate task failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
-    def _get_cve_rollback_task_info(self, task_id: str) -> Tuple[int, Dict]:
+    def _get_hotpatch_deactivate_task_info(self, task_id: str) -> Tuple[int, Dict]:
         """
-        query cve rollback task's basic info
+        query hotpatch deactivate task's basic info
         Args:
             task_id (str): task id
 
@@ -3325,9 +3325,9 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         return SUCCEED
 
-    def generate_cve_rollback_task(self, data):
+    def generate_hotpatch_deactivate_task(self, data):
         """
-        For generating, save cve rollback task basic info to mysql, init task info in es.
+        For generating, save hotpatch deactivate task basic info to mysql, init task info in es.
 
         Args:
             data (dict): e.g.
@@ -3355,17 +3355,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             int: status code
         """
         try:
-            self._gen_cve_rollback_task(data)
+            self._gen_hotpatch_deactivate_task(data)
             self.session.commit()
-            LOGGER.debug("Finished generating cve rollback task.")
+            LOGGER.debug("Finished generating hotpatch deactivate task.")
             return SUCCEED
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error("Generating cve rollback task failed due to internal error.")
+            LOGGER.error("Generating hotpatch deactivate task failed due to internal error.")
             return DATABASE_INSERT_ERROR
 
-    def _gen_cve_rollback_task(self, data):
+    def _gen_hotpatch_deactivate_task(self, data):
         task_id = data["task_id"]
         task_cve_host = dict()
         cves = dict()

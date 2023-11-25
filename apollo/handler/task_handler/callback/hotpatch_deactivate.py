@@ -17,9 +17,9 @@ from apollo.conf.constant import TaskType
 from apollo.handler.task_handler.callback import TaskCallback
 
 
-class CveRollbackCallback(TaskCallback):
+class HotpatchDeactivateCallback(TaskCallback):
     """
-    Callback function for cve rollback.
+    Callback function for hotpatch deactivate.
     """
 
     def _save_result_to_es(self, task_id, host_id, task_type, task_result):
@@ -100,7 +100,7 @@ class CveRollbackCallback(TaskCallback):
         self._save_result_to_es(
             task_id=task_id,
             host_id=host_id,
-            task_type=TaskType.CVE_ROLLBACK,
+            task_type=TaskType.HOTPATCH_DEACTIVATE,
             task_result=task_result,
         )
         update_status_result = []

@@ -291,20 +291,20 @@ class CveScanCallbackSchema(Schema):
     fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=False), required=False)
 
 
-class CveRollbackHostPatchInfoSchema(Schema):
+class HotpatchDeactivateCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     hotpatch = fields.Boolean()
 
 
-class CveRollbackInfoSchema(Schema):
+class HotpatchDeactivateInfoSchema(Schema):
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    cves = fields.List(fields.Nested(CveRollbackHostPatchInfoSchema), required=True, validate=lambda s: len(s) > 0)
+    cves = fields.List(fields.Nested(HotpatchDeactivateCveInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
 class GenerateCveRollbackTaskSchema(Schema):
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
-    info = fields.List(fields.Nested(CveRollbackInfoSchema), required=True, validate=lambda s: len(s) > 0)
+    info = fields.List(fields.Nested(HotpatchDeactivateInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
 class CveRollbackResultSchema(Schema):
@@ -313,7 +313,7 @@ class CveRollbackResultSchema(Schema):
     log = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
-class CveRollbackCallbackSchema(CallbackSchma):
+class HotpatchDeactivateCallbackSchema(CallbackSchma):
     check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
     cves = fields.Nested(CveRollbackResultSchema, many=True)
 
@@ -349,6 +349,6 @@ __all__ = [
     'RepoSetCallbackSchema',
     'CveScanCallbackSchema',
     'GenerateCveRollbackTaskSchema',
-    'CveRollbackCallbackSchema',
+    'HotpatchDeactivateCallbackSchema',
     'TaskCveRpmInfoSchema',
 ]
