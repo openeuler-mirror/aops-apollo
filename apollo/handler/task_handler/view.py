@@ -284,9 +284,15 @@ class VulGenerateCveTask(BaseResponse):
         Returns:
             dict: response body, e.g.
                 {
-                    "code": 200,
-                    "msg": "",
-                    "task_id": "id1"
+                    "code": "200",
+                    "data": [
+                        {
+                            "task_id": "8878b35288df11eeb0815254001a9e0d",
+                            "fix_way": "hotpatch/coldpatch"
+                        }
+                    ],
+                    "label": "Succeed",
+                    "message": "operation succeed"
                 }
         """
 
@@ -789,11 +795,11 @@ class VulGenerateHotpatchDeactivate(BaseResponse):
         # save task info to database
         status_code = task_proxy.generate_hotpatch_deactivate_task(task_info)
         if status_code != SUCCEED:
-            LOGGER.error("Generate cve rollback task fail.")
+            LOGGER.error("Generate hotpatch deactivate task fail.")
 
         return status_code, dict(task_id=task_id)
 
-    @BaseResponse.handle(schema=GenerateCveRollbackTaskSchema, proxy=TaskProxy)
+    @BaseResponse.handle(schema=GenerateHotpatchDeactivateTaskSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
         """
         Args:

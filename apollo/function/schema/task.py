@@ -301,7 +301,7 @@ class HotpatchDeactivateInfoSchema(Schema):
     cves = fields.List(fields.Nested(HotpatchDeactivateCveInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
-class GenerateCveRollbackTaskSchema(Schema):
+class GenerateHotpatchDeactivateTaskSchema(Schema):
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     info = fields.List(fields.Nested(HotpatchDeactivateInfoSchema), required=True, validate=lambda s: len(s) > 0)
@@ -348,7 +348,7 @@ __all__ = [
     'CveFixCallbackSchema',
     'RepoSetCallbackSchema',
     'CveScanCallbackSchema',
-    'GenerateCveRollbackTaskSchema',
+    'GenerateHotpatchDeactivateTaskSchema',
     'HotpatchDeactivateCallbackSchema',
     'TaskCveRpmInfoSchema',
 ]
