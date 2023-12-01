@@ -37,7 +37,7 @@ from apollo.database.table import (
     HostGroup,
     CveHostAssociation,
     CveAffectedPkgs,
-    TaskCveHostAssociation,
+    TaskDeactivateHotpatch,
     TaskHostRepoAssociation,
     Cve,
     Repo,
@@ -372,7 +372,7 @@ class TestDataInit(Database):
             "host_ip": "127.0.0.2",
             "status": "unknown",
         }
-        task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
+        task_cve_host = TaskDeactivateHotpatch(**task_cve_host_data)
         self.sql.session.add(task_cve_host)
 
         task_cve_host_data = {
@@ -383,7 +383,7 @@ class TestDataInit(Database):
             "host_ip": "127.0.0.1",
             "status": "running",
         }
-        task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
+        task_cve_host = TaskDeactivateHotpatch(**task_cve_host_data)
         self.sql.session.add(task_cve_host)
 
         task_cve_host_data = {
@@ -394,7 +394,7 @@ class TestDataInit(Database):
             "host_ip": "127.0.0.1",
             "status": "succeed",
         }
-        task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
+        task_cve_host = TaskDeactivateHotpatch(**task_cve_host_data)
         self.sql.session.add(task_cve_host)
 
         # task 2
@@ -406,7 +406,7 @@ class TestDataInit(Database):
             "host_ip": "127.0.0.2",
             "status": "fail",
         }
-        task_cve_host = TaskCveHostAssociation(**task_cve_host_data)
+        task_cve_host = TaskDeactivateHotpatch(**task_cve_host_data)
         self.sql.session.add(task_cve_host)
         self.sql.session.commit()
 

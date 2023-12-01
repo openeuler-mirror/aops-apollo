@@ -18,7 +18,7 @@ Description: mysql tables
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql.sqltypes import Boolean, Integer, String
+from sqlalchemy.sql.sqltypes import Boolean, Integer, String, Text
 from vulcanus.database.helper import create_tables
 
 from apollo.database import ENGINE
@@ -67,6 +67,7 @@ class Host(Base, MyBase):  # pylint: disable=R0903
 
     host_group = relationship('HostGroup', back_populates='hosts')
     owner = relationship('User', back_populates='hosts')
+    reboot = Column(Boolean, nullable=False)
 
     def __eq__(self, o):
         return self.user == o.user and (
@@ -143,13 +144,13 @@ class CveAffectedPkgs(Base, MyBase):
     affected = Column(Integer)
 
 
-class TaskCveHostAssociation(Base, MyBase):
+class TaskDeactivateHotpatch(Base, MyBase):
     """
     cve, task and host tables' association table, record cve, host and task's matching
-    relationship for fixing cve task
+    relationship for deactivate hotpatch
     """
 
-    __tablename__ = "task_cve_host"
+    __tablename__ = "task_deactivate_hotpatch"
     task_cve_host_id = Column(String(32), primary_key=True)
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
     cve_id = Column(String(20))
@@ -158,7 +159,6 @@ class TaskCveHostAssociation(Base, MyBase):
     host_ip = Column(String(16), nullable=False)
     # status can be "unfixed", "fixed" and "running"
     status = Column(String(20), nullable=False)
-    hotpatch = Column(Boolean)
 
 
 class TaskCveHostRpmAssociation(Base, MyBase):
@@ -169,16 +169,20 @@ class TaskCveHostRpmAssociation(Base, MyBase):
 
     __tablename__ = "task_cve_host_rpm"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    task_cve_host_id = Column(String(32), ForeignKey('task_cve_host.task_cve_host_id', ondelete="CASCADE"))
+    task_cve_host_rpm_id = Column(String(32), primary_key=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    host_id = Column(Integer)
+    host_ip = Column(String(20))
+    host_name = Column(String(50))
+    cves = Column(Text)
     installed_rpm = Column(String(100))
     available_rpm = Column(String(100))
     fix_way = Column(String(20))
     # status can be "unfixed", "fixed" and "running"
     status = Column(String(20), nullable=False)
-    dnf_event_start = Column(Integer)
-    dnf_event_end = Column(Integer)
     take_over_result = Column(Boolean)
+    dnf_event_start = Column(Integer(default=0))
+    dnf_event_end = Column(Integer(default=0))
 
 
 class TaskHostRepoAssociation(Base, MyBase):
@@ -259,6 +263,29 @@ class AdvisoryDownloadRecord(Base, MyBase):
     download_status = Column(Boolean)
 
 
+class TaskRollback(Base, MyBase):
+    """
+    Rollback task info
+    """
+
+    __tablename__ = "task_rollback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    host_id = Column(Integer)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    # status can be "succeed", "failed" and "running"
+    status = Column(String(20), nullable=False)
+    host_ip = Column(String(16), nullable=False)
+    cves = Column(Text)
+    installed_rpm = Column(String(100))
+    target_rpm = Column(String(100))
+    dnf_event_start = Column(Integer)
+    dnf_event_end = Column(Integer)
+    rollback_fix_task_id = Column(String(20), nullable=False)
+    # rollback_type can be "hotpatch" and "coldpatch"
+    rollback_type = Column(String(20))
+
+
 def create_vul_tables(engine=ENGINE):
     """
     create vulnerability tables of apollo service
@@ -276,7 +303,7 @@ def create_vul_tables(engine=ENGINE):
         Repo,
         AdvisoryDownloadRecord,
         TaskHostRepoAssociation,
-        TaskCveHostAssociation,
+        TaskDeactivateHotpatch,
         CveAffectedPkgs,
     ]
     tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]
