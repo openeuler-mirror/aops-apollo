@@ -436,11 +436,6 @@ class TestTaskMysqlFirst(DatabaseTestCase):
         }
         self.assertEqual(self.task_database.get_task_cve_progress(data), (SUCCEED, expected_result))
 
-    def test_get_rollback_cve_list(self):
-        data = {"username": "admin", "task_id": "1111111111poiuytrewqasdfghjklmnb"}
-        expected_result = ["qwfqwff4"]
-        self.assertEqual(self.task_database.get_rollback_cve_list(data), expected_result)
-
     def test_get_cve_basic_info(self):
         task_id = "1111111111poiuytrewqasdfghjklmnb"
         expected_result = {

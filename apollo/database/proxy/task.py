@@ -48,8 +48,9 @@ from apollo.database.table import (
     Cve,
     Repo,
     Task,
-    TaskDeactivateHotpatch,
     TaskCveHostRpmAssociation,
+    CveRollbackTask,
+    TaskDeactivateHotpatch,
     TaskHostRepoAssociation,
     CveHostAssociation,
     CveAffectedPkgs,
@@ -615,7 +616,7 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Getting task progress failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
-    def _get_processed_task_progress(self, data):
+    def _get_processed_task_progress(self, data: dict):
         """
         Get each task's progress
         Args:
@@ -627,13 +628,13 @@ class TaskMysqlProxy(MysqlProxy):
         """
         task_list = data["task_list"]
         username = data["username"]
-        cve_task, repo_task = self._split_task_list(username, task_list)
-        cve_task_progress = self._get_cve_task_progress(cve_task)
-        repo_task_progress = self._get_repo_task_progress(repo_task)
+        repo_task, cve_task, cve_rollback_task, hp_remove_task = self._split_task_list(username, task_list)
 
         result = {}
-        result.update(cve_task_progress)
-        result.update(repo_task_progress)
+        result.update(self._get_repo_task_progress(repo_task))
+        result.update(self._get_cve_series_task_progress(cve_task, TaskType.CVE_FIX))
+        result.update(self._get_cve_series_task_progress(cve_rollback_task, TaskType.CVE_ROLLBACK))
+        result.update(self._get_cve_series_task_progress(hp_remove_task, TaskType.HOTPATCH_DEACTIVATE))
 
         succeed_list = list(result.keys())
         fail_list = list(set(task_list) - set(succeed_list))
@@ -644,7 +645,7 @@ class TaskMysqlProxy(MysqlProxy):
         status_code = judge_return_code(status_dict, NO_DATA)
         return status_code, {"result": result}
 
-    def _split_task_list(self, username, task_list):
+    def _split_task_list(self, username: str, task_list: list) -> Tuple[list, list, list, list]:
         """
         split task list based on task's type
         Args:
@@ -652,25 +653,33 @@ class TaskMysqlProxy(MysqlProxy):
             task_list (list): task id list
 
         Returns:
-            list: cve task list
             list: repo task list
+            list: cve task list
+            liST: cve rollback task list
+            list: hotpatch remove task list
         """
-        cve_task = []
         repo_task = []
+        cve_task = []
+        cve_rollback_task = []
+        hp_remove_task = []
 
         # filter task's type in case of other type added into task table
         task_query = self.session.query(Task.task_id, Task.task_type).filter(
             Task.username == username,
             Task.task_id.in_(task_list),
-            Task.task_type.in_([TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET]),
+            Task.task_type.in_(TaskType.attribute()),
         )
 
         for row in task_query:
             if row.task_type == TaskType.REPO_SET:
                 repo_task.append(row.task_id)
-            else:
+            elif row.task_type == TaskType.CVE_FIX:
                 cve_task.append(row.task_id)
-        return cve_task, repo_task
+            elif row.task_type == TaskType.CVE_ROLLBACK:
+                cve_rollback_task.append(row.task_id)
+            elif row.task_type == TaskType.HOTPATCH_DEACTIVATE:
+                hp_remove_task.append(row.task_id)
+        return repo_task, cve_task, cve_rollback_task, hp_remove_task
 
     @staticmethod
     def _get_status_result():
@@ -679,11 +688,12 @@ class TaskMysqlProxy(MysqlProxy):
 
         return defaultdict(status_dict)
 
-    def _get_cve_task_progress(self, task_list):
+    def _get_cve_series_task_progress(self, task_list: list, task_type: str):
         """
-        get cve tasks' progress
+        get progress of cve fix task or cve rollback task or hotpatch remove task
         Args:
             task_list (list): cve tasks' id list
+            task_type (str): type of cve series tasks.
 
         Returns:
             dict: e.g.
@@ -696,10 +706,15 @@ class TaskMysqlProxy(MysqlProxy):
         def defaultdict_set():
             return defaultdict(set)
 
+        task_table_map = {
+            TaskType.CVE_FIX: TaskCveHostRpmAssociation,
+            TaskType.CVE_ROLLBACK: CveRollbackTask,
+            TaskType.HOTPATCH_DEACTIVATE: TaskDeactivateHotpatch
+        }
         tasks_dict = defaultdict(defaultdict_set)
         result = self._get_status_result()
 
-        task_query = self._query_cve_task_host_status(task_list)
+        task_query = self._query_cve_series_task_host_status(task_list, task_table_map[task_type])
         for row in task_query:
             tasks_dict[row.task_id][row.host_id].add(row.status)
 
@@ -714,22 +729,24 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("CVE task '%s' exist but status data is not record." % fail_list)
         return result
 
-    def _query_cve_task_host_status(self, task_list):
+    def _query_cve_series_task_host_status(self, task_list: list, task_table):
         """
-        query host and CVE's relationship and status of required tasks
+        query host status of cve fix task or cve rollback task or hotpatch remove task
         Args:
             task_list (list): task id list
+            task_table (sqlalchemy table): table of cve series tasks. Pay attention, the table must have "task_id",
+                "host_id" and "status" columns
 
         Returns:
             sqlalchemy.orm.query.Query
         """
         task_query = self.session.query(
-            TaskDeactivateHotpatch.task_id, TaskDeactivateHotpatch.host_id, TaskDeactivateHotpatch.status
-        ).filter(TaskDeactivateHotpatch.task_id.in_(task_list))
+            task_table.task_id, task_table.host_id, task_table.status
+        ).filter(task_table.task_id.in_(task_list))
         return task_query
 
     @staticmethod
-    def _get_cve_task_status(status_set):
+    def _get_cve_task_status(status_set: set):
         """
         get cve task's host or cve's overall status
         Args:
@@ -1336,51 +1353,6 @@ class TaskMysqlProxy(MysqlProxy):
         )
         return task_query
 
-    def get_rollback_cve_list(self, data):
-        """
-        Just get the cve id list whose status is "succeed" and "fail", according to task id and
-        username, the interface is used to verify the parameter for rollback.
-
-        Args:
-            data (dict): e.g.
-                {
-                    "task_id": "aa",
-                    "username": "admin"
-                }
-
-        Returns:
-            list
-        """
-        result = []
-        try:
-            result = self._get_rollback_cve_list(data)
-            LOGGER.debug("Finished getting the cve task list which may need roll back.")
-            return result
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            LOGGER.error("Getting the cve task list which may need roll back failed due to internal error.")
-            return result
-
-    def _get_rollback_cve_list(self, data):
-        """
-        query the cve id whose status is "succeed" and "fail"
-        """
-        username = data["username"]
-        task_id = data["task_id"]
-        status_query = self._query_cve_task_cve_status(username, task_id, [])
-
-        status_dict = defaultdict(set)
-        for row in status_query:
-            status_dict[row.cve_id].add(row.status)
-
-        cve_list = []
-        for cve_id, status_set in status_dict.items():
-            cve_status = self._get_cve_task_status(status_set)
-            if cve_status in [TaskStatus.SUCCEED, TaskStatus.FAIL]:
-                cve_list.append(cve_id)
-
-        return cve_list
-
     def get_cve_basic_info(self, task_id):
         """
         Get cve task basic info of the task id, for generating the task info.
@@ -1977,13 +1949,13 @@ class TaskMysqlProxy(MysqlProxy):
         check the task is open for execute or not
         Args:
             task_id (str): task id
-            task_type (str): for now, 'cve fix' or 'repo set' or 'cve rollback'
+            task_type (str): for now, 'cve fix' or 'repo set' or 'cve rollback' or 'hotpatch deactivate'
 
         Returns:
             bool
         """
-        if task_type == TaskType.CVE_FIX or task_type == TaskType.CVE_ROLLBACK:
-            task_progress = self._get_cve_task_progress([task_id])
+        if task_type in [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.HOTPATCH_DEACTIVATE]:
+            task_progress = self._get_cve_series_task_progress([task_id], task_type)
         elif task_type == TaskType.REPO_SET:
             task_progress = self._get_repo_task_progress([task_id])
         else:
