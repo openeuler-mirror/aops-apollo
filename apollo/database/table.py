@@ -109,6 +109,34 @@ class User(Base, MyBase):  # pylint: disable=R0903
     hosts = relationship('Host', back_populates='owner')
 
 
+class Cve(Base, MyBase):
+    """
+    Cve table
+    """
+
+    __tablename__ = "cve"
+
+    cve_id = Column(String(20), nullable=False, primary_key=True)
+    publish_time = Column(String(20))
+    severity = Column(String(20))
+    cvss_score = Column(String(20))
+    reboot = Column(Boolean)
+
+
+class CveAffectedPkgs(Base, MyBase):
+    """
+    record the affected packages of cves. A cve may affect multiple packages.
+    """
+
+    __tablename__ = "cve_affected_pkgs"
+
+    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
+    package = Column(String(40), primary_key=True)
+    package_version = Column(String(50), primary_key=True)
+    os_version = Column(String(50), primary_key=True, index=True)
+    affected = Column(Integer)
+
+
 class CveHostAssociation(Base, MyBase):
     """
     cve and vulnerability_host tables' association table, record the cve and host matching
@@ -128,92 +156,6 @@ class CveHostAssociation(Base, MyBase):
     installed_rpm = Column(String(100))
     available_rpm = Column(String(100))
     host_user = Column(String(100))
-
-
-class CveAffectedPkgs(Base, MyBase):
-    """
-    record the affected packages of cves. A cve may affect multiple packages.
-    """
-
-    __tablename__ = "cve_affected_pkgs"
-
-    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
-    package = Column(String(40), primary_key=True)
-    package_version = Column(String(50), primary_key=True)
-    os_version = Column(String(50), primary_key=True, index=True)
-    affected = Column(Integer)
-
-
-class TaskDeactivateHotpatch(Base, MyBase):
-    """
-    cve, task and host tables' association table, record cve, host and task's matching
-    relationship for deactivate hotpatch
-    """
-
-    __tablename__ = "task_deactivate_hotpatch"
-    task_cve_host_id = Column(String(32), primary_key=True)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
-    cve_id = Column(String(20))
-    host_id = Column(Integer)
-    host_name = Column(String(50), nullable=False)
-    host_ip = Column(String(16), nullable=False)
-    # status can be "unfixed", "fixed" and "running"
-    status = Column(String(20), nullable=False)
-
-
-class TaskCveHostRpmAssociation(Base, MyBase):
-    """
-    cve, task and package tables' association table, record cve, package and task's matching
-    relationship for fixing cve task
-    """
-
-    __tablename__ = "task_cve_host_rpm"
-
-    task_cve_host_rpm_id = Column(String(32), primary_key=True)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
-    host_id = Column(Integer)
-    host_ip = Column(String(20))
-    host_name = Column(String(50))
-    cves = Column(Text)
-    installed_rpm = Column(String(100))
-    available_rpm = Column(String(100))
-    fix_way = Column(String(20))
-    # status can be "unfixed", "fixed" and "running"
-    status = Column(String(20), nullable=False)
-    take_over_result = Column(Boolean)
-    dnf_event_start = Column(Integer(default=0))
-    dnf_event_end = Column(Integer(default=0))
-
-
-class TaskHostRepoAssociation(Base, MyBase):
-    """
-    task, host and repo tables' association table, record repo, host and task's matching
-    relationship for setting repo task
-    """
-
-    __tablename__ = "task_host_repo"
-
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
-    host_id = Column(Integer, primary_key=True)
-    host_name = Column(String(50), nullable=False)
-    host_ip = Column(String(16), nullable=False)
-    repo_name = Column(String(20), nullable=False)
-    # status can be "unset", "set" and "running"
-    status = Column(String(20))
-
-
-class Cve(Base, MyBase):
-    """
-    Cve table
-    """
-
-    __tablename__ = "cve"
-
-    cve_id = Column(String(20), nullable=False, primary_key=True)
-    publish_time = Column(String(20))
-    severity = Column(String(20))
-    cvss_score = Column(String(20))
-    reboot = Column(Boolean)
 
 
 class Repo(Base, MyBase):
@@ -251,6 +193,88 @@ class Task(Base, MyBase):
     username = Column(String(40), ForeignKey('user.username'))
 
 
+class TaskHostRepoAssociation(Base, MyBase):
+    """
+    task, host and repo tables' association table, record repo, host and task's matching
+    relationship for setting repo task
+    """
+
+    __tablename__ = "task_host_repo"
+
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
+    host_id = Column(Integer, primary_key=True)
+    host_name = Column(String(50), nullable=False)
+    host_ip = Column(String(16), nullable=False)
+    repo_name = Column(String(20), nullable=False)
+    # status can be "unset", "set" and "running"
+    status = Column(String(20))
+
+
+class TaskCveHostRpmAssociation(Base, MyBase):
+    """
+    cve, task and package tables' association table, record cve, package and task's matching
+    relationship for fixing cve task
+    """
+
+    __tablename__ = "task_cve_host_rpm"
+
+    task_cve_host_rpm_id = Column(String(32), primary_key=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    host_id = Column(Integer)
+    host_ip = Column(String(16), nullable=False)
+    host_name = Column(String(50))
+    cves = Column(Text)
+    installed_rpm = Column(String(100))
+    available_rpm = Column(String(100))
+    fix_way = Column(String(20))
+    # status can be "running", "succeed", "fail", "unknown" or none
+    status = Column(String(20), nullable=False)
+    take_over_result = Column(Boolean)
+    dnf_event_start = Column(Integer(default=0))
+    dnf_event_end = Column(Integer(default=0))
+
+
+class CveRollbackTask(Base, MyBase):
+    """
+    Rollback task info
+    """
+
+    __tablename__ = "cve_rollback_task"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    rollback_fix_task_id = Column(String(20), nullable=False)
+    # rollback_type can be "hotpatch" and "coldpatch"
+    rollback_type = Column(String(20))
+    host_id = Column(Integer)
+    host_ip = Column(String(16), nullable=False)
+    host_name = Column(String(50), nullable=False)
+    cves = Column(Text)
+    installed_rpm = Column(String(100))
+    target_rpm = Column(String(100))
+    # status can be "running", "succeed", "fail", "unknown" or none
+    status = Column(String(20), nullable=False)
+    dnf_event_start = Column(Integer)
+    dnf_event_end = Column(Integer)
+
+
+class TaskDeactivateHotpatch(Base, MyBase):
+    """
+    cve, task and host tables' association table, record cve, host and task's matching
+    relationship for deactivate hotpatch
+    """
+
+    __tablename__ = "task_deactivate_hotpatch"
+    task_cve_host_id = Column(String(32), primary_key=True)
+    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    cve_id = Column(String(20))
+    host_id = Column(Integer)
+    host_name = Column(String(50), nullable=False)
+    host_ip = Column(String(16), nullable=False)
+    # status can be "running", "succeed", "fail", "unknown" or none
+    status = Column(String(20), nullable=False)
+
+
 class AdvisoryDownloadRecord(Base, MyBase):
     """
     Download and parse advisory's record
@@ -261,29 +285,6 @@ class AdvisoryDownloadRecord(Base, MyBase):
     advisory_year = Column(String(4), nullable=False)
     advisory_serial_number = Column(String(10), nullable=False)
     download_status = Column(Boolean)
-
-
-class TaskRollback(Base, MyBase):
-    """
-    Rollback task info
-    """
-
-    __tablename__ = "task_rollback"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    host_id = Column(Integer)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
-    # status can be "succeed", "failed" and "running"
-    status = Column(String(20), nullable=False)
-    host_ip = Column(String(16), nullable=False)
-    cves = Column(Text)
-    installed_rpm = Column(String(100))
-    target_rpm = Column(String(100))
-    dnf_event_start = Column(Integer)
-    dnf_event_end = Column(Integer)
-    rollback_fix_task_id = Column(String(20), nullable=False)
-    # rollback_type can be "hotpatch" and "coldpatch"
-    rollback_type = Column(String(20))
 
 
 def create_vul_tables(engine=ENGINE):
@@ -303,6 +304,7 @@ def create_vul_tables(engine=ENGINE):
         Repo,
         AdvisoryDownloadRecord,
         TaskHostRepoAssociation,
+        CveRollbackTask,
         TaskDeactivateHotpatch,
         CveAffectedPkgs,
     ]
