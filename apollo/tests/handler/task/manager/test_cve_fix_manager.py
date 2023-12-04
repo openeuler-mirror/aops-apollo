@@ -21,7 +21,7 @@ from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
 from apollo.conf.constant import VUL_TASK_CVE_FIX_CALLBACK, EXECUTE_CVE_FIX
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.tests import BaseTestCase

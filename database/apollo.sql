@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS `repo`  (
   CONSTRAINT `repo_ibfk_1` FOREIGN KEY (`username`) REFERENCES `user` (`username`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
-CREATE TABLE IF NOT EXISTS `task_deactivate_hotpatch`  (
+CREATE TABLE IF NOT EXISTS `task_remove_hotpatch`  (
   `task_cve_host_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `cve_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,

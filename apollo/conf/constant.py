@@ -85,11 +85,11 @@ class TaskType:
     CVE_FIX = "cve fix"
     CVE_ROLLBACK = "cve rollback"
     REPO_SET = "repo set"
-    HOTPATCH_DEACTIVATE = "hotpatch deactivate"
+    HOTPATCH_REMOVE = "hotpatch remove"
 
     @staticmethod
     def attribute():
-        return [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET, TaskType.HOTPATCH_DEACTIVATE]
+        return [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.REPO_SET, TaskType.HOTPATCH_REMOVE]
 
 
 class TaskStatus(CveHostStatus):
@@ -128,21 +128,21 @@ VUL_TASK_INFO_GET = "/vulnerability/task/info/get"
 VUL_TASK_CVE_GENERATE = "/vulnerability/task/cve-fix/generate"
 VUL_TASK_CVE_INFO_GET = "/vulnerability/task/cve/info/get"
 VUL_TASK_CVE_STATUS_GET = "/vulnerability/task/cve/status/get"
-VUL_TASK_CVE_PROGRESS_GET = "/vulnerability/task/cve/progress/get"
 VUL_TASK_CVE_RESULT_GET = "/vulnerability/task/cve/result/get"
 VUL_TASk_EXECUTE = "/vulnerability/task/execute"
 VUL_TASK_REPO_GENERATE = "/vulnerability/task/repo/generate"
 VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
-VUL_TASK_HOTPATCH_DEACTIVATE_GENERATE = "/vulnerability/task/hotpatch-deactivate/generate"
+VUL_TASK_CVE_ROLLBACK_GENERATE = "/vulnerability/task/cve-rollback/generate"
+VUL_TASK_HOTPATCH_REMOVE_GENERATE = "/vulnerability/task/hotpatch-remove/generate"
 VUL_TASK_CVE_RPM_INFO_GET = "/vulnerability/task/cve/rpm/get"
 
 # route of callback
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
 VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerability/task/callback/cve/scan"
-VUL_TASK_HOTPATCH_DEACTIVATE_CALLBACK = "/vulnerability/task/callback/hotpatch-deactivate"
+VUL_TASK_HOTPATCH_REMOVE_CALLBACK = "/vulnerability/task/callback/hotpatch-remove"
 VUL_TASK_CVE_SCAN_NOTICE = "/vulnerability/task/callback/cve/scan/notice"
 # elasticsearch index
 CVE_INDEX = 'cve'
@@ -163,7 +163,7 @@ TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.yml"
 EXECUTE_REPO_SET = '/manage/vulnerability/repo/set'
 EXECUTE_CVE_FIX = '/manage/vulnerability/cve/fix'
 EXECUTE_CVE_SCAN = '/manage/vulnerability/cve/scan'
-EXECUTE_HOTPATCH_DEACTIVATE = "/manage/vulnerability/cve/hotpatch-deactivate"
+EXECUTE_HOTPATCH_REMOVE = "/manage/vulnerability/cve/hotpatch-remove"
 
 VUL_CVE_UNFIXED_PACKAGES = "/vulnerability/cve/unfixed/packages/get"
 VUL_CVE_FIXED_PACKAGES = "/vulnerability/cve/fixed/packages/get"

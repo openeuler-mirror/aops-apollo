@@ -32,7 +32,7 @@ from vulcanus.send_email import Email
 
 from apollo.conf import configuration
 from apollo.conf.constant import EXECUTE_CVE_SCAN, VUL_TASK_CVE_SCAN_CALLBACK
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.manager import Manager
 
 

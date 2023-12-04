@@ -16,28 +16,28 @@ from vulcanus.restful.resp.state import SUCCEED, TASK_EXECUTION_FAIL
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_HOTPATCH_DEACTIVATE_CALLBACK, EXECUTE_HOTPATCH_DEACTIVATE, TaskStatus
+from apollo.conf.constant import VUL_TASK_HOTPATCH_REMOVE_CALLBACK, EXECUTE_HOTPATCH_REMOVE, TaskStatus
 from apollo.handler.task_handler.manager import Manager
 
 
-class HotpatchDeactivateManager(Manager):
+class HotpatchRemoveManager(Manager):
     """
-    Manager for hotpatch deactivate
+    Manager for hotpatch remove
     """
 
     def create_task(self) -> int:
         """
-        Create hotpatch deactivate task
+        Create hotpatch remove task
 
         Returns:
             int: status code
         """
-        status_code, self.task = self.proxy.get_hotpatch_deactivate_task_info(self.task_id)
+        status_code, self.task = self.proxy.get_hotpatch_remove_task_info(self.task_id)
         if status_code != SUCCEED:
-            LOGGER.error("There is no data about host info, stop creating a hotpatch deactivate task.")
+            LOGGER.error("There is no data about host info, stop creating a hotpatch remove task.")
             return status_code
 
-        self.task['callback'] = VUL_TASK_HOTPATCH_DEACTIVATE_CALLBACK
+        self.task['callback'] = VUL_TASK_HOTPATCH_REMOVE_CALLBACK
 
         return SUCCEED
 
@@ -48,31 +48,31 @@ class HotpatchDeactivateManager(Manager):
         Returns:
             bool: succeed or fail
         """
-        if self.proxy.init_hotpatch_deactivate_task(self.task_id, []) != SUCCEED:
-            LOGGER.error("Init the host status in database failed, stop hotpatch deactivate task %s.", self.task_id)
+        if self.proxy.init_hotpatch_remove_task(self.task_id, []) != SUCCEED:
+            LOGGER.error("Init the host status in database failed, stop hotpatch remove task %s.", self.task_id)
             return False
 
         if self.proxy.update_task_execute_time(self.task_id, self.cur_time) != SUCCEED:
-            LOGGER.warning("Update latest execute time for hotpatch deactivate task %s failed.", self.task_id)
+            LOGGER.warning("Update latest execute time for hotpatch remove task %s failed.", self.task_id)
 
         return True
 
     def handle(self):
         """
-        Executing hotpatch deactivate task.
+        Executing hotpatch remove task.
         """
-        LOGGER.info("hotpatch deactivate task %s start to execute.", self.task_id)
+        LOGGER.info("hotpatch remove task %s start to execute.", self.task_id)
         manager_url = URL_FORMAT % (
             configuration.zeus.get('IP'),
             configuration.zeus.get('PORT'),
-            EXECUTE_HOTPATCH_DEACTIVATE,
+            EXECUTE_HOTPATCH_REMOVE,
         )
         header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
 
         response = BaseResponse.get_response('POST', manager_url, self.task, header)
         if response.get('label') != SUCCEED:
-            LOGGER.error("Hotpatch deactivate task %s execute failed.", self.task_id)
-            self.proxy.init_hotpatch_deactivate_task(self.task_id, [], TaskStatus.UNKNOWN)
+            LOGGER.error("Hotpatch remove task %s execute failed.", self.task_id)
+            self.proxy.init_hotpatch_remove_task(self.task_id, [], TaskStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
 
         return SUCCEED

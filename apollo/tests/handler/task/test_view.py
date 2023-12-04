@@ -32,7 +32,7 @@ from vulcanus.restful.resp.state import (
 from vulcanus.exceptions import DatabaseConnectionFailed
 
 from apollo.conf.constant import *
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.view import VulGenerateCveTask, VulExecuteTask
 from apollo.tests import BaseTestCase

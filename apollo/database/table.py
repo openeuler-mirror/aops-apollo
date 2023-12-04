@@ -210,13 +210,12 @@ class TaskHostRepoAssociation(Base, MyBase):
     status = Column(String(20))
 
 
-class TaskCveHostRpmAssociation(Base, MyBase):
+class CveFixTask(Base, MyBase):
     """
-    cve, task and package tables' association table, record cve, package and task's matching
-    relationship for fixing cve task
+    cve fix task info table
     """
 
-    __tablename__ = "task_cve_host_rpm"
+    __tablename__ = "cve_fix_task"
 
     task_cve_host_rpm_id = Column(String(32), primary_key=True)
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
@@ -227,16 +226,16 @@ class TaskCveHostRpmAssociation(Base, MyBase):
     installed_rpm = Column(String(100))
     available_rpm = Column(String(100))
     fix_way = Column(String(20))
-    # status can be "running", "succeed", "fail", "unknown" or none
+    # status can be "running", "succeed", "fail", "unknown"
     status = Column(String(20), nullable=False)
     take_over_result = Column(Boolean)
-    dnf_event_start = Column(Integer(default=0))
-    dnf_event_end = Column(Integer(default=0))
+    dnf_event_start = Column(Integer)
+    dnf_event_end = Column(Integer)
 
 
 class CveRollbackTask(Base, MyBase):
     """
-    Rollback task info
+    cve rollback task info table
     """
 
     __tablename__ = "cve_rollback_task"
@@ -252,26 +251,25 @@ class CveRollbackTask(Base, MyBase):
     cves = Column(Text)
     installed_rpm = Column(String(100))
     target_rpm = Column(String(100))
-    # status can be "running", "succeed", "fail", "unknown" or none
+    # status can be "running", "succeed", "fail", "unknown"
     status = Column(String(20), nullable=False)
     dnf_event_start = Column(Integer)
     dnf_event_end = Column(Integer)
 
 
-class TaskDeactivateHotpatch(Base, MyBase):
+class HotpatchRemoveTask(Base, MyBase):
     """
-    cve, task and host tables' association table, record cve, host and task's matching
-    relationship for deactivate hotpatch
+    hotpatch remove task info table
     """
 
-    __tablename__ = "task_deactivate_hotpatch"
+    __tablename__ = "hotpatch_remove_task"
     task_cve_host_id = Column(String(32), primary_key=True)
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
     cve_id = Column(String(20))
     host_id = Column(Integer)
     host_name = Column(String(50), nullable=False)
     host_ip = Column(String(16), nullable=False)
-    # status can be "running", "succeed", "fail", "unknown" or none
+    # status can be "running", "succeed", "fail", "unknown"
     status = Column(String(20), nullable=False)
 
 
@@ -305,7 +303,7 @@ def create_vul_tables(engine=ENGINE):
         AdvisoryDownloadRecord,
         TaskHostRepoAssociation,
         CveRollbackTask,
-        TaskDeactivateHotpatch,
+        HotpatchRemoveTask,
         CveAffectedPkgs,
     ]
     tables_objects = [Base.metadata.tables[table.__tablename__] for table in tables]

@@ -23,7 +23,7 @@ from vulcanus.restful.resp import state
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import VUL_TASK_CVE_SCAN_CALLBACK
-from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.database.proxy.task.base import TaskMysqlProxy
 from apollo.tests import BaseTestCase
 
 header = {"Content-Type": "application/json; charset=UTF-8"}

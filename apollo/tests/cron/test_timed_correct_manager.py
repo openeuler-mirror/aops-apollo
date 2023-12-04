@@ -19,7 +19,7 @@ from unittest import mock
 import sqlalchemy
 
 from vulcanus.restful.resp.state import SUCCEED
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.cron.timed_correct_manager import TimedCorrectTask
 from apollo.tests import BaseTestCase
 

@@ -20,7 +20,7 @@ from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
 from apollo.conf.constant import EXECUTE_CVE_SCAN
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 from apollo.tests import BaseTestCase
 

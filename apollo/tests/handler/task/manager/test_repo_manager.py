@@ -16,14 +16,13 @@ Author:
 Description:
 """
 import json
-import unittest
 from unittest import mock
 
 from vulcanus.restful.resp import make_response
 from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.resp.state import SERVER_ERROR, SUCCEED
 
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.tests import BaseTestCase
 

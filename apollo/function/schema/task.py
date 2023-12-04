@@ -291,20 +291,27 @@ class CveScanCallbackSchema(Schema):
     fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=False), required=False)
 
 
-class HotpatchDeactivateCveInfoSchema(Schema):
+class GenerateCveRollbackTaskSchema(Schema):
+    """
+    validators for parameter of /vulnerability/task/cve-rollback/generate
+    """
+    fix_task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+
+
+class HotpatchRemoveCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     hotpatch = fields.Boolean()
 
 
-class HotpatchDeactivateInfoSchema(Schema):
+class HotpatchRemoveInfoSchema(Schema):
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    cves = fields.List(fields.Nested(HotpatchDeactivateCveInfoSchema), required=True, validate=lambda s: len(s) > 0)
+    cves = fields.List(fields.Nested(HotpatchRemoveCveInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
-class GenerateHotpatchDeactivateTaskSchema(Schema):
+class GenerateHotpatchRemoveTaskSchema(Schema):
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
-    info = fields.List(fields.Nested(HotpatchDeactivateInfoSchema), required=True, validate=lambda s: len(s) > 0)
+    info = fields.List(fields.Nested(HotpatchRemoveInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
 class CveRollbackResultSchema(Schema):
@@ -313,7 +320,7 @@ class CveRollbackResultSchema(Schema):
     log = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
-class HotpatchDeactivateCallbackSchema(CallbackSchma):
+class HotpatchRemoveCallbackSchema(CallbackSchma):
     check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
     cves = fields.Nested(CveRollbackResultSchema, many=True)
 
@@ -348,7 +355,8 @@ __all__ = [
     'CveFixCallbackSchema',
     'RepoSetCallbackSchema',
     'CveScanCallbackSchema',
-    'GenerateHotpatchDeactivateTaskSchema',
-    'HotpatchDeactivateCallbackSchema',
+    'GenerateCveRollbackTaskSchema',
+    'GenerateHotpatchRemoveTaskSchema',
+    'HotpatchRemoveCallbackSchema',
     'TaskCveRpmInfoSchema',
 ]

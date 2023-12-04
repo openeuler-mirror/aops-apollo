@@ -30,7 +30,7 @@ from vulcanus.restful.resp.state import (
 
 from apollo.conf import configuration
 from apollo.database.proxy.host import HostProxy
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.tests.database import DatabaseTestCase
 
 
@@ -397,45 +397,6 @@ class TestTaskMysqlFirst(DatabaseTestCase):
         query_result[1]["result"]["qwfqwff3"].sort(key=lambda x: x["host_id"])
         self.assertEqual(query_result, (PARTIAL_SUCCEED, expected_result))
 
-    def test_get_task_cve_progress(self):
-        data = {
-            "username": "admin",
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "cve_list": ["qwfqwff3"],
-        }
-        expected_result = {"result": {"qwfqwff3": {"progress": 1, "status": "running"}}}
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (SUCCEED, expected_result))
-
-        data = {
-            "username": "admin",
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "cve_list": ["qwfqwff3", "not_exist_id"],
-        }
-        self.assertEqual(
-            self.task_database.get_task_cve_progress(data),
-            (PARTIAL_SUCCEED, expected_result),
-        )
-
-        data = {
-            "username": "admin",
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "cve_list": ["not_exist_id"],
-        }
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (NO_DATA, {"result": {}}))
-
-        data = {
-            "username": "admin",
-            "task_id": "1111111111poiuytrewqasdfghjklmnb",
-            "cve_list": [],
-        }
-        expected_result = {
-            "result": {
-                "qwfqwff3": {"progress": 1, "status": "running"},
-                "qwfqwff4": {"progress": 1, "status": "succeed"},
-            }
-        }
-        self.assertEqual(self.task_database.get_task_cve_progress(data), (SUCCEED, expected_result))
-
     def test_get_cve_basic_info(self):
         task_id = "1111111111poiuytrewqasdfghjklmnb"
         expected_result = {
@@ -521,10 +482,6 @@ class TestTaskMysqlSecond(DatabaseTestCase):
                 "qwfqwff4": {"progress": 1, "status": "succeed"},
             }
         }
-        self.assertEqual(
-            self.task_database.get_task_cve_progress(progress_data),
-            (SUCCEED, expected_progress_result),
-        )
 
         # test all cve
         data = {"task_id": "1111111111poiuytrewqasdfghjklmnb", "cve_list": []}
@@ -535,10 +492,6 @@ class TestTaskMysqlSecond(DatabaseTestCase):
                 "qwfqwff4": {"progress": 0, "status": "running"},
             }
         }
-        self.assertEqual(
-            self.task_database.get_task_cve_progress(progress_data),
-            (SUCCEED, expected_progress_result),
-        )
 
     def test_get_repo_task_info(self):
         data = {

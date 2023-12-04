@@ -17,9 +17,9 @@ from apollo.conf.constant import TaskType
 from apollo.handler.task_handler.callback import TaskCallback
 
 
-class HotpatchDeactivateCallback(TaskCallback):
+class HotpatchRemoveCallback(TaskCallback):
     """
-    Callback function for hotpatch deactivate.
+    Callback function for hotpatch remove.
     """
 
     def _save_result_to_es(self, task_id, host_id, task_type, task_result):
@@ -100,7 +100,7 @@ class HotpatchDeactivateCallback(TaskCallback):
         self._save_result_to_es(
             task_id=task_id,
             host_id=host_id,
-            task_type=TaskType.HOTPATCH_DEACTIVATE,
+            task_type=TaskType.HOTPATCH_REMOVE,
             task_result=task_result,
         )
         update_status_result = []
