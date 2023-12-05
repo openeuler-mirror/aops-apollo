@@ -15,8 +15,8 @@ from unittest import mock
 
 from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, SUCCEED, TASK_EXECUTION_FAIL
-from apollo.database.proxy.task import TaskProxy
-from apollo.handler.task_handler.manager.hotpatch_deactivate_manager import HotpatchDeactivateManager
+from apollo.database.proxy.task.base import TaskProxy
+from apollo.handler.task_handler.manager.hotpatch_remove_manager import HotpatchRemoveManager
 from apollo.tests import BaseTestCase
 
 
@@ -25,7 +25,7 @@ class CveRollbackManagerTestCase(BaseTestCase):
         super().setUp()
         proxy = TaskProxy()
         proxy.connect()
-        self.manager = HotpatchDeactivateManager(proxy, 'task+_id')
+        self.manager = HotpatchRemoveManager(proxy, 'task+_id')
 
     def test_pre_handle_should_failed_when_update_task_cve_host_status_is_running(self):
         """

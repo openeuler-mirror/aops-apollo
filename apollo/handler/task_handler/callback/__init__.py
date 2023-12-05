@@ -16,7 +16,7 @@ Author:
 Description: callback function of the cve task.
 """
 
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from abc import abstractmethod
 
 

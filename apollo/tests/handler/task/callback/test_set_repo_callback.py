@@ -15,7 +15,7 @@ from unittest import mock
 
 from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR
 
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.tests import BaseTestCase
 

@@ -17,12 +17,12 @@ Description: vulnerability related database operation
 """
 import copy
 import json
-import math
+import threading
 from collections import defaultdict
 from time import time
 from typing import Dict, List, Tuple
-import threading
 
+import math
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
 from sqlalchemy import case, func
@@ -48,9 +48,9 @@ from apollo.database.table import (
     Cve,
     Repo,
     Task,
-    TaskCveHostRpmAssociation,
+    CveFixTask,
     CveRollbackTask,
-    TaskDeactivateHotpatch,
+    HotpatchRemoveTask,
     TaskHostRepoAssociation,
     CveHostAssociation,
     CveAffectedPkgs,
@@ -634,7 +634,7 @@ class TaskMysqlProxy(MysqlProxy):
         result.update(self._get_repo_task_progress(repo_task))
         result.update(self._get_cve_series_task_progress(cve_task, TaskType.CVE_FIX))
         result.update(self._get_cve_series_task_progress(cve_rollback_task, TaskType.CVE_ROLLBACK))
-        result.update(self._get_cve_series_task_progress(hp_remove_task, TaskType.HOTPATCH_DEACTIVATE))
+        result.update(self._get_cve_series_task_progress(hp_remove_task, TaskType.HOTPATCH_REMOVE))
 
         succeed_list = list(result.keys())
         fail_list = list(set(task_list) - set(succeed_list))
@@ -677,7 +677,7 @@ class TaskMysqlProxy(MysqlProxy):
                 cve_task.append(row.task_id)
             elif row.task_type == TaskType.CVE_ROLLBACK:
                 cve_rollback_task.append(row.task_id)
-            elif row.task_type == TaskType.HOTPATCH_DEACTIVATE:
+            elif row.task_type == TaskType.HOTPATCH_REMOVE:
                 hp_remove_task.append(row.task_id)
         return repo_task, cve_task, cve_rollback_task, hp_remove_task
 
@@ -707,9 +707,9 @@ class TaskMysqlProxy(MysqlProxy):
             return defaultdict(set)
 
         task_table_map = {
-            TaskType.CVE_FIX: TaskCveHostRpmAssociation,
+            TaskType.CVE_FIX: CveFixTask,
             TaskType.CVE_ROLLBACK: CveRollbackTask,
-            TaskType.HOTPATCH_DEACTIVATE: TaskDeactivateHotpatch
+            TaskType.HOTPATCH_REMOVE: HotpatchRemoveTask
         }
         tasks_dict = defaultdict(defaultdict_set)
         result = self._get_status_result()
@@ -758,8 +758,6 @@ class TaskMysqlProxy(MysqlProxy):
         if TaskStatus.RUNNING in status_set:
             return TaskStatus.RUNNING
         if TaskStatus.UNKNOWN in status_set:
-            return TaskStatus.UNKNOWN
-        if None in status_set:
             return TaskStatus.UNKNOWN
         if TaskStatus.FAIL in status_set:
             return TaskStatus.FAIL
@@ -987,7 +985,7 @@ class TaskMysqlProxy(MysqlProxy):
         filters = set()
 
         if filter_dict.get("cve_id"):
-            filters.add(TaskDeactivateHotpatch.cve_id.like("%" + filter_dict["cve_id"] + "%"))
+            filters.add(HotpatchRemoveTask.cve_id.like("%" + filter_dict["cve_id"] + "%"))
         return filters
 
     def _query_cve_task(self, username, task_id, filters):
@@ -1009,13 +1007,13 @@ class TaskMysqlProxy(MysqlProxy):
         """
         task_cve_query = (
             self.session.query(
-                TaskDeactivateHotpatch.cve_id,
+                HotpatchRemoveTask.cve_id,
                 CveAffectedPkgs.package,
-                TaskDeactivateHotpatch.host_id,
-                TaskDeactivateHotpatch.status,
+                HotpatchRemoveTask.host_id,
+                HotpatchRemoveTask.status,
             )
-            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == TaskDeactivateHotpatch.cve_id)
-            .outerjoin(Task, Task.task_id == TaskDeactivateHotpatch.task_id)
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == HotpatchRemoveTask.cve_id)
+            .outerjoin(Task, Task.task_id == HotpatchRemoveTask.task_id)
             .filter(Task.task_id == task_id, Task.username == username)
             .filter(*filters)
         )
@@ -1211,26 +1209,26 @@ class TaskMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        filters = {Task.username == username, TaskDeactivateHotpatch.task_id == task_id}
+        filters = {Task.username == username, HotpatchRemoveTask.task_id == task_id}
         if cve_list:
-            filters.add(TaskDeactivateHotpatch.cve_id.in_(cve_list))
+            filters.add(HotpatchRemoveTask.cve_id.in_(cve_list))
 
         if with_host:
             status_query = (
                 self.session.query(
-                    TaskDeactivateHotpatch.status,
-                    TaskDeactivateHotpatch.cve_id,
-                    TaskDeactivateHotpatch.host_id,
-                    TaskDeactivateHotpatch.host_name,
-                    TaskDeactivateHotpatch.host_ip,
+                    HotpatchRemoveTask.status,
+                    HotpatchRemoveTask.cve_id,
+                    HotpatchRemoveTask.host_id,
+                    HotpatchRemoveTask.host_name,
+                    HotpatchRemoveTask.host_ip,
                 )
-                .join(Task, Task.task_id == TaskDeactivateHotpatch.task_id)
+                .join(Task, Task.task_id == HotpatchRemoveTask.task_id)
                 .filter(*filters)
             )
         else:
             status_query = (
-                self.session.query(TaskDeactivateHotpatch.status, TaskDeactivateHotpatch.cve_id)
-                .join(Task, Task.task_id == TaskDeactivateHotpatch.task_id)
+                self.session.query(HotpatchRemoveTask.status, HotpatchRemoveTask.cve_id)
+                .join(Task, Task.task_id == HotpatchRemoveTask.task_id)
                 .filter(*filters)
             )
         return status_query
@@ -1239,119 +1237,6 @@ class TaskMysqlProxy(MysqlProxy):
     def _cve_host_status_row2dict(row):
         host_status = {"host_id": row.host_id, "host_name": row.host_name, "host_ip": row.host_ip, "status": row.status}
         return host_status
-
-    def get_task_cve_progress(self, data):
-        """
-        Get progress and status of each cve in the task.
-
-        Args:
-            data (dict): parameter, e.g.
-                {
-                    "task_id": "id1",
-                    "cve_list": ["cve1"], if empty, query all cve
-                    "username": "admin"
-                }
-
-        Returns:
-            int: status code
-            dict: cve's progress and status info. e.g.
-                {
-                    "result": {
-                        "cve1": {
-                            "progress": 1,
-                            "status": "running"
-                        }
-                    }
-                }
-        """
-        result = {}
-        try:
-            status_code, result = self._get_processed_task_cve_progress(data)
-            LOGGER.debug("Finished getting the progress and status of the cve in cve task")
-            return status_code, result
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            LOGGER.error("Getting the progress and status of the cve in cve task failed due to internal error.")
-            return DATABASE_QUERY_ERROR, result
-
-    def _get_processed_task_cve_progress(self, data):
-        """
-        query and process the progress and status of cve in the cve task.
-        Args:
-            data (dict): parameter
-
-        Returns:
-            dict
-        """
-        task_id = data["task_id"]
-        cve_list = data["cve_list"]
-        username = data["username"]
-        progress_query = self._query_cve_task_status_progress(username, task_id, cve_list)
-
-        if not progress_query.all():
-            LOGGER.debug(
-                "No data found when getting the status and progress of cve '%s' "
-                "in cve task: %s." % (cve_list, task_id)
-            )
-            return NO_DATA, {"result": {}}
-
-        result = {}
-        for row in progress_query:
-            cve_id = row.cve_id
-            if row.running:
-                status = TaskStatus.RUNNING
-            elif row.unknown:
-                status = TaskStatus.UNKNOWN
-            elif row.fail:
-                status = TaskStatus.FAIL
-            elif row.none:
-                status = TaskStatus.UNKNOWN
-            else:
-                status = TaskStatus.SUCCEED
-            result[cve_id] = {"progress": int(row.total - row.running - row.none), "status": status}
-
-        succeed_list = list(result.keys())
-        fail_list = list(set(cve_list) - set(succeed_list))
-
-        if fail_list:
-            LOGGER.debug(
-                "No data found when getting the status and progress of cve '%s' "
-                "in cve task: %s." % (fail_list, task_id)
-            )
-            return PARTIAL_SUCCEED, {"result": result}
-
-        return SUCCEED, {"result": result}
-
-    def _query_cve_task_status_progress(self, username, task_id, cve_list):
-        """
-        query cve task's assigned cve's status and progress
-        Args:
-            username (str): user name
-            task_id (str): task id
-            cve_list (list): cve id list, if empty, query all cve
-
-        Returns:
-            sqlalchemy.orm.query.Query
-        """
-        filters = {Task.username == username, TaskDeactivateHotpatch.task_id == task_id}
-        if cve_list:
-            filters.add(TaskDeactivateHotpatch.cve_id.in_(cve_list))
-        # Count the number of states, sql e.g
-        # sum(case when status='running' then 1 else 0 end) as running
-        task_query = (
-            self.session.query(
-                TaskDeactivateHotpatch.cve_id,
-                func.sum(case([(TaskDeactivateHotpatch.status == TaskStatus.RUNNING, 1)], else_=0)).label("running"),
-                func.sum(case([(TaskDeactivateHotpatch.status == TaskStatus.UNKNOWN, 1)], else_=0)).label("unknown"),
-                func.sum(case([(TaskDeactivateHotpatch.status == TaskStatus.FAIL, 1)], else_=0)).label("fail"),
-                func.sum(case([(TaskDeactivateHotpatch.status == None, 1)], else_=0)).label("none"),
-                func.count().label("total"),
-            )
-            .join(Task, Task.task_id == TaskDeactivateHotpatch.task_id)
-            .filter(*filters)
-            .group_by(TaskDeactivateHotpatch.cve_id)
-        )
-        return task_query
 
     def get_cve_basic_info(self, task_id):
         """
@@ -1451,9 +1336,7 @@ class TaskMysqlProxy(MysqlProxy):
         Returns:
             sqlalchemy.orm.Query
         """
-        task_query = self.session.query(
-            Task.task_id, Task.task_name, Task.task_type, Task.check_items, Task.accepted, Task.takeover
-        ).filter(Task.task_id == task_id)
+        task_query = self.session.query(Task).filter(Task.task_id == task_id)
         return task_query
 
     def _query_cve_fix_task_host_info(self, task_id: str) -> sqlalchemy.orm.Query:
@@ -1467,8 +1350,8 @@ class TaskMysqlProxy(MysqlProxy):
             sqlalchemy.orm.Query
         """
         task_query = self.session.query(
-            TaskDeactivateHotpatch.cve_id, TaskDeactivateHotpatch.host_id, TaskDeactivateHotpatch.task_cve_host_id
-        ).filter(TaskDeactivateHotpatch.task_id == task_id)
+            HotpatchRemoveTask.cve_id, HotpatchRemoveTask.host_id, HotpatchRemoveTask.task_cve_host_id
+        ).filter(HotpatchRemoveTask.task_id == task_id)
         return task_query
 
     def _query_cve_fix_task_package_info(self, task_cve_host_id: list) -> sqlalchemy.orm.Query:
@@ -1482,11 +1365,11 @@ class TaskMysqlProxy(MysqlProxy):
             sqlalchemy.orm.Query
         """
         task_package_query = self.session.query(
-            TaskCveHostRpmAssociation.available_rpm,
-            TaskCveHostRpmAssociation.installed_rpm,
-            TaskCveHostRpmAssociation.task_cve_host_id,
-            TaskCveHostRpmAssociation.fix_way,
-        ).filter(TaskCveHostRpmAssociation.task_cve_host_id.in_(task_cve_host_id))
+            CveFixTask.available_rpm,
+            CveFixTask.installed_rpm,
+            CveFixTask.task_cve_host_id,
+            CveFixTask.fix_way,
+        ).filter(CveFixTask.task_cve_host_id.in_(task_cve_host_id))
         return task_package_query
 
     def update_cve_status(self, task_id, cve_id, host_id, status):
@@ -1519,10 +1402,10 @@ class TaskMysqlProxy(MysqlProxy):
         """
         update a cve's one host's result of a cve task or rollback
         """
-        status_query = self.session.query(TaskDeactivateHotpatch).filter(
-            TaskDeactivateHotpatch.task_id == task_id,
-            TaskDeactivateHotpatch.cve_id == cve_id,
-            TaskDeactivateHotpatch.host_id == host_id,
+        status_query = self.session.query(HotpatchRemoveTask).filter(
+            HotpatchRemoveTask.task_id == task_id,
+            HotpatchRemoveTask.cve_id == cve_id,
+            HotpatchRemoveTask.host_id == host_id,
         )
 
         if not status_query.count():
@@ -1535,9 +1418,9 @@ class TaskMysqlProxy(MysqlProxy):
         status_query.one().status = status
         return SUCCEED
 
-    def init_hotpatch_deactivate_task(self, task_id, cve_list, status=None):
+    def init_hotpatch_remove_task(self, task_id, cve_list, status=None):
         """
-        Before hotpatch deactivate, set related host status to 'running'
+        Before hotpatch remove, set related host status to 'running'
 
         Args:
             task_id (str): task id
@@ -1547,12 +1430,12 @@ class TaskMysqlProxy(MysqlProxy):
             int: status code
         """
         try:
-            filters = {TaskDeactivateHotpatch.task_id == task_id}
+            filters = {HotpatchRemoveTask.task_id == task_id}
             if cve_list:
-                filters.add(TaskDeactivateHotpatch.cve_id.in_(cve_list))
+                filters.add(HotpatchRemoveTask.cve_id.in_(cve_list))
             status = status if status else TaskStatus.RUNNING
-            status_query = self.session.query(TaskDeactivateHotpatch).filter(*filters)
-            status_query.update({TaskDeactivateHotpatch.status: status}, synchronize_session=False)
+            status_query = self.session.query(HotpatchRemoveTask).filter(*filters)
+            status_query.update({HotpatchRemoveTask.status: status}, synchronize_session=False)
             self.session.commit()
             LOGGER.debug("Finished init cve task's status and progress.")
             return SUCCEED
@@ -1591,17 +1474,17 @@ class TaskMysqlProxy(MysqlProxy):
         set cve's related host's status to running, and set the cve's progress to 0
         """
         # set status to running
-        filters = {TaskDeactivateHotpatch.task_id == task_id}
+        filters = {HotpatchRemoveTask.task_id == task_id}
         if cve_list:
-            filters.add(TaskDeactivateHotpatch.cve_id.in_(cve_list))
+            filters.add(HotpatchRemoveTask.cve_id.in_(cve_list))
         status = status if status else TaskStatus.RUNNING
-        status_query = self.session.query(TaskDeactivateHotpatch).filter(*filters)
-        status_query.update({TaskDeactivateHotpatch.status: status}, synchronize_session=False)
+        status_query = self.session.query(HotpatchRemoveTask).filter(*filters)
+        status_query.update({HotpatchRemoveTask.status: status}, synchronize_session=False)
         # Set the status of all software packages to Running
         task_cve_host_ids = [task_cve_host.task_cve_host_id for task_cve_host in status_query]
-        self.session.query(TaskCveHostRpmAssociation).filter(
-            TaskCveHostRpmAssociation.task_cve_host_id.in_(task_cve_host_ids)
-        ).update({TaskCveHostRpmAssociation.status: status}, synchronize_session=False)
+        self.session.query(CveFixTask).filter(
+            CveFixTask.task_cve_host_id.in_(task_cve_host_ids)
+        ).update({CveFixTask.status: status}, synchronize_session=False)
 
         return SUCCEED
 
@@ -1635,10 +1518,10 @@ class TaskMysqlProxy(MysqlProxy):
         set failed task's running hosts' status to "unknown"
         """
         if task_type == TaskType.CVE_FIX or task_type == TaskType.CVE_ROLLBACK:
-            host_query = self.session.query(TaskDeactivateHotpatch).filter(
-                TaskDeactivateHotpatch.task_id == task_id, TaskDeactivateHotpatch.status == TaskStatus.RUNNING
+            host_query = self.session.query(HotpatchRemoveTask).filter(
+                HotpatchRemoveTask.task_id == task_id, HotpatchRemoveTask.status == TaskStatus.RUNNING
             )
-            host_query.update({TaskDeactivateHotpatch.status: TaskStatus.UNKNOWN}, synchronize_session=False)
+            host_query.update({HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False)
         elif task_type == TaskType.REPO_SET:
             host_query = self.session.query(TaskHostRepoAssociation).filter(
                 TaskHostRepoAssociation.task_id == task_id, TaskHostRepoAssociation.status == TaskStatus.RUNNING
@@ -1802,27 +1685,6 @@ class TaskMysqlProxy(MysqlProxy):
             result.append(host_info)
         return result
 
-    def set_host_repo(self, repo_name, host_list):
-        """
-        set repo name to hosts when "set repo" task finished successfully.
-        Args:
-            repo_name (str): repo name
-            host_list (list): host id list
-
-        Returns:
-            int
-        """
-        try:
-            self._update_host_repo(repo_name, host_list)
-            self.session.commit()
-            LOGGER.debug("Finished setting repo name to hosts when task finished.")
-            return SUCCEED
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("Setting repo name to hosts when task finished failed due to " "internal error.")
-            return DATABASE_UPDATE_ERROR
-
     def _update_host_repo(self, repo_name, host_list):
         """
         set repo name to relative hosts
@@ -1949,12 +1811,12 @@ class TaskMysqlProxy(MysqlProxy):
         check the task is open for execute or not
         Args:
             task_id (str): task id
-            task_type (str): for now, 'cve fix' or 'repo set' or 'cve rollback' or 'hotpatch deactivate'
+            task_type (str): for now, 'cve fix' or 'repo set' or 'cve rollback' or 'hotpatch remove'
 
         Returns:
             bool
         """
-        if task_type in [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.HOTPATCH_DEACTIVATE]:
+        if task_type in [TaskType.CVE_FIX, TaskType.CVE_ROLLBACK, TaskType.HOTPATCH_REMOVE]:
             task_progress = self._get_cve_series_task_progress([task_id], task_type)
         elif task_type == TaskType.REPO_SET:
             task_progress = self._get_repo_task_progress([task_id])
@@ -2077,12 +1939,12 @@ class TaskMysqlProxy(MysqlProxy):
             if data["status"] == TaskStatus.SUCCEED:
                 self._update_host_repo(data["repo_name"], hosts_id_list)
             self.session.commit()
-            LOGGER.debug("Finished setting repo name to hosts and upate repo host state when task finished .")
+            LOGGER.debug("Finished setting repo name to hosts and update repo host state when task finished .")
             return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error("Setting repo name to hosts and upate repo host state failed due to internal error.")
+            LOGGER.error("Setting repo name to hosts and update repo host state failed due to internal error.")
             return DATABASE_UPDATE_ERROR
 
     def update_cve_status_and_set_package_status(self, task_id, host_id, cves: list):
@@ -2114,10 +1976,10 @@ class TaskMysqlProxy(MysqlProxy):
     def _set_package_status(self, task_id, cve_id, host_id, rpms: list):
         task_cve_host_id = hash_value(text=task_id + cve_id + str(host_id))
         for rpm_result in rpms:
-            self.session.query(TaskCveHostRpmAssociation).filter(
-                TaskCveHostRpmAssociation.task_cve_host_id == task_cve_host_id,
-                TaskCveHostRpmAssociation.installed_rpm == rpm_result["installed_rpm"],
-            ).update({TaskCveHostRpmAssociation.status: rpm_result["result"]}, synchronize_session=False)
+            self.session.query(CveFixTask).filter(
+                CveFixTask.task_cve_host_id == task_cve_host_id,
+                CveFixTask.installed_rpm == rpm_result["installed_rpm"],
+            ).update({CveFixTask.status: rpm_result["result"]}, synchronize_session=False)
 
     def query_user_email(self, username: str) -> tuple:
         """
@@ -2255,9 +2117,9 @@ class TaskMysqlProxy(MysqlProxy):
 
         return list(result.values())
 
-    def get_hotpatch_deactivate_task_info(self, task_id):
+    def get_hotpatch_remove_task_info(self, task_id):
         """
-        Get hotpatch deactivate task basic info of the task id, for generating the task info.
+        Get hotpatch remove task basic info of the task id, for generating the task info.
 
         Args:
             task_id (str): task_id
@@ -2268,7 +2130,7 @@ class TaskMysqlProxy(MysqlProxy):
                 {
                     "task_id": "1",
                     "task_name": "CVE修复回滚",
-                    "task_type": "hotpatch deactivate",
+                    "task_type": "hotpatch remove",
                     "total_hosts": ["id1", "id2"],
                     "tasks": [
                         {
@@ -2285,17 +2147,17 @@ class TaskMysqlProxy(MysqlProxy):
         """
         result = dict()
         try:
-            status_code, result = self._get_hotpatch_deactivate_task_info(task_id)
-            LOGGER.debug("Finished getting the basic info of hotpatch deactivate task.")
+            status_code, result = self._get_hotpatch_remove_task_info(task_id)
+            LOGGER.debug("Finished getting the basic info of hotpatch remove task.")
             return status_code, result
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("Getting the basic info of hotpatch deactivate task failed due to internal error.")
+            LOGGER.error("Getting the basic info of hotpatch remove task failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
-    def _get_hotpatch_deactivate_task_info(self, task_id: str) -> Tuple[int, Dict]:
+    def _get_hotpatch_remove_task_info(self, task_id: str) -> Tuple[int, Dict]:
         """
-        query hotpatch deactivate task's basic info
+        query hotpatch remove task's basic info
         Args:
             task_id (str): task id
 
@@ -2305,9 +2167,9 @@ class TaskMysqlProxy(MysqlProxy):
         """
         task_hosts = (
             self.session.query(
-                TaskDeactivateHotpatch.cve_id, TaskDeactivateHotpatch.host_id, TaskDeactivateHotpatch.hotpatch
+                HotpatchRemoveTask.cve_id, HotpatchRemoveTask.host_id, HotpatchRemoveTask.hotpatch
             )
-            .filter(TaskDeactivateHotpatch.task_id == task_id)
+            .filter(HotpatchRemoveTask.task_id == task_id)
             .all()
         )
 
@@ -2424,7 +2286,7 @@ class TaskEsProxy(ElasticsearchProxy):
         operation_code, res = self.query(TASK_INDEX, query_body, source)
         return operation_code, res
 
-    def get_task_log_info(self, task_id, host_id=None, username=None) -> list:
+    def get_task_log_info(self, task_id, host_id=None, username=None) -> Tuple[int, list]:
         """
         Get task's info (log) from es
 
@@ -2441,11 +2303,11 @@ class TaskEsProxy(ElasticsearchProxy):
 
         if not operation_code:
             LOGGER.debug("Querying log info of task host '%s' failed due to internal error." % task_id)
-            return DATABASE_QUERY_ERROR, ""
+            return DATABASE_QUERY_ERROR, []
 
         if not res["hits"]["hits"]:
             LOGGER.debug("No data found when getting log info of task '%s'." % task_id)
-            return NO_DATA, ""
+            return NO_DATA, []
 
         task_infos = [json.loads(task_info["_source"]["log"]) for task_info in res["hits"]["hits"]]
 
@@ -2682,7 +2544,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         cve_host_info = data.pop("info")
         wait_fix_rpms = dict()
         task_cve_host_rows = []
-        task_package_rows = []
         host_set = set()
         for task_info in cve_host_info:
             host_ids = list(set([host['host_id'] for host in task_info["host_info"]]))
@@ -2903,8 +2764,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         """
 
         self.session.add(Task(**task_data))
-        self.session.bulk_insert_mappings(TaskCveHostRpmAssociation, task_package_rows)
-        self.session.bulk_insert_mappings(TaskDeactivateHotpatch, task_cve_host_rows)
+        self.session.bulk_insert_mappings(CveFixTask, task_package_rows)
+        self.session.bulk_insert_mappings(HotpatchRemoveTask, task_cve_host_rows)
 
     @staticmethod
     def _task_cve_host_row_dict(task_cve_host_id, task_id, cve_id, host_info):
@@ -2918,8 +2779,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
             "host_ip": host_info["host_ip"],
-            # "status": TaskStatus.UNKNOWN,
-            "status": None,
+            "status": TaskStatus.UNKNOWN,
             "hotpatch": host_info.get("hotpatch", False),
         }
 
@@ -3093,8 +2953,8 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         fail_list = list(set(task_list) - set(succeed_list))
         # query running tasks
         running_tasks = (
-            self.session.query(TaskDeactivateHotpatch.task_id)
-            .filter(TaskDeactivateHotpatch.status == TaskStatus.RUNNING, TaskDeactivateHotpatch.task_id.in_(task_list))
+            self.session.query(HotpatchRemoveTask.task_id)
+            .filter(HotpatchRemoveTask.status == TaskStatus.RUNNING, HotpatchRemoveTask.task_id.in_(task_list))
             .union(
                 self.session.query(TaskHostRepoAssociation.task_id).filter(
                     TaskHostRepoAssociation.task_id.in_(task_list), TaskHostRepoAssociation.status == TaskStatus.RUNNING
@@ -3142,7 +3002,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             list: task id list
         """
         task_cve_query = (
-            self.session.query(TaskDeactivateHotpatch).filter(TaskDeactivateHotpatch.status == TaskStatus.RUNNING).all()
+            self.session.query(HotpatchRemoveTask).filter(HotpatchRemoveTask.status == TaskStatus.RUNNING).all()
         )
         task_id_list = [task.task_id for task in task_cve_query]
         return task_id_list
@@ -3222,11 +3082,11 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Returns:
             int: status_code
         """
-        cve_task_query = self.session.query(TaskDeactivateHotpatch).filter(
-            TaskDeactivateHotpatch.task_id.in_(task_id_list)
+        cve_task_query = self.session.query(HotpatchRemoveTask).filter(
+            HotpatchRemoveTask.task_id.in_(task_id_list)
         )
         try:
-            cve_task_query.update({TaskDeactivateHotpatch.status: TaskStatus.UNKNOWN}, synchronize_session=False)
+            cve_task_query.update({HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False)
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
@@ -3283,11 +3143,11 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Returns:
             int: status_code
         """
-        cve_task_query = self.session.query(TaskDeactivateHotpatch).filter(
-            TaskDeactivateHotpatch.task_id.in_(task_id_list)
+        cve_task_query = self.session.query(HotpatchRemoveTask).filter(
+            HotpatchRemoveTask.task_id.in_(task_id_list)
         )
         try:
-            cve_task_query.update({TaskDeactivateHotpatch.status: TaskStatus.UNKNOWN}, synchronize_session=False)
+            cve_task_query.update({HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False)
             self.session.commit()
         except SQLAlchemyError as error:
             self.session.rollback()
@@ -3297,9 +3157,9 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         return SUCCEED
 
-    def generate_hotpatch_deactivate_task(self, data):
+    def generate_hotpatch_remove_task(self, data):
         """
-        For generating, save hotpatch deactivate task basic info to mysql, init task info in es.
+        For generating, save hotpatch remove task basic info to mysql, init task info in es.
 
         Args:
             data (dict): e.g.
@@ -3327,17 +3187,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             int: status code
         """
         try:
-            self._gen_hotpatch_deactivate_task(data)
+            self._gen_hotpatch_remove_task(data)
             self.session.commit()
-            LOGGER.debug("Finished generating hotpatch deactivate task.")
+            LOGGER.debug("Finished generating hotpatch remove task.")
             return SUCCEED
         except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
             self.session.rollback()
             LOGGER.error(error)
-            LOGGER.error("Generating hotpatch deactivate task failed due to internal error.")
+            LOGGER.error("Generating hotpatch remove task failed due to internal error.")
             return DATABASE_INSERT_ERROR
 
-    def _gen_hotpatch_deactivate_task(self, data):
+    def _gen_hotpatch_remove_task(self, data):
         task_id = data["task_id"]
         task_cve_host = dict()
         cves = dict()
@@ -3359,7 +3219,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         # insert data into mysql tables
         data["host_num"] = len(task_cve_host.keys())
         self.session.add(Task(**data))
-        self.session.bulk_insert_mappings(TaskDeactivateHotpatch, task_cve_host_rows)
+        self.session.bulk_insert_mappings(HotpatchRemoveTask, task_cve_host_rows)
 
     def validate_cves(self, cve_id: list) -> bool:
         """
@@ -3417,16 +3277,16 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         try:
             rows = (
                 self.session.query(
-                    TaskDeactivateHotpatch.host_id,
-                    TaskCveHostRpmAssociation.installed_rpm,
-                    TaskCveHostRpmAssociation.available_rpm,
-                    TaskCveHostRpmAssociation.fix_way,
+                    HotpatchRemoveTask.host_id,
+                    CveFixTask.installed_rpm,
+                    CveFixTask.available_rpm,
+                    CveFixTask.fix_way,
                 )
                 .join(
-                    TaskCveHostRpmAssociation,
-                    TaskDeactivateHotpatch.task_cve_host_id == TaskCveHostRpmAssociation.task_cve_host_id,
+                    CveFixTask,
+                    HotpatchRemoveTask.task_cve_host_id == CveFixTask.task_cve_host_id,
                 )
-                .filter(TaskDeactivateHotpatch.task_id == task_id, TaskDeactivateHotpatch.cve_id == cve_id)
+                .filter(HotpatchRemoveTask.task_id == task_id, HotpatchRemoveTask.cve_id == cve_id)
             ).all()
             return SUCCEED, rows
         except SQLAlchemyError as error:
@@ -3469,18 +3329,18 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
     def _get_task_cve_rpm_host(self, data):
         host_id_list = (
-            self.session.query(TaskDeactivateHotpatch.host_id)
+            self.session.query(HotpatchRemoveTask.host_id)
             .outerjoin(
-                TaskCveHostRpmAssociation,
-                TaskDeactivateHotpatch.task_cve_host_id == TaskCveHostRpmAssociation.task_cve_host_id,
+                CveFixTask,
+                HotpatchRemoveTask.task_cve_host_id == CveFixTask.task_cve_host_id,
             )
             .filter(
-                TaskDeactivateHotpatch.task_id == data["task_id"],
-                TaskDeactivateHotpatch.cve_id == data["cve_id"],
-                TaskCveHostRpmAssociation.installed_rpm == data["installed_rpm"],
-                TaskCveHostRpmAssociation.available_rpm == data["available_rpm"],
+                HotpatchRemoveTask.task_id == data["task_id"],
+                HotpatchRemoveTask.cve_id == data["cve_id"],
+                CveFixTask.installed_rpm == data["installed_rpm"],
+                CveFixTask.available_rpm == data["available_rpm"],
             )
-            .group_by(TaskDeactivateHotpatch.host_id)
+            .group_by(HotpatchRemoveTask.host_id)
             .all()
         )
         if not host_id_list:

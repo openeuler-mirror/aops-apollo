@@ -29,7 +29,7 @@ from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.resp import make_response
 
 from apollo.conf.constant import VUL_TASk_EXECUTE
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.view import VulExecuteTask
 from apollo.tests import BaseTestCase
 

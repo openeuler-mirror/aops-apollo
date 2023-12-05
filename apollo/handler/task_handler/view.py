@@ -34,15 +34,16 @@ from vulcanus.restful.resp.state import (
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import HostStatus, TaskType
-from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
+from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
+from apollo.database.proxy.task.cve_rollback import CveRollbackTask
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
-from apollo.handler.task_handler.callback.hotpatch_deactivate import HotpatchDeactivateCallback
+from apollo.handler.task_handler.callback.hotpatch_remove import HotpatchRemoveCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
-from apollo.handler.task_handler.manager.hotpatch_deactivate_manager import HotpatchDeactivateManager
+from apollo.handler.task_handler.manager.hotpatch_remove_manager import HotpatchRemoveManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager, EmailNoticeManager
 
@@ -372,39 +373,6 @@ class VulGetCveTaskStatus(BaseResponse):
         return self.response(code=status_code, data=data)
 
 
-class VulGetCveTaskProgress(BaseResponse):
-    """
-    Restful interface for getting progress of the task which fixes cve.
-    """
-
-    @BaseResponse.handle(schema=GetCveTaskProgressSchema, proxy=TaskMysqlProxy)
-    def post(self, callback: TaskMysqlProxy, **params):
-        """
-        Args:
-            task_id (str): task id
-            cve_list (list): cve id list
-
-        Returns:
-            dict: response body, e.g.
-                {
-                    "code": 200,
-                    "msg": "",
-                    "result": {
-                        "cve1": {
-                            "progress": 1,
-                            "status": "running"
-                        },
-                        "cve2": {
-                            "progress": 2,
-                            "status": "succeed
-                        }
-                    }
-                }
-        """
-        status_code, data = callback.get_task_cve_progress(params)
-        return self.response(code=status_code, data=data)
-
-
 class VulGetCveTaskResult(BaseResponse):
     """
     Restful interface for getting a CVE task's result.
@@ -474,7 +442,7 @@ class VulGenerateRepoTask(BaseResponse):
                 {
                     "code": 200,
                     "msg": "",
-                    "task_id": "1"
+                    "data": {"task_id": "1"}
                 }
         """
         task_id = str(uuid.uuid1()).replace('-', '')
@@ -540,7 +508,7 @@ class VulExecuteTask(BaseResponse):
     type_map = {
         TaskType.CVE_FIX: "_handle_cve_fix",
         TaskType.REPO_SET: "_handle_repo",
-        TaskType.HOTPATCH_DEACTIVATE: "_handle_hotpatch_deactivate",
+        TaskType.HOTPATCH_REMOVE: "_handle_hotpatch_remove",
     }
 
     @staticmethod
@@ -597,9 +565,9 @@ class VulExecuteTask(BaseResponse):
         return SUCCEED
 
     @staticmethod
-    def _handle_hotpatch_deactivate(args, proxy):
+    def _handle_hotpatch_remove(args, proxy):
         """
-        Handle hotpatch deactivate task
+        Handle hotpatch remove task
 
         Args:
             args (dict)
@@ -610,7 +578,7 @@ class VulExecuteTask(BaseResponse):
         """
         task_id = args['task_id']
 
-        manager = HotpatchDeactivateManager(proxy, task_id)
+        manager = HotpatchRemoveManager(proxy, task_id)
         manager.token = args['token']
         status_code = manager.create_task()
         if status_code != SUCCEED:
@@ -766,15 +734,67 @@ class VulCveScanTaskCallback(BaseResponse):
         return self.response(code=CveScanCallback(callback).callback(params))
 
 
-class VulGenerateHotpatchDeactivate(BaseResponse):
+class VulGenerateCveRollbackTask(BaseResponse):
     """
-    Restful interface for generating a cve hotpatch deactivate task.
+    Restful interface for generating a rollback task to rollback cve fix task.
+    """
+
+    @staticmethod
+    def _handle(proxy: CveRollbackTask, args):
+        """
+        Handle rollback task generating
+
+        Args:
+            proxy (CveRollbackTask): database proxy
+            args (dict): request parameter
+
+        Returns:
+            int: status code
+            dict: body including task id
+        """
+        task_id = str(uuid.uuid1()).replace('-', '')
+        task_info = dict(
+            task_id=task_id,
+            fix_task_id=args["fix_task_id"],
+            task_type=TaskType.CVE_ROLLBACK,
+            create_time=int(time.time()),
+            username=args["username"],
+        )
+
+        # save task info to database
+        status_code, msg = proxy.generate_cve_rollback_task(task_info)
+        if status_code != SUCCEED:
+            LOGGER.error("Generate cve rollback task fail.")
+            return status_code, {}, msg
+        return status_code, dict(task_id=task_id), msg
+
+    @BaseResponse.handle(schema=GenerateCveRollbackTaskSchema, proxy=CveRollbackTask)
+    def post(self, callback: CveRollbackTask, **params):
+        """
+        Args:
+            fix_task_id (str): cve fix task id
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "message": "",
+                    "data": {"task_id": "1"}
+                }
+        """
+        status_code, data, msg = self._handle(callback, params)
+        return self.response(code=status_code, data=data, message=msg)
+
+
+class VulGenerateHotpatchRemove(BaseResponse):
+    """
+    Restful interface for generating a cve hotpatch remove task.
     """
 
     @staticmethod
     def _handle(task_proxy, args):
         """
-        Handle hotpatch deactivate task generating
+        Handle hotpatch remove task generating
 
         Args:
             args (dict): request parameter
@@ -786,20 +806,20 @@ class VulGenerateHotpatchDeactivate(BaseResponse):
         task_id = str(uuid.uuid1()).replace('-', '')
         task_info = dict(
             task_id=task_id,
-            task_type=TaskType.HOTPATCH_DEACTIVATE,
+            task_type=TaskType.HOTPATCH_REMOVE,
             create_time=int(time.time()),
             username=args["username"],
         )
         task_info.update(args)
 
         # save task info to database
-        status_code = task_proxy.generate_hotpatch_deactivate_task(task_info)
+        status_code = task_proxy.generate_hotpatch_remove_task(task_info)
         if status_code != SUCCEED:
-            LOGGER.error("Generate hotpatch deactivate task fail.")
-
+            LOGGER.error("Generate hotpatch remove task fail.")
+            return status_code, {}
         return status_code, dict(task_id=task_id)
 
-    @BaseResponse.handle(schema=GenerateHotpatchDeactivateTaskSchema, proxy=TaskProxy)
+    @BaseResponse.handle(schema=GenerateHotpatchRemoveTaskSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -812,7 +832,7 @@ class VulGenerateHotpatchDeactivate(BaseResponse):
                 {
                     "code": 200,
                     "msg": "",
-                    "task_id": "1"
+                    "data": {"task_id": "1"}
                 }
         """
         host_ids = [host["host_id"] for host in params["info"]]
@@ -827,12 +847,12 @@ class VulGenerateHotpatchDeactivate(BaseResponse):
         return self.response(code=status_code, data=data)
 
 
-class VulHotpatchDeactivateTaskCallback(BaseResponse):
+class VulHotpatchRemoveTaskCallback(BaseResponse):
     """
-    Restful interface for hotpatch deactivate task callback.
+    Restful interface for hotpatch remove task callback.
     """
 
-    @BaseResponse.handle(schema=HotpatchDeactivateCallbackSchema, proxy=TaskProxy)
+    @BaseResponse.handle(schema=HotpatchRemoveCallbackSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
         """
         Args:
@@ -848,7 +868,7 @@ class VulHotpatchDeactivateTaskCallback(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code = HotpatchDeactivateCallback(callback).callback(params)
+        status_code = HotpatchRemoveCallback(callback).callback(params)
         return self.response(code=status_code)
 
 

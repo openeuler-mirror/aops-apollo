@@ -23,7 +23,7 @@ from vulcanus.restful.resp.state import DATABASE_QUERY_ERROR, SUCCEED
 
 from apollo.conf.constant import HostStatus
 from apollo.cron.timed_scan_task import TimedScanTask
-from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.database.proxy.task.base import TaskMysqlProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 
 

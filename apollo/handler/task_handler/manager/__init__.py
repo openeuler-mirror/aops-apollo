@@ -18,7 +18,7 @@ Description:
 import time
 from abc import ABC, abstractmethod
 
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 
 
 class Manager(ABC):

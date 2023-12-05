@@ -15,7 +15,7 @@ from unittest import mock
 from sqlalchemy.exc import SQLAlchemyError
 
 from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
-from apollo.database.proxy.task import TaskProxy
+from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.tests import BaseTestCase
 

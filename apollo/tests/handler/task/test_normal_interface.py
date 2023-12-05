@@ -18,8 +18,7 @@ Description:
 import unittest
 from unittest import mock
 
-from apollo.database.proxy.task import TaskMysqlProxy, TaskProxy
-from flask import Flask
+from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
 
 from vulcanus.restful.resp import make_response
 from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
@@ -27,10 +26,8 @@ from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import (
     VUL_TASK_CVE_INFO_GET,
-    VUL_TASK_CVE_PROGRESS_GET,
     VUL_TASK_CVE_RESULT_GET,
     VUL_TASK_CVE_STATUS_GET,
-    VUL_TASK_DELETE,
     VUL_TASK_INFO_GET,
     VUL_TASK_LIST_GET,
     VUL_TASK_PROGRESS_GET,
@@ -118,21 +115,6 @@ class TestGetCveTaskStatusView(unittest.TestCase):
 
         args = {"task_id": "s", "cve_list": [1, 2]}
         res = client.post(VUL_TASK_CVE_STATUS_GET, json=args, headers=headers).json
-        self.assertEqual(res, param_error_response)
-
-
-class TestGetCveTaskProgressView(unittest.TestCase):
-    @mock.patch.object(TaskMysqlProxy, "get_task_cve_progress")
-    @mock.patch.object(BaseResponse, 'verify_token')
-    def test_schema(self, mock_verify_token, mock_get_task_cve_progress):
-        mock_verify_token.return_value = SUCCEED
-        args = {"task_id": "s", "cve_list": ["1", "2"]}
-        mock_get_task_cve_progress.return_value = SUCCEED, {}
-        res = client.post(VUL_TASK_CVE_PROGRESS_GET, json=args, headers=headers).json
-        self.assertEqual(res, succeed_response)
-
-        args = {"task_id": "s", "cve_list": [1, 2]}
-        res = client.post(VUL_TASK_CVE_PROGRESS_GET, json=args, headers=headers).json
         self.assertEqual(res, param_error_response)
 
 
