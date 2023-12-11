@@ -64,7 +64,7 @@ class CveFixManager(Manager):
         Returns:
             bool: succeed or fail
         """
-        if self.proxy.init_cve_task(self.task_id, []) != SUCCEED:
+        if self.proxy.init_cve_fix_task(self.task_id) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop cve fixing task %s.", self.task_id)
             return False
 
@@ -85,7 +85,7 @@ class CveFixManager(Manager):
         response = BaseResponse.get_response('POST', manager_url, pyload, header)
         if response.get('label') != SUCCEED:
             LOGGER.error("Cve fixing task %s execute failed.", self.task_id)
-            self.proxy.init_cve_task(self.task_id, [], TaskStatus.UNKNOWN)
+            self.proxy.init_cve_fix_task(self.task_id, TaskStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
 
         return SUCCEED

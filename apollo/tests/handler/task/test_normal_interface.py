@@ -25,9 +25,9 @@ from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import (
-    VUL_TASK_CVE_INFO_GET,
-    VUL_TASK_CVE_RESULT_GET,
-    VUL_TASK_CVE_STATUS_GET,
+    VUL_TASK_CVE_FIX_INFO_GET,
+    VUL_TASK_CVE_FIX_RESULT_GET,
+    VUL_TASK_HOTPATCH_REMOVE_STATUS_GET,
     VUL_TASK_INFO_GET,
     VUL_TASK_LIST_GET,
     VUL_TASK_PROGRESS_GET,
@@ -95,11 +95,11 @@ class TestGetCveTaskInfoView(unittest.TestCase):
         mock_verify_token.return_value = SUCCEED
         args = {"task_id": "s", "page": 1, "per_page": 10, "filter": {"status": ["succeed"]}}
         mock_get_task_cve_status.return_value = SUCCEED, {}
-        res = client.post(VUL_TASK_CVE_INFO_GET, json=args, headers=headers).json
+        res = client.post(VUL_TASK_CVE_FIX_INFO_GET, json=args, headers=headers).json
         self.assertEqual(res, succeed_response)
 
         args = {"task_id": "s", "b": 1, "filter": {"status": ["succeed"]}}
-        res = client.post(VUL_TASK_CVE_INFO_GET, json=args, headers=headers).json
+        res = client.post(VUL_TASK_CVE_FIX_INFO_GET, json=args, headers=headers).json
         self.assertEqual(res, param_error_response)
 
 
@@ -110,11 +110,11 @@ class TestGetCveTaskStatusView(unittest.TestCase):
         mock_verify_token.return_value = SUCCEED
         args = {"task_id": "s", "cve_list": ["1", "2"]}
         mock_get_task_cve_status.return_value = SUCCEED, {}
-        res = client.post(VUL_TASK_CVE_STATUS_GET, json=args, headers=headers).json
+        res = client.post(VUL_TASK_HOTPATCH_REMOVE_STATUS_GET, json=args, headers=headers).json
         self.assertEqual(res, succeed_response)
 
         args = {"task_id": "s", "cve_list": [1, 2]}
-        res = client.post(VUL_TASK_CVE_STATUS_GET, json=args, headers=headers).json
+        res = client.post(VUL_TASK_HOTPATCH_REMOVE_STATUS_GET, json=args, headers=headers).json
         self.assertEqual(res, param_error_response)
 
 
@@ -125,11 +125,11 @@ class TestGetCveTaskResultView(unittest.TestCase):
         mock_verify_token.return_value = SUCCEED
         args = {"task_id": "s", "cve_list": ["1", "2"]}
         mock_get_task_cve_result.return_value = SUCCEED, {}
-        res = client.post(VUL_TASK_CVE_RESULT_GET, json=args, headers=headers).json
+        res = client.post(VUL_TASK_CVE_FIX_RESULT_GET, json=args, headers=headers).json
         self.assertEqual(res, succeed_response)
 
         args = {"task_id": "s", "cve_list": [1, 2]}
-        res = client.post(VUL_TASK_CVE_RESULT_GET, json=args, headers=headers).json
+        res = client.post(VUL_TASK_CVE_FIX_RESULT_GET, json=args, headers=headers).json
         self.assertEqual(res, param_error_response)
 
 

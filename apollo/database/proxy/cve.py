@@ -1332,13 +1332,14 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         )
         return cve_query
 
-    def get_cve_unfixed_packages(self, cve_id, host_ids: list):
+    def get_cve_unfixed_packages(self, cve_id, host_ids: list, username: str):
         """
         Get unfixed packages of the cve
 
         Args:
             cve_id: cve id
             host_ids: host list
+            username: user name
 
         Returns:
             status_code: str
@@ -1352,7 +1353,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             ]
         """
         try:
-            status_code, unfixed_rpms = self._get_cve_unfixed_packages(cve_id, host_ids)
+            status_code, unfixed_rpms = self._get_cve_unfixed_packages(cve_id, host_ids, username)
             if status_code != SUCCEED:
                 LOGGER.debug("Description Failed to query unfixed rpm packages of the cve, cve id: %s" % cve_id)
 
@@ -1361,8 +1362,12 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.error(error)
             return DATABASE_QUERY_ERROR, []
 
-    def _get_cve_unfixed_packages(self, cve_id, host_ids):
-        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == False}
+    def _get_cve_unfixed_packages(self, cve_id, host_ids, username):
+        filters = {
+            CveHostAssociation.cve_id == cve_id,
+            CveHostAssociation.fixed == False,
+            CveHostAssociation.host_user == username,
+        }
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))
 
@@ -1403,13 +1408,14 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             result.append(unfix_rpm)
         return result
 
-    def get_cve_fixed_packages(self, cve_id, host_ids: list):
+    def get_cve_fixed_packages(self, cve_id, host_ids: list, username: str):
         """
         Get fixed packages of the cve
 
         Args:
             cve_id: cve id
             host_ids: host list
+            username: user name
 
         Returns:
             status_code: str
@@ -1422,7 +1428,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     ]
         """
         try:
-            status_code, fixed_rpms = self._get_cve_fixed_packages(cve_id, host_ids)
+            status_code, fixed_rpms = self._get_cve_fixed_packages(cve_id, host_ids, username)
             if status_code != SUCCEED:
                 LOGGER.debug("Description Failed to query fixed rpm packages of the cve, cve id: %s" % cve_id)
 
@@ -1431,8 +1437,12 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.error(error)
             return DATABASE_QUERY_ERROR, []
 
-    def _get_cve_fixed_packages(self, cve_id, host_ids):
-        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == True}
+    def _get_cve_fixed_packages(self, cve_id, host_ids, username):
+        filters = {
+            CveHostAssociation.cve_id == cve_id,
+            CveHostAssociation.fixed == True,
+            CveHostAssociation.host_user == username,
+        }
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))
 

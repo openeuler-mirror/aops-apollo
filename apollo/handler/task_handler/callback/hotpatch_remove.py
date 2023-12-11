@@ -52,9 +52,15 @@ class HotpatchRemoveCallback(TaskCallback):
                     "execution_time":""
             }
         """
+        host_ip = task_result.pop("host_ip")
+        host_name = task_result.pop("host_name")
+        status = task_result.pop("status")
         result = {
             "task_id": task_id,
             "host_id": host_id,
+            "host_ip": host_ip,
+            "host_name": host_name,
+            "status": status,
             "task_type": task_type,
             "latest_execute_time": task_result.pop("execution_time"),
             "task_result": task_result,
@@ -105,7 +111,7 @@ class HotpatchRemoveCallback(TaskCallback):
         )
         update_status_result = []
         for cve in task_result["cves"]:
-            status_code = self.proxy.update_cve_status(task_id, cve["cve_id"], host_id, cve["result"])
+            status_code = self.proxy.update_hotpatch_remove_cve_status(task_id, cve["cve_id"], host_id, cve["result"])
             update_status_result.append(status_code)
 
         if len(task_result["cves"]) != len(list(filter(lambda code: code == SUCCEED, update_status_result))):

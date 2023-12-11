@@ -480,7 +480,7 @@ class VulUnfixedCvePackage(BaseResponse):
             dict: response body
         """
         status_code, unfix_cve_packages = callback.get_cve_unfixed_packages(
-            cve_id=params["cve_id"], host_ids=params.get("host_ids")
+            cve_id=params["cve_id"], host_ids=params.get("host_ids"), username=params["username"]
         )
         return self.response(code=status_code, data=unfix_cve_packages)
 
@@ -499,7 +499,7 @@ class VulFixedCvePackage(BaseResponse):
             dict: response body
         """
         status_code, unfix_cve_packages = callback.get_cve_fixed_packages(
-            cve_id=params["cve_id"], host_ids=params.get("host_ids")
+            cve_id=params["cve_id"], host_ids=params.get("host_ids"), username=params["username"]
         )
         return self.response(code=status_code, data=unfix_cve_packages)
 

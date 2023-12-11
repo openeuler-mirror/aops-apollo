@@ -18,10 +18,10 @@ Description: Handle about task related operation
 import threading
 import time
 import uuid
-from typing import Dict, Tuple
+from typing import Dict
 
 from flask import request
-from apollo.function.schema.task import TaskCveRpmHostSchema
+from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
     REPEAT_TASK_EXECUTION,
@@ -29,15 +29,16 @@ from vulcanus.restful.resp.state import (
     PARAM_ERROR,
     DATABASE_UPDATE_ERROR,
     PARTIAL_SUCCEED,
-    NO_DATA,
 )
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import HostStatus, TaskType
 from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
 from apollo.database.proxy.task.cve_rollback import CveRollbackTask
+from apollo.database.proxy.task.cve_fix import CveFixTaskProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
+from apollo.function.schema.task import GetHotpatchRemoveTaskCveInfoSchema
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.hotpatch_remove import HotpatchRemoveCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
@@ -238,47 +239,17 @@ class VulGetTaskInfo(BaseResponse):
         return self.response(code=status_code, data=result)
 
 
-class VulGenerateCveTask(BaseResponse):
+class VulGenerateCveFixTask(BaseResponse):
     """
     Restful interface for generating a cve fix task.
     """
 
-    @staticmethod
-    def _handle(task_proxy: TaskProxy, args: Dict) -> Tuple[int, Dict[str, str]]:
-        """
-        Handle cve fix generating task.
-
-        Args:
-            args (dict): request param
-
-        Returns:
-            int: status code
-            dict: body including task id
-        """
-        result = dict(task_id=None)
-
-        task_id = str(uuid.uuid1()).replace('-', '')
-        args['task_id'] = task_id
-        args['task_type'] = TaskType.CVE_FIX
-        args['create_time'] = int(time.time())
-        args["check_items"] = ",".join(args["check_items"])
-        status_code = task_proxy.generate_cve_task(args)
-        if status_code != SUCCEED:
-            LOGGER.error("Generate cve fix task fail, fail to save task info to database.")
-            return status_code, result
-
-        result['task_id'] = task_id
-
-        return SUCCEED, result
-
-    @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=CveFixTaskProxy)
+    def post(self, callback: CveFixTaskProxy, **params):
         """
         Args:
             task_name (str)
             description (str)
-            auto_reboot (bool, optional): when auto_reboot is set and reboot is true,
-                                the host will be rebooted after fixing cve
             check_items (str)
             info (list): task info including cve id and related host info
 
@@ -301,17 +272,20 @@ class VulGenerateCveTask(BaseResponse):
         if not callback.validate_cves(cve_id=list(set(cve_ids))):
             return self.response(code=PARAM_ERROR)
 
-        status_code, data = self._handle(callback, params)
-        return self.response(code=status_code, data=data)
+        status_code, task = callback.generate_cve_task(params)
+        if status_code != SUCCEED:
+            LOGGER.error("Generate cve fix task fail, fail to save task info to database.")
+
+        return self.response(code=status_code, data=task)
 
 
-class VulGetCveTaskInfo(BaseResponse):
+class VulGetCveFixTaskInfo(BaseResponse):
     """
     Restful interface for getting the info of a task which fixes cve.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskInfoSchema, proxy=TaskMysqlProxy)
-    def post(self, callback: TaskMysqlProxy, **params):
+    @BaseResponse.handle(schema=GetCveTaskInfoSchema, proxy=CveFixTaskProxy)
+    def post(self, callback: CveFixTaskProxy, **params):
         """
         Args:
             task_id (str)
@@ -340,13 +314,13 @@ class VulGetCveTaskInfo(BaseResponse):
         return self.response(code=status_code, data=data)
 
 
-class VulGetCveTaskStatus(BaseResponse):
+class VulGetHotpatchRemoveTaskHostCveStatus(BaseResponse):
     """
     Restful interface for getting host status in the task which fixes cve.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskStatusSchema, proxy=TaskMysqlProxy)
-    def post(self, callback: TaskMysqlProxy, **params):
+    @BaseResponse.handle(schema=GetHotpatchRemoveTaskHostCveStatusSchema, proxy=HotpatchRemoveProxy)
+    def post(self, callback: HotpatchRemoveProxy, **params):
         """
         Args:
             task_id (str): task id
@@ -369,17 +343,17 @@ class VulGetCveTaskStatus(BaseResponse):
                     }
                 }
         """
-        status_code, data = callback.get_task_cve_status(params)
+        status_code, data = callback.get_hotpatch_remove_task_host_cve_status(params)
         return self.response(code=status_code, data=data)
 
 
-class VulGetCveTaskResult(BaseResponse):
+class VulGetCveFixTaskResult(BaseResponse):
     """
     Restful interface for getting a CVE task's result.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskResultSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=GetTaskResultSchema, proxy=CveFixTaskProxy)
+    def post(self, callback: CveFixTaskProxy, **params):
         """
         Args:
             task_id (str): task id
@@ -512,7 +486,7 @@ class VulExecuteTask(BaseResponse):
     }
 
     @staticmethod
-    def _handle_cve_fix(args: Dict, proxy: TaskProxy) -> int:
+    def _handle_cve_fix(args: Dict, proxy: TaskProxy = None) -> int:
         """
         Handle cve task
 
@@ -524,17 +498,17 @@ class VulExecuteTask(BaseResponse):
             int: status code
         """
         task_id = args['task_id']
+        with CveFixTaskProxy() as cve_fix_proxy:
+            manager = CveFixManager(cve_fix_proxy, task_id)
+            manager.token = args['token']
+            status_code = manager.create_task()
+            if status_code != SUCCEED:
+                return status_code
 
-        manager = CveFixManager(proxy, task_id)
-        manager.token = args['token']
-        status_code = manager.create_task()
-        if status_code != SUCCEED:
-            return status_code
+            if not manager.pre_handle():
+                return DATABASE_UPDATE_ERROR
 
-        if not manager.pre_handle():
-            return DATABASE_UPDATE_ERROR
-
-        return manager.execute_task()
+            return manager.execute_task()
 
     @staticmethod
     def _handle_repo(args, proxy):
@@ -577,18 +551,18 @@ class VulExecuteTask(BaseResponse):
             int: status code
         """
         task_id = args['task_id']
+        with HotpatchRemoveProxy() as hotpatch_proxy:
+            manager = HotpatchRemoveManager(hotpatch_proxy, task_id)
+            manager.token = args['token']
+            status_code = manager.create_task()
+            if status_code != SUCCEED:
+                return status_code
 
-        manager = HotpatchRemoveManager(proxy, task_id)
-        manager.token = args['token']
-        status_code = manager.create_task()
-        if status_code != SUCCEED:
-            return status_code
+            if not manager.pre_handle():
+                return DATABASE_UPDATE_ERROR
 
-        if not manager.pre_handle():
-            return DATABASE_UPDATE_ERROR
-
-        # run the task in a thread
-        return manager.execute_task()
+            # run the task in a thread
+            return manager.execute_task()
 
     def _handle(self, proxy, args):
         """
@@ -680,8 +654,8 @@ class VulCveFixTaskCallback(BaseResponse):
 
         return CveFixCallback(proxy).callback(args)
 
-    @BaseResponse.handle(schema=CveFixCallbackSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=CveFixCallbackSchema, proxy=CveFixTaskProxy)
+    def post(self, callback: CveFixTaskProxy, **params):
         """
         Args:
             task_id (str)
@@ -792,7 +766,7 @@ class VulGenerateHotpatchRemove(BaseResponse):
     """
 
     @staticmethod
-    def _handle(task_proxy, args):
+    def _handle(task_proxy: HotpatchRemoveProxy, args):
         """
         Handle hotpatch remove task generating
 
@@ -819,8 +793,8 @@ class VulGenerateHotpatchRemove(BaseResponse):
             return status_code, {}
         return status_code, dict(task_id=task_id)
 
-    @BaseResponse.handle(schema=GenerateHotpatchRemoveTaskSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=GenerateHotpatchRemoveTaskSchema, proxy=HotpatchRemoveProxy)
+    def post(self, callback: HotpatchRemoveProxy, **params):
         """
         Args:
             task_name (str)
@@ -836,7 +810,7 @@ class VulGenerateHotpatchRemove(BaseResponse):
                 }
         """
         host_ids = [host["host_id"] for host in params["info"]]
-        if not callback.validate_hosts(host_id=list(set(host_ids))):
+        if not callback.validate_hosts(host_id=list(set(host_ids)), username=params["username"]):
             return self.response(code=PARAM_ERROR)
 
         cve_ids = [cve["cve_id"] for host in params["info"] for cve in host["cves"]]
@@ -852,8 +826,8 @@ class VulHotpatchRemoveTaskCallback(BaseResponse):
     Restful interface for hotpatch remove task callback.
     """
 
-    @BaseResponse.handle(schema=HotpatchRemoveCallbackSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=HotpatchRemoveCallbackSchema, proxy=HotpatchRemoveProxy)
+    def post(self, callback: HotpatchRemoveProxy, **params):
         """
         Args:
             host_id (str)
@@ -877,77 +851,18 @@ class VulGetTaskCveRpmInfo(BaseResponse):
     Restful interface for query cve's rpm info about cve-fix task
     """
 
-    @staticmethod
-    def _handle(proxy: TaskProxy, task_id: str, cve_id: str) -> Tuple[str, list]:
-        """
-        Handle query cve's rpm info
-
-        Args:
-            proxy: database proxy
-            task_id
-            cve_id
-
-        Returns:
-            Tuple[str, list]
-            a tuple containing two elements (return code, rpm info list).
-        """
-        status_code, query_rows = proxy.query_task_cve_rpm_info(task_id, cve_id)
-        result = []
-        if status_code != SUCCEED:
-            return status_code, result
-
-        if len(query_rows) == 0:
-            return NO_DATA, result
-
-        tmp = {}
-        for row in query_rows:
-            tmp_key = row.installed_rpm + row.available_rpm + row.fix_way
-            if tmp_key not in tmp:
-                tmp[tmp_key] = {
-                    "installed_rpm": row.installed_rpm,
-                    "available_rpm": row.available_rpm,
-                    "fix_way": row.fix_way,
-                    "host_list": [row.host_id],
-                }
-            else:
-                tmp[tmp_key]["host_list"].append(row.host_id)
-
-        return SUCCEED, list(tmp.values())
-
-    @BaseResponse.handle(schema=TaskCveRpmInfoSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=TaskCveRpmInfoSchema, proxy=CveFixTaskProxy)
+    def post(self, callback: CveFixTaskProxy, **params):
         """
         Args:
             task_id (str)
-            cve_id (str)
+            host_id (int)
 
         Returns:
             dict: response body
         """
 
-        status_code, data = self._handle(callback, params["task_id"], params["cve_id"])
-        return self.response(code=status_code, data=data)
-
-
-class VulTaskCveRpmHost(BaseResponse):
-    """
-    Obtain the host list of the rpm corresponding to the cve in the repair task
-    """
-
-    @BaseResponse.handle(schema=TaskCveRpmHostSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
-        """
-        Args:
-            task_id (str)
-            cve_id (str)
-            available_rpm (str)
-            installed_rpm (str)
-
-        Returns:
-            dict: response body
-        """
-
-        status_code, data = callback.get_task_cve_rpm_host(params)
+        status_code, data = callback.query_task_cve_fix_rpm_info(params["task_id"], params["host_id"])
         return self.response(code=status_code, data=data)
 
 
@@ -960,3 +875,143 @@ class VulCveScanNotice(BaseResponse):
         manager = EmailNoticeManager(params["username"], callback)
         manager.send_email_to_user()
         return self.response(code=SUCCEED)
+
+
+class VulGetHotpatchRemoveTaskCveInfo(BaseResponse):
+    """
+    Restful interface for getting the info of a task which hotpatch remove.
+    """
+
+    @BaseResponse.handle(schema=GetHotpatchRemoveTaskCveInfoSchema, proxy=HotpatchRemoveProxy)
+    def post(self, callback: HotpatchRemoveProxy, **params):
+        """
+        Args:
+            task_id (str)
+            sort (str, optional): can be chosen from host_num.
+            direction (str, optional): asc or desc. Defaults to asc.
+            page (int, optional): current page in web.
+            per_page (int, optional): number of items in each page.
+            filter (dict, optional): filter condition.
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "msg": "",
+                    "result": [
+                        {
+                            "cve_id": "cve-11-1",
+                            "package": "",
+                            ""
+                        }
+                    ]
+                }
+
+        """
+        status_code, data = callback.get_hotpatch_remove_task_cve_info(params)
+        return self.response(code=status_code, data=data)
+
+
+class VulGetHotpatchRemoveTaskResult(BaseResponse):
+    """
+    Restful interface for getting a hotpatch remove task's result.
+    """
+
+    @BaseResponse.handle(schema=GetTaskResultSchema, proxy=HotpatchRemoveProxy)
+    def post(self, callback: HotpatchRemoveProxy, **params):
+        """
+        Args:
+            task_id (str): task id
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "msg": "",
+                    "result": {
+                        "task_id": "1",
+                        "task_type": "cve",
+                        "latest_execute_time": 11,
+                        "task_result": [
+                            {
+                                "host_id": 1,
+                                "host_name": "name",
+                                "host_ip": "1.1.1.1",
+                                "status": "fail",
+                                "check_items": [
+                                    {
+                                        "item": "check network",
+                                        "result": True
+                                    }
+                                ],
+                                "cves": [
+                                    {
+                                        "cve_id": "cve-11-1",
+                                        "log": "",
+                                        "result": "unfixed"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+
+        """
+        status_code, data = callback.get_hotpatch_remove_task_result(params)
+        return self.response(code=status_code, data=data)
+
+
+class VulGetHotpatchRemoveTaskProgress(BaseResponse):
+    """
+    Restful interface for getting progress of the task which hotpatch remove.
+    """
+
+    @BaseResponse.handle(schema=GetHotpatchRemoveTaskProgressSchema, proxy=HotpatchRemoveProxy)
+    def post(self, callback: HotpatchRemoveProxy, **params):
+        """
+        Args:
+            task_id (str): task id
+            cve_list (list): cve id list
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "msg": "",
+                    "result": {
+                        "cve1": {
+                            "progress": 1,
+                            "status": "running"
+                        },
+                        "cve2": {
+                            "progress": 2,
+                            "status": "succeed
+                        }
+                    }
+                }
+        """
+        status_code, data = callback.get_hotpatch_remove_task_cve_progress(params)
+        return self.response(code=status_code, data=data)
+
+
+class VulGetTaskHost(BaseResponse):
+    """
+    Restful interface for getting hosts of the task.
+    """
+
+    @BaseResponse.handle(schema=GetTaskResultSchema, proxy=TaskProxy)
+    def post(self, callback: TaskProxy, **params):
+        """
+        Args:
+            task_id (str): task id
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "msg": "",
+                    "data": [1,2,3]
+                }
+        """
+        status_code, data = callback.get_task_hosts(params)
+        return self.response(code=status_code, data=data)

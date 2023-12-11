@@ -104,7 +104,6 @@ class CveTaskInfoFilterSchema(Schema):
     filter schema of cve task info getting interface
     """
 
-    cve_id = fields.String(required=False, validate=lambda s: 0 < len(s) <= 20)
     status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
 
 
@@ -119,31 +118,51 @@ class GetCveTaskInfoSchema(PaginationSchema):
     filter = fields.Nested(CveTaskInfoFilterSchema, required=False)
 
 
-class GetCveTaskStatusSchema(Schema):
+class HotpatchRemoveTaskCveInfoSchema(Schema):
     """
-    validators for parameter of /vulnerability/task/cve/status/get
+    filter schema of cve task info getting interface
+    """
+
+    cve_id = fields.String(required=False, validate=lambda s: 0 < len(s) <= 20)
+    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
+
+
+class GetHotpatchRemoveTaskCveInfoSchema(PaginationSchema):
+    """
+    validators for parameter of /vulnerability/task/hotpatch-remove/info/get
+    """
+
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+    sort = fields.String(required=False, validate=validate.OneOf(["host_num"]))
+    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
+    filter = fields.Nested(HotpatchRemoveTaskCveInfoSchema, required=False)
+
+
+class GetHotpatchRemoveTaskHostCveStatusSchema(Schema):
+    """
+    validators for parameter of /vulnerability/task/hotpatch-remove/status/get
     """
 
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     cve_list = fields.List(fields.String(), required=True)
 
 
-class GetCveTaskProgressSchema(Schema):
+class GetHotpatchRemoveTaskProgressSchema(Schema):
     """
-    validators for parameter of /vulnerability/task/cve/progress/get
-    """
-
-    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    cve_list = fields.List(fields.String(), required=True)
-
-
-class GetCveTaskResultSchema(Schema):
-    """
-    validators for parameter of /vulnerability/task/cve/result/get
+    validators for parameter of /vulnerability/task/hotpatch-remove/progress/get
     """
 
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     cve_list = fields.List(fields.String(), required=True)
+
+
+class GetTaskResultSchema(Schema):
+    """
+    validators for parameter of /vulnerability/task/cve-fix/result/get or /vulnerability/task/hotpatch-remove/result/get
+    or /vulnerability/task/host/get
+    """
+
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 
 class RollbackCveTaskSchema(Schema):
@@ -222,9 +241,9 @@ class CveFixPackageResultSchema(Schema):
 
 
 class CveFixResultCallbackSchema(Schema):
-    cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    available_rpm = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     result = fields.String(required=True, validate=lambda s: len(s) != 0)
-    rpms = fields.Nested(CveFixPackageResultSchema, many=True)
+    log = fields.String(required=True, validate=lambda s: len(s) != 0)
 
 
 class CallbackSchma(Schema):
@@ -238,7 +257,9 @@ class CallbackSchma(Schema):
 
 class CveFixCallbackSchema(CallbackSchma):
     check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
-    cves = fields.Nested(CveFixResultCallbackSchema, many=True)
+    rpms = fields.Nested(CveFixResultCallbackSchema, many=True)
+    dnf_event_start = fields.Integer(required=False, validate=lambda s: s > 0)
+    dnf_event_end = fields.Integer(required=False, validate=lambda s: s > 0)
 
 
 class CheckItemsSchema(Schema):
@@ -289,18 +310,19 @@ class CveScanCallbackSchema(Schema):
     os_version = fields.String(required=False, validate=lambda s: 0 < len(s) < 40)
     unfixed_cves = fields.List(fields.Nested(UnfixedCveInfoSchema(), required=False), required=False)
     fixed_cves = fields.List(fields.Nested(FixedCveInfoSchema(), required=False), required=False)
+    reboot = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
 
 
 class GenerateCveRollbackTaskSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve-rollback/generate
     """
+
     fix_task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 
 class HotpatchRemoveCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    hotpatch = fields.Boolean()
 
 
 class HotpatchRemoveInfoSchema(Schema):
@@ -326,7 +348,7 @@ class HotpatchRemoveCallbackSchema(CallbackSchma):
 
 
 class TaskCveRpmInfoSchema(Schema):
-    cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 
@@ -343,9 +365,9 @@ __all__ = [
     'GetTaskInfoSchema',
     'GenerateCveTaskSchema',
     'GetCveTaskInfoSchema',
-    'GetCveTaskStatusSchema',
-    'GetCveTaskProgressSchema',
-    'GetCveTaskResultSchema',
+    'GetHotpatchRemoveTaskHostCveStatusSchema',
+    'GetHotpatchRemoveTaskProgressSchema',
+    'GetTaskResultSchema',
     'RollbackCveTaskSchema',
     'GenerateRepoTaskSchema',
     'GetRepoTaskInfoSchema',

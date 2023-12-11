@@ -32,7 +32,7 @@ class HotpatchRemoveManager(Manager):
         Returns:
             int: status code
         """
-        status_code, self.task = self.proxy.get_hotpatch_remove_task_info(self.task_id)
+        status_code, self.task = self.proxy.get_hotpatch_remove_basic_info(self.task_id)
         if status_code != SUCCEED:
             LOGGER.error("There is no data about host info, stop creating a hotpatch remove task.")
             return status_code
