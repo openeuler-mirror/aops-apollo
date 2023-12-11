@@ -182,8 +182,8 @@ class Task(Base, MyBase):
 
     task_id = Column(String(32), primary_key=True, nullable=False)
     task_type = Column(String(20), nullable=False)
-    description = Column(String(50), nullable=False)
-    task_name = Column(String(20), nullable=False)
+    description = Column(String(100), nullable=False)
+    task_name = Column(String(50), nullable=False)
     latest_execute_time = Column(Integer)
     create_time = Column(Integer)
     host_num = Column(Integer)
@@ -191,6 +191,7 @@ class Task(Base, MyBase):
     accepted = Column(Boolean, default=False)
     takeover = Column(Boolean, default=False)
     username = Column(String(40), ForeignKey('user.username'))
+    fix_type = Column(String(20))
 
 
 class TaskHostRepoAssociation(Base, MyBase):
@@ -217,7 +218,7 @@ class CveFixTask(Base, MyBase):
 
     __tablename__ = "cve_fix_task"
 
-    task_cve_host_rpm_id = Column(String(32), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
     host_id = Column(Integer)
     host_ip = Column(String(16), nullable=False)

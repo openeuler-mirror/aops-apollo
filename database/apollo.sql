@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS `cve`  (
 CREATE TABLE IF NOT EXISTS `vul_task` (
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `description` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `task_name` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `description` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `task_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `latest_execute_time` int(11) NULL DEFAULT NULL,
   `create_time` int(11) NULL DEFAULT NULL,
   `host_num` int(11) NULL DEFAULT NULL,
@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS `vul_task` (
   `accepted` tinyint(1) NULL DEFAULT NULL,
   `username` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `takeover` tinyint(1) NULL DEFAULT 0,
+  `fix_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   PRIMARY KEY (`task_id`) USING BTREE,
   INDEX `username`(`username`) USING BTREE,
   CONSTRAINT `vul_task_user_ibfk_1` FOREIGN KEY (`username`) REFERENCES `user` (`username`) ON DELETE RESTRICT ON UPDATE RESTRICT
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS `repo`  (
   CONSTRAINT `repo_ibfk_1` FOREIGN KEY (`username`) REFERENCES `user` (`username`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
-CREATE TABLE IF NOT EXISTS `task_remove_hotpatch`  (
+CREATE TABLE IF NOT EXISTS `hotpatch_remove_task`  (
   `task_cve_host_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `cve_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -98,8 +99,8 @@ CREATE TABLE IF NOT EXISTS `task_host_repo` (
   CONSTRAINT `task_host_repo_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `vul_task` (`task_id`) ON DELETE CASCADE ON UPDATE RESTRICT
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
-CREATE TABLE IF NOT EXISTS `task_cve_host_rpm`  (
-   `task_cve_host_rpm_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+CREATE TABLE IF NOT EXISTS `cve_fix_task`  (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_id` int(11) NOT NULL,
   `host_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -110,12 +111,12 @@ CREATE TABLE IF NOT EXISTS `task_cve_host_rpm`  (
   `fix_way` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `take_over_result` tinyint(1) NULL DEFAULT NULL,
-  `dnf_event_start` int(11) NULL DEFAULT 0,
-  `dnf_event_end` int(11) NULL DEFAULT 0,
-  PRIMARY KEY (`task_cve_host_rpm_id`) USING BTREE
+  `dnf_event_start` int(11) NULL DEFAULT NULL,
+  `dnf_event_end` int(11) NULL DEFAULT NULL,
+  PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
-CREATE TABLE IF NOT EXISTS `task_rollback`(
+CREATE TABLE IF NOT EXISTS `cve_rollback_task`(
   `id` int(11) NOT NULL,
   `host_id` int(11) NULL DEFAULT NULL,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
