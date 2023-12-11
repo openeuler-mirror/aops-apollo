@@ -41,30 +41,31 @@ class CveFixCallback(TaskCallback):
                             "log":"xxxx"
                         }
                     ],
-
-                    "cves": [
+                    "rpms": [
                         {
-                            "cve_id": "string",
-                            "result": "succeed",
-                            "rpms":[
-                                {
-                                "rpm": "string",
-                                "result": "string",
-                                "log": "string",
-                                }
-                            ]
+                            "available_rpm": "string",
+                            "result": "success",
+                            "log": "string",
                         }
                     ],
+                    "dnf_event_start": 1,
+                    "dnf_event_end": 2,
                     "host_ip": "172.168.63.86",
                     "host_name": "host1_12001",
-                    "status": "fail",
+                    "status": "failed",
                     "username": "admin",
                     "execution_time":""
             }
         """
+        host_ip = task_result.pop("host_ip")
+        host_name = task_result.pop("host_name")
+        status = task_result.pop("status")
         result = {
             "task_id": task_id,
             "host_id": host_id,
+            "host_ip": host_ip,
+            "host_name": host_name,
+            "status": status,
             "task_type": task_type,
             "latest_execute_time": task_result.pop("execution_time"),
             "task_result": task_result,
@@ -88,23 +89,18 @@ class CveFixCallback(TaskCallback):
                             "log":"xxxx"
                         }
                     ],
-
-                    "cves": [
+                    "rpms": [
                         {
-                            "cve_id": "string",
-                            "result": "succeed",
-                            "rpms":[
-                                {
-                                    "rpm": "string",
-                                    "result": "string",
-                                    "log": "string",
-                                }
-                            ]
+                            "available_rpm": "string",
+                            "result": "success",
+                            "log": "string",
                         }
                     ],
+                    "dnf_event_start": 1,
+                    "dnf_event_end": 2,
                     "host_ip": "172.168.63.86",
                     "host_name": "host1_12001",
-                    "status": "fail",
+                    "status": "failed",
                     "username": "admin"
                 }
 
@@ -119,5 +115,5 @@ class CveFixCallback(TaskCallback):
             task_type=TaskType.CVE_FIX,
             task_result=task_result,
         )
-        status_code = self.proxy.update_cve_status_and_set_package_status(task_id, host_id, task_result["cves"])
+        status_code = self.proxy.update_cve_fix_task_host_package_status(task_id, host_id, task_result)
         return status_code

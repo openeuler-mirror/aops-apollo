@@ -2100,3 +2100,53 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             Task.task_id, Task.task_name, Task.task_type, Task.check_items, Task.accepted, Task.takeover, Task.fix_type
         ).filter(Task.task_id == task_id)
         return task_query
+
+    def get_task_hosts(self, task_id) -> tuple:
+        """
+        Getting hosts of the task, only support cve fix task or hotpatch remove task or cve rollback task
+
+        Args:
+            task_id: task id
+
+        Returns:
+            status_code: str
+            hosts: list
+        """
+
+        try:
+            hosts = self._get_task_hosts(task_id)
+            if not hosts:
+                return NO_DATA, hosts
+            LOGGER.debug("Finished getting host info of task.")
+            return SUCCEED, hosts
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, []
+
+    def _get_task_hosts(self, task_id: str) -> list:
+        hosts = []
+        task_info = self.session.query(Task).filter(Task.task_id == task_id).first()
+        if not task_info:
+            return hosts
+        if task_info.task_type == TaskType.HOTPATCH_REMOVE:
+            hosts = (
+                self.session.query(HotpatchRemoveTask.host_id)
+                .filter(HotpatchRemoveTask.task_id == task_id)
+                .group_by(HotpatchRemoveTask.host_id)
+                .all()
+            )
+        elif task_info.task_type == TaskType.CVE_FIX:
+            hosts = (
+                self.session.query(CveFixTask.host_id)
+                .filter(CveFixTask.task_id == task_id)
+                .group_by(CveFixTask.host_id)
+                .all()
+            )
+        elif task_info.task_type == TaskType.CVE_ROLLBACK:
+            hosts = (
+                self.session.query(CveRollbackTask.host_id)
+                .filter(CveRollbackTask.task_id == task_id)
+                .group_by(CveRollbackTask.host_id)
+                .all()
+            )
+        return hosts

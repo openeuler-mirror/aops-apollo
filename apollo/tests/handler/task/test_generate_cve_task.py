@@ -19,7 +19,7 @@ from unittest import mock
 
 from vulcanus.restful.resp import make_response
 from vulcanus.restful.resp.state import PARAM_ERROR, SUCCEED
-from apollo.conf.constant import VUL_TASK_CVE_GENERATE
+from apollo.conf.constant import VUL_TASK_CVE_FIX_GENERATE
 from apollo.handler.task_handler.view import VulGenerateCveTask
 from apollo.tests import BaseTestCase
 
@@ -43,18 +43,11 @@ class TestGenerateCveTaskView(BaseTestCase):
             "info": [
                 {
                     "cve_id": "CVE-2022-3736",
-                    "host_info": [
-                        {
-                            "hotpatch": True,
-                            "host_id": 4,
-                            "host_name": "host1",
-                            "host_ip": "127.0.0.1"
-                        }
-                    ]
+                    "host_info": [{"hotpatch": True, "host_id": 4, "host_name": "host1", "host_ip": "127.0.0.1"}],
                 }
-            ]
+            ],
         }
-        response = self.client.post(VUL_TASK_CVE_GENERATE, json=args, headers=self.headers)
+        response = self.client.post(VUL_TASK_CVE_FIX_GENERATE, json=args, headers=self.headers)
         res = response.json
         expected_res = make_response(SUCCEED)
         expected_res['data'] = {"task_id": 2}
@@ -65,7 +58,7 @@ class TestGenerateCveTaskView(BaseTestCase):
             "description": "1",
             "info": [{"cve_id": "id1", "host_info": [{"host_id": 1, "host_name": "name1"}]}],
         }
-        response = self.client.post(VUL_TASK_CVE_GENERATE, json=args, headers=self.headers)
+        response = self.client.post(VUL_TASK_CVE_FIX_GENERATE, json=args, headers=self.headers)
         res = response.json
         expected_res = make_response(PARAM_ERROR)
         self.assertDictEqual(res, expected_res)

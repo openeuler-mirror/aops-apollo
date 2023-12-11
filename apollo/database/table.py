@@ -67,7 +67,7 @@ class Host(Base, MyBase):  # pylint: disable=R0903
 
     host_group = relationship('HostGroup', back_populates='hosts')
     owner = relationship('User', back_populates='hosts')
-    reboot = Column(Boolean, nullable=False)
+    reboot = Column(Boolean, nullable=False, default=False)
 
     def __eq__(self, o):
         return self.user == o.user and (
