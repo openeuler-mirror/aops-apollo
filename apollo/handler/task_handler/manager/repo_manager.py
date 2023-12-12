@@ -21,7 +21,7 @@ from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, TASK_EXECUTION_FAI
 from vulcanus.restful.response import BaseResponse
 
 from apollo.conf import configuration
-from apollo.conf.constant import RepoStatus, VUL_TASK_REPO_SET_CALLBACK, TaskType, EXECUTE_REPO_SET
+from apollo.conf.constant import RepoStatus, VUL_TASK_REPO_SET_CALLBACK, EXECUTE_REPO_SET
 from apollo.handler.task_handler.manager import Manager
 from apollo.handler.task_handler.cache import TASK_CACHE
 
