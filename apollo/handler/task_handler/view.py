@@ -15,7 +15,6 @@ Time:
 Author:
 Description: Handle about task related operation
 """
-import threading
 import time
 import uuid
 from typing import Dict
@@ -36,6 +35,7 @@ from apollo.conf.constant import HostStatus, TaskType
 from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
 from apollo.database.proxy.task.cve_rollback import CveRollbackTask
 from apollo.database.proxy.task.cve_fix import CveFixTaskProxy
+from apollo.database.proxy.task.repo_set import RepoSetProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
 from apollo.function.schema.task import GetHotpatchRemoveTaskCveInfoSchema
@@ -402,8 +402,8 @@ class VulGenerateRepoTask(BaseResponse):
     Restful interface for generating a task which sets repo for host.
     """
 
-    @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=RepoSetProxy)
+    def post(self, callback: RepoSetProxy, **params):
         """
         Args:
             task_name (str)
@@ -438,8 +438,8 @@ class VulGetRepoTaskInfo(BaseResponse):
     Restful interface for getting the info of a task which sets repo.
     """
 
-    @BaseResponse.handle(schema=GetRepoTaskInfoSchema, proxy=TaskMysqlProxy)
-    def post(self, callback: TaskMysqlProxy, **params):
+    @BaseResponse.handle(schema=GetRepoTaskInfoSchema, proxy=RepoSetProxy)
+    def post(self, callback: RepoSetProxy, **params):
         """
         Args:
             task_id (str)
@@ -459,8 +459,8 @@ class VulGetRepoTaskResult(BaseResponse):
     Restful interface for getting the result of a task which sets repo.
     """
 
-    @BaseResponse.handle(schema=GetRepoTaskResultSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=GetRepoTaskResultSchema, proxy=RepoSetProxy)
+    def post(self, callback: RepoSetProxy, **params):
         """
         Args:
             task_id (str)
@@ -481,18 +481,17 @@ class VulExecuteTask(BaseResponse):
 
     type_map = {
         TaskType.CVE_FIX: "_handle_cve_fix",
-        TaskType.REPO_SET: "_handle_repo",
+        TaskType.REPO_SET: "_handle_repo_set",
         TaskType.HOTPATCH_REMOVE: "_handle_hotpatch_remove",
     }
 
     @staticmethod
-    def _handle_cve_fix(args: Dict, proxy: TaskProxy = None) -> int:
+    def _handle_cve_fix(args: Dict) -> int:
         """
         Handle cve task
 
         Args:
             args (dict)
-            proxy (TaskProxy)
 
         Returns:
             int: status code
@@ -511,41 +510,37 @@ class VulExecuteTask(BaseResponse):
             return manager.execute_task()
 
     @staticmethod
-    def _handle_repo(args, proxy):
+    def _handle_repo_set(args):
         """
-        Handle repo task
+        Handle repo set task
 
         Args:
             args (dict)
-            proxy (object)
 
         Returns:
             int: status code
         """
-        repo_manager = RepoManager(proxy, args['task_id'])
+        with RepoSetProxy() as repo_set_proxy:
+            repo_manager = RepoManager(repo_set_proxy, args['task_id'])
 
-        repo_manager.token = args['token']
-        status_code = repo_manager.create_task(args['username'])
-        if status_code != SUCCEED:
-            return status_code
+            repo_manager.token = args['token']
+            status_code = repo_manager.create_task(args['username'])
+            if status_code != SUCCEED:
+                return status_code
 
-        if not repo_manager.pre_handle():
-            return DATABASE_UPDATE_ERROR
+            if not repo_manager.pre_handle():
+                return DATABASE_UPDATE_ERROR
 
-        # After several check, run the task in a thread
-        task_thread = threading.Thread(target=repo_manager.execute_task)
-        task_thread.start()
-
-        return SUCCEED
+            # After several check, run the task in a thread
+            return repo_manager.execute_task()
 
     @staticmethod
-    def _handle_hotpatch_remove(args, proxy):
+    def _handle_hotpatch_remove(args):
         """
         Handle hotpatch remove task
 
         Args:
             args (dict)
-            proxy (object)
 
         Returns:
             int: status code
@@ -564,7 +559,7 @@ class VulExecuteTask(BaseResponse):
             # run the task in a thread
             return manager.execute_task()
 
-    def _handle(self, proxy, args):
+    def _handle(self, proxy: TaskProxy, args):
         """
         Handle executing task, now support cve and repo.
 
@@ -591,7 +586,7 @@ class VulExecuteTask(BaseResponse):
         func_name = self.type_map[task_type]
         func = getattr(self, func_name)
 
-        return func(args, proxy)
+        return func(args)
 
     @BaseResponse.handle(schema=ExecuteTaskSchema, proxy=TaskProxy)
     def post(self, callback: TaskProxy, **params):
@@ -615,7 +610,7 @@ class VulDeleteTask(BaseResponse):
     """
 
     @staticmethod
-    def _handle(task_proxy, args):
+    def _handle(task_proxy: TaskProxy, args):
         status_code, running_tasks = task_proxy.delete_task(args)
         if status_code == PARTIAL_SUCCEED:
             LOGGER.warning("A running task has not been deleted, task id: %s." % " ".join(running_tasks))
@@ -673,8 +668,8 @@ class VulRepoSetTaskCallback(BaseResponse):
     Restful interface for set repo callback.
     """
 
-    @BaseResponse.handle(schema=RepoSetCallbackSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=RepoSetCallbackSchema, proxy=RepoSetProxy)
+    def post(self, callback: RepoSetProxy, **params):
         """
         Args:
             host_id (str)
