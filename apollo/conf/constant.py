@@ -135,6 +135,9 @@ VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
 VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
 VUL_TASK_DELETE = "/vulnerability/task/delete"
 VUL_TASK_CVE_ROLLBACK_GENERATE = "/vulnerability/task/cve-rollback/generate"
+VUL_TASK_CVE_ROLLBACK_RESULT_GET = "/vulnerability/task/cve-rollback/result/get"
+VUL_TASK_CVE_ROLLBACK_INFO_GET = "/vulnerability/task/cve-rollback/info/get"
+VUL_TASK_CVE_ROLLBACK_RPM_INFO_GET = "/vulnerability/task/cve-rollback/rpm/get"
 VUL_TASK_HOTPATCH_REMOVE_GENERATE = "/vulnerability/task/hotpatch-remove/generate"
 VUL_TASK_CVE_FIX_RPM_INFO_GET = "/vulnerability/task/cve-fix/rpm/get"
 VUL_TASK_HOTPATCH_REMOVE_INFO_GET = "/vulnerability/task/hotpatch-remove/info/get"
@@ -143,6 +146,7 @@ VUL_TASK_HOTPATCH_REMOVE_PROGRESS_GET = "/vulnerability/task/hotpatch-remove/pro
 
 # route of callback
 VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
+VUL_TASK_CVE_ROLLBACK_CALLBACK = "/vulnerability/task/callback/cve/rollback"
 VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
 VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerability/task/callback/cve/scan"
 VUL_TASK_HOTPATCH_REMOVE_CALLBACK = "/vulnerability/task/callback/hotpatch-remove"
@@ -165,6 +169,7 @@ TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.yml"
 
 EXECUTE_REPO_SET = '/manage/vulnerability/repo/set'
 EXECUTE_CVE_FIX = '/manage/vulnerability/cve/fix'
+EXECUTE_CVE_ROLLBACK = '/manage/vulnerability/cve/rollback'
 EXECUTE_CVE_SCAN = '/manage/vulnerability/cve/scan'
 EXECUTE_HOTPATCH_REMOVE = "/manage/vulnerability/cve/hotpatch-remove"
 
