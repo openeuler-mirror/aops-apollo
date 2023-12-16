@@ -34,7 +34,7 @@ from vulcanus.restful.response import BaseResponse
 
 from apollo.conf.constant import HostStatus, TaskType
 from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
-from apollo.database.proxy.task.cve_rollback import CveRollbackTask
+from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
 from apollo.database.proxy.task.cve_fix import CveFixTaskProxy
 from apollo.database.proxy.task.repo_set import RepoSetProxy
 from apollo.database.proxy.task.scan import ScanProxy
@@ -42,10 +42,12 @@ from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
 from apollo.function.schema.task import GetHotpatchRemoveTaskCveInfoSchema
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
+from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.handler.task_handler.callback.hotpatch_remove import HotpatchRemoveCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
+from apollo.handler.task_handler.manager.cve_rollback_manager import CveRollbackManager
 from apollo.handler.task_handler.manager.hotpatch_remove_manager import HotpatchRemoveManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
 from apollo.handler.task_handler.manager.scan_manager import ScanManager, EmailNoticeManager
@@ -425,7 +427,7 @@ class VulGenerateRepoTask(BaseResponse):
             task_id=task_id,
             task_type=TaskType.REPO_SET,
             create_time=int(time.time()),
-            username=params["username"],
+            username=params["username"]
         )
         task_info.update(params)
         data = dict(task_id=task_id)
@@ -487,6 +489,7 @@ class VulExecuteTask(BaseResponse):
         TaskType.CVE_FIX: "_handle_cve_fix",
         TaskType.REPO_SET: "_handle_repo_set",
         TaskType.HOTPATCH_REMOVE: "_handle_hotpatch_remove",
+        TaskType.CVE_ROLLBACK: "_handle_cve_rollback"
     }
 
     @staticmethod
@@ -503,6 +506,30 @@ class VulExecuteTask(BaseResponse):
         task_id = args["task_id"]
         with CveFixTaskProxy() as cve_fix_proxy:
             manager = CveFixManager(cve_fix_proxy, task_id)
+            manager.token = args["token"]
+            status_code = manager.create_task()
+            if status_code != SUCCEED:
+                return status_code
+
+            if not manager.pre_handle():
+                return DATABASE_UPDATE_ERROR
+
+            return manager.execute_task()
+
+    @staticmethod
+    def _handle_cve_rollback(args: Dict) -> int:
+        """
+        Handle cve rollback task
+
+        Args:
+            args (dict)
+
+        Returns:
+            int: status code
+        """
+        task_id = args["task_id"]
+        with CveRollbackTaskProxy() as cve_rollback_proxy:
+            manager = CveRollbackManager(cve_rollback_proxy, task_id)
             manager.token = args["token"]
             status_code = manager.create_task()
             if status_code != SUCCEED:
@@ -707,18 +734,84 @@ class VulCveScanTaskCallback(BaseResponse):
         return self.response(code=CveScanCallback(callback).callback(params))
 
 
+class VulCveRollbackTaskCallback(BaseResponse):
+    """
+    Restful interface for cve rollback callback.
+    """
+
+    @staticmethod
+    def _handle(proxy: CveRollbackTaskProxy, args):
+        """
+        Handle cve rollback callback.
+
+        Args:
+            proxy(CveRollbackTaskProxy): Cve rollback task proxy
+            args(dict): request parameter.  e.g.
+                {
+                    "username": "admin",
+                    "task_id": "string",
+                    "host_id": "string",
+                    "check_items":[
+                        {
+                            "item":"network",
+                            "result":true,
+                            "log":"xxxx"
+                        }
+                    ],
+                    "log": "",
+                    "host_ip": "172.168.63.86",
+                    "host_name": "host1_12001",
+                    "status": "fail",
+                    "execution_time":""
+                }
+
+        Returns:
+            int: status code
+        """
+        return CveRollbackCallback(proxy).callback(args)
+
+    @BaseResponse.handle(schema=CveRollbackCallbackSchema, proxy=CveRollbackTaskProxy)
+    def post(self, callback: CveRollbackTaskProxy, **params):
+        """
+        Args:
+            callback(CveRollbackTaskProxy): Cve rollback task proxy
+            params: e.g.
+                {
+                    "username": "admin",
+                    "task_id": "string",
+                    "host_id": "string",
+                    "check_items":[
+                        {
+                            "item":"network",
+                            "result":true,
+                            "log":"xxxx"
+                        }
+                    ],
+                    "log": "",
+                    "host_ip": "172.168.63.86",
+                    "host_name": "host1_12001",
+                    "status": "fail",
+                    "execution_time":""
+                }
+
+        Returns:
+            dict: response body
+        """
+        return self.response(self._handle(callback, params))
+
+
 class VulGenerateCveRollbackTask(BaseResponse):
     """
     Restful interface for generating a rollback task to rollback cve fix task.
     """
 
     @staticmethod
-    def _handle(proxy: CveRollbackTask, args):
+    def _handle(proxy: CveRollbackTaskProxy, args):
         """
         Handle rollback task generating
 
         Args:
-            proxy (CveRollbackTask): database proxy
+            proxy (CveRollbackTaskProxy): database proxy
             args (dict): request parameter
 
         Returns:
@@ -741,11 +834,13 @@ class VulGenerateCveRollbackTask(BaseResponse):
             return status_code, {}, msg
         return status_code, dict(task_id=task_id), msg
 
-    @BaseResponse.handle(schema=GenerateCveRollbackTaskSchema, proxy=CveRollbackTask)
-    def post(self, callback: CveRollbackTask, **params):
+    @BaseResponse.handle(schema=GenerateCveRollbackTaskSchema, proxy=CveRollbackTaskProxy)
+    def post(self, callback: CveRollbackTaskProxy, **params):
         """
         Args:
-            fix_task_id (str): cve fix task id
+            callback (CveRollbackTaskProxy): database proxy
+            params (dict): request parameter.  e.g.
+                {"fix_task_id": "xxx"}
 
         Returns:
             dict: response body, e.g.
@@ -757,6 +852,132 @@ class VulGenerateCveRollbackTask(BaseResponse):
         """
         status_code, data, msg = self._handle(callback, params)
         return self.response(code=status_code, data=data, message=msg)
+
+
+class VulGetCveRollbackTaskInfo(BaseResponse):
+    """
+    Restful interface for getting the host info of a cve rollback task.
+    """
+
+    @BaseResponse.handle(schema=GetCveRollbackTaskInfoSchema, proxy=CveRollbackTaskProxy)
+    def post(self, callback: CveRollbackTaskProxy, **params):
+        """
+        Args:
+            callback (CveRollbackTaskProxy): database proxy
+            params (dict): request parameter.  e.g.
+                {
+                    "task_id": "xxx",
+                    "page": 1,
+                    "per_page": 10,
+                    "filter": {"search_key": "host1/127.0.0.1", "status": ["succeed/fail/unknown/running"]}
+                }
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": "200",
+                    "label": "Succeed",
+                    "message": "operation succeed",
+                    "data": {
+                        "total_count": 1,
+                        "total_page": 1,
+                            "result": [{
+                            "host_id": 1,
+                            "host_name": "xxx",
+                            "host_ip": "127.0.0.1",
+                            "cve_num": 3,
+                            "status": "running/succeed/fail/unknown"
+                        }]
+                    }
+                }
+        """
+        status_code, data = callback.get_cve_rollback_task_host_info(params)
+        return self.response(code=status_code, data=data)
+
+
+class VulGetCveRollbackTaskRpmInfo(BaseResponse):
+    """
+    Restful interface for getting a host's rpm info of a cve rollback task.
+    """
+
+    @BaseResponse.handle(schema=GetCveRollbackTaskRpmInfoSchema, proxy=CveRollbackTaskProxy)
+    def post(self, callback: CveRollbackTaskProxy, **params):
+        """
+        Args:
+            callback (CveRollbackTaskProxy): database proxy
+            params (dict): request parameter.  e.g.
+                {
+                    "task_id": "xxx",
+                    "host_id": 1
+                }
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": "200",
+                    "label": "Succeed",
+                    "message": "operation succeed",
+                    "data": [
+                        {
+                            "installed_rpm": "pkg1-1",
+                            "target_rpm": "pkg1",
+                            "cves": "CVE-2023-3332,CVE-2023-23456",
+                            "status": "succeed/fail/running/unknown"
+                        }
+                    ]
+                }
+        """
+        status_code, data = callback.get_cve_rollback_host_rpm_info(params)
+        return self.response(code=status_code, data=data)
+
+
+class VulGetCveRollbackTaskResult(BaseResponse):
+    """
+    Restful interface for getting a CVE rollback task's result.
+    """
+
+    @BaseResponse.handle(schema=GetCveRollbackTaskResultSchema, proxy=CveRollbackTaskProxy)
+    def post(self, callback: CveRollbackTaskProxy, **params):
+        """
+        Args:
+            callback (CveRollbackTaskProxy): database proxy
+            params (dict): request parameter.  e.g. {"task_id": "xxx"}
+
+        Returns:
+            dict: response body, e.g.
+            {
+                "code": "200",
+                "data": [{
+                    "host_id": 2,
+                    "host_ip": "172.168.63.86",
+                    "host_name": "host1_12001",
+                    "latest_execute_time": "1691465474",
+                    "task_type": "cve rollback",
+                    "task_result": {
+                        "check_items":[
+                            {
+                                "item":"network",
+                                "result":true,
+                                "log":"xxxx"
+                            }
+                        ],
+                        "rpms": [
+                            {
+                                "installed_rpm": "",
+                                "target_rpm": "",
+                                "cves": "CVE-2023-12,CVE-2022-4567"
+                            }
+                        ],
+                        "result": "succeed/failed",
+                        "log": "string"
+                    }
+                }],
+                "label": "Succeed",
+                "message": "operation succeed"
+            }
+        """
+        status_code, data = callback.get_cve_rollback_task_result(params)
+        return self.response(code=status_code, data=data)
 
 
 class VulGenerateHotpatchRemove(BaseResponse):
@@ -1002,7 +1223,8 @@ class VulGetTaskHost(BaseResponse):
     def post(self, callback: TaskProxy, **params):
         """
         Args:
-            task_id (str): task id
+            callback(TaskProxy): task proxy
+            params(dict): e.g. {"task_id": "xxx"}
 
         Returns:
             dict: response body, e.g.

@@ -114,8 +114,6 @@ class GetCveTaskInfoSchema(PaginationSchema):
     """
 
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    sort = fields.String(required=False, validate=validate.OneOf(["host_num"]))
-    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
     filter = fields.Nested(CveFixTaskInfoFilterSchema, required=False)
 
 
@@ -322,6 +320,40 @@ class GenerateCveRollbackTaskSchema(Schema):
     fix_task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 
+class CveRollbackTaskInfoFilterSchema(Schema):
+    """
+    filter schema of cve rollback task info getting interface
+    """
+    # search_key could be host name or host ip
+    search_key = fields.String(required=False, validate=lambda s: 0 < len(s) <= 50)
+    status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
+
+
+class GetCveRollbackTaskInfoSchema(PaginationSchema):
+    """
+    validators for parameter of /vulnerability/task/cve-rollback/info/get
+    """
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+    filter = fields.Nested(CveRollbackTaskInfoFilterSchema, required=False)
+
+
+class GetCveRollbackTaskRpmInfoSchema(Schema):
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+
+
+class CveRollbackCallbackSchema(CallbackSchma):
+    check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
+    log = fields.String(required=True, validate=lambda s: len(s) != 0)
+
+
+class GetCveRollbackTaskResultSchema(Schema):
+    """
+    validators for parameter of /vulnerability/task/cve-rollback/result/get
+    """
+    task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
+
+
 class HotpatchRemoveCveInfoSchema(Schema):
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
 
@@ -379,6 +411,10 @@ __all__ = [
     "RepoSetCallbackSchema",
     "CveScanCallbackSchema",
     "GenerateCveRollbackTaskSchema",
+    'CveRollbackCallbackSchema',
+    'GetCveRollbackTaskResultSchema',
+    'GetCveRollbackTaskInfoSchema',
+    'GetCveRollbackTaskRpmInfoSchema',
     "GenerateHotpatchRemoveTaskSchema",
     "HotpatchRemoveCallbackSchema",
     "TaskCveRpmInfoSchema",
