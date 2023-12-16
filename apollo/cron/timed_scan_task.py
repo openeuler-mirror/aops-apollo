@@ -24,7 +24,7 @@ from vulcanus.restful.resp.state import SUCCEED
 from vulcanus.timed import TimedTask
 
 from apollo.conf.constant import HostStatus
-from apollo.database.proxy.task import TaskMysqlProxy
+from apollo.database.proxy.task.scan import ScanProxy
 from apollo.handler.task_handler.manager.scan_manager import ScanManager
 
 
@@ -65,7 +65,7 @@ class TimedScanTask(TimedTask):
 
         # get the total host info first.
         try:
-            with TaskMysqlProxy() as proxy:
+            with ScanProxy() as proxy:
                 status, host_info_dict = proxy.get_total_host_info()
                 if status != SUCCEED:
                     LOGGER.error("Query for host info failed, stop scanning.")

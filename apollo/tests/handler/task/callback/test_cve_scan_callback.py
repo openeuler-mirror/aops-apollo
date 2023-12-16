@@ -53,7 +53,7 @@ class TestCveScanCallback(BaseTestCase):
         }
 
     @mock.patch.object(TaskMysqlProxy, "__exit__")
-    @mock.patch.object(TaskMysqlProxy, "update_host_scan")
+    @mock.patch.object(TaskMysqlProxy, "update_host_scan_status")
     @mock.patch.object(TaskMysqlProxy, "save_cve_scan_result")
     @mock.patch.object(TaskMysqlProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_request")
@@ -72,7 +72,7 @@ class TestCveScanCallback(BaseTestCase):
         self.assertEqual(state.SUCCEED, response.json.get("label"), response.json)
 
     @mock.patch.object(TaskMysqlProxy, "__exit__")
-    @mock.patch.object(TaskMysqlProxy, "update_host_scan")
+    @mock.patch.object(TaskMysqlProxy, "update_host_scan_status")
     @mock.patch.object(TaskMysqlProxy, "save_cve_scan_result")
     @mock.patch.object(TaskMysqlProxy, "_create_session")
     @mock.patch.object(BaseResponse, "verify_request")

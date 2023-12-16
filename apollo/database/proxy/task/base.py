@@ -18,12 +18,10 @@ Description: vulnerability related database operation
 import json
 import threading
 from collections import defaultdict
-from time import time
-from typing import List, Tuple
+from typing import Tuple
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
-from sqlalchemy import case, func
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.common import hash_value
 from vulcanus.database.helper import sort_and_page, judge_return_code
@@ -36,20 +34,17 @@ from vulcanus.restful.resp.state import (
     DATABASE_QUERY_ERROR,
     DATABASE_UPDATE_ERROR,
     SUCCEED,
-    SERVER_ERROR,
     PARTIAL_SUCCEED,
 )
 
 from apollo.conf.constant import TASK_INDEX, HostStatus, TaskStatus, TaskType
 from apollo.database.table import (
-    Cve,
     Task,
     CveFixTask,
     CveRollbackTask,
     HotpatchRemoveTask,
     TaskHostRepoAssociation,
     CveHostAssociation,
-    CveAffectedPkgs,
     Host,
     User,
 )
@@ -62,56 +57,6 @@ class TaskMysqlProxy(MysqlProxy):
     """
 
     lock = threading.Lock()
-
-    def get_scan_host_info(self, username, host_list):
-        """
-        Query host info according to host id list.
-
-        Args:
-            username (str): user name
-            host_list (list): host id list, can be empty
-
-        Returns:
-            list: host info, e.g.
-                [
-                    {
-                        "host_id": 1,
-                        "host_ip": "",
-                        "host_name": "",
-                        "status": ""
-                    }
-                ]
-        """
-        result = []
-        try:
-            result = self._get_host_info(username, host_list)
-            LOGGER.debug("Finished getting host info.")
-            return result
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            LOGGER.error("Getting host info failed due to internal error.")
-            return result
-
-    def _get_host_info(self, username, host_list):
-        """
-        get info of the host id in host_list. If host list is empty, query all hosts
-        """
-        filters = {Host.user == username}
-        if host_list:
-            filters.add(Host.host_id.in_(host_list))
-
-        info_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip, Host.status).filter(*filters)
-
-        info_list = []
-        for row in info_query:
-            host_info = {
-                "host_id": row.host_id,
-                "host_name": row.host_name,
-                "host_ip": row.host_ip,
-                "status": row.status,
-            }
-            info_list.append(host_info)
-        return info_list
 
     def get_total_host_info(self):
         """
@@ -143,304 +88,6 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error(error)
             LOGGER.error("query host basic info fail")
             return DATABASE_QUERY_ERROR, result
-
-    def update_host_scan(self, status, host_list, username=None):
-        """
-        When the host need to be scanned, init the status to 'scanning',
-        and update the last scan time to current time.
-        Notice, if one host id doesn't exist, all hosts will not be scanned
-        Args:
-            status(str): init or finish
-            host_list (list): host id list, if empty, scan all hosts
-            username (str): user name
-        Returns:
-            int: status code
-        """
-        try:
-            status_code = self._update_host_scan(update_type=status, host_list=host_list, username=username)
-            self.session.commit()
-            LOGGER.debug("Finished init host scan status.")
-            return status_code
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("Init host scan status failed due to internal error.")
-            return DATABASE_UPDATE_ERROR
-
-    def _query_unaffected_cve(self, os_version: str, installed_packages: list):
-        """
-        query CVE information which has no effect on the version
-
-        Args:
-            os_version(str): OS version
-            installed_packages(list): Scanned installed packages information,
-                e.g: ["pkg1", "pkg2", "pkg3"]
-
-        Returns:
-            list: list of cve info
-
-        """
-        installed_packages_cve = (
-            self.session.query(CveAffectedPkgs)
-            .filter(
-                CveAffectedPkgs.os_version == os_version,
-                CveAffectedPkgs.package.in_(installed_packages),
-                CveAffectedPkgs.affected == False,
-            )
-            .all()
-        )
-        return installed_packages_cve
-
-    def save_cve_scan_result(self, task_info: dict) -> int:
-        """
-        Save cve scan result to database.
-        Args:
-            task_info (dict): task info, e.g.
-                {
-                    "task_id": "string",
-                    "host_id": "string",
-                    "host_ip": "172.168.63.86",
-                    "host_name": "host1_12001",
-                    "status": "string",
-                    "os_version": "string",
-                    "check_items":[
-                        {
-                            "item":"network",
-                            "result":true,
-                            "log":"xxxx"
-                        }
-                    ],
-                    "installed_packages": [
-                        {
-                            "name": "string",
-                            "version": true
-                        }
-                    ],
-                    "unfixed_cves":[
-                        {
-                            "cve_id": "CVE-2023-1513",
-                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
-                            "available_rpm":"kernel-4.19.90-2304.1.0.0196.oe1.x86_64",
-                            "support_way":"hotpatch/coldpatch/none"
-                        }
-                    ],
-                    "fixed_cves": [
-                        {
-                            "cve_id": "CVE-2022-4904",
-                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
-                            "fix_way": "hotpatch/coldpatch",
-                            "hp_status": "ACCEPTED/ACTIVED"
-                        }
-                    ],
-                    "reboot": true/false
-                }
-        Returns:
-            int: status code
-        """
-        try:
-            status = task_info["status"]
-            if status == TaskStatus.SUCCEED:
-                self._save_cve_scan_result(task_info)
-            else:
-                LOGGER.info(f"scan result failed with status {status}.")
-
-            status_code = self._update_host_scan("finish", [task_info["host_id"]], task_info.get("reboot"))
-            self.session.commit()
-            LOGGER.debug("Finish saving scan result.")
-            return status_code
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("Save cve scan result failed.")
-            return DATABASE_INSERT_ERROR
-
-    def _save_cve_scan_result(self, task_info: dict):
-        """
-        Save cve scan result to database.
-        Args:
-            task_info (dict): task info, e.g.
-                {
-                    "task_id": "string",
-                    "host_id": "string",
-                    "host_ip": "172.168.63.86",
-                    "host_name": "host1_12001",
-                    "status": "string",
-                    "os_version": "string",
-                    "check_items":[
-                        {
-                            "item":"network",
-                            "result":true,
-                            "log":"xxxx"
-                        }
-                    ],
-                    "installed_packages": [
-                        {
-                            "name": "string",
-                            "version": true
-                        }
-                    ],
-                    "unfixed_cves":[
-                        {
-                            "cve_id": "CVE-2023-1513",
-                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
-                            "available_rpm":"kernel-4.19.90-2304.1.0.0196.oe1.x86_64",
-                            "support_way":"hotpatch/coldpatch/none"
-                        }
-                    ],
-                    "fixed_cves": [
-                        {
-                            "cve_id": "CVE-2022-4904",
-                            "installed_rpm":"kernel-4.19.90-2304.1.0.0131.oe1.x86_64",
-                            "fix_way": "hotpatch/coldpatch",
-                            "hp_status": "ACCEPTED/ACTIVED"
-                        }
-                    ],
-                }
-        Returns:
-            int: status code
-            list: list of unfixed cve
-        """
-
-        host_id = task_info["host_id"]
-        installed_packages = [package["name"] for package in task_info["installed_packages"]]
-        os_version = task_info["os_version"]
-
-        waiting_to_save_cve_info = []
-
-        for unaffected_cve in self._query_unaffected_cve(os_version, installed_packages):
-            waiting_to_save_cve_info.append(
-                {
-                    "cve_id": unaffected_cve.cve_id,
-                    "host_id": host_id,
-                    "affected": False,
-                }
-            )
-
-        for unfixed_vulnerability_info in task_info.get("unfixed_cves"):
-            waiting_to_save_cve_info.append(
-                {
-                    "cve_id": unfixed_vulnerability_info.get("cve_id"),
-                    "host_id": host_id,
-                    "affected": True,
-                    "fixed": False,
-                    "support_way": unfixed_vulnerability_info.get("support_way") or None,
-                    "installed_rpm": unfixed_vulnerability_info.get("installed_rpm") or None,
-                    "available_rpm": unfixed_vulnerability_info.get("available_rpm") or None,
-                }
-            )
-
-        for fixed_vulnerability_info in task_info.get("fixed_cves", []):
-            waiting_to_save_cve_info.append(
-                {
-                    "cve_id": fixed_vulnerability_info.get("cve_id"),
-                    "host_id": host_id,
-                    "affected": True,
-                    "fixed": True,
-                    "fixed_way": fixed_vulnerability_info.get("fix_way"),
-                    "installed_rpm": fixed_vulnerability_info.get("installed_rpm"),
-                    "hp_status": fixed_vulnerability_info.get("hp_status"),
-                }
-            )
-        with self.lock:
-            self.session.query(CveHostAssociation).filter(CveHostAssociation.host_id == host_id).delete(
-                synchronize_session=False
-            )
-            self.session.commit()
-
-        self.session.bulk_insert_mappings(CveHostAssociation, waiting_to_save_cve_info)
-
-    def _get_unaffected_cve(self, cves: list, os_version: str) -> list:
-        """
-        Get the unaffected CVEs.
-        Args:
-            cves (list): CVE list, e.g.
-                ["CVE-1999-20304", "CVE-1999-20303", "CVE-1999-20301"]
-            os_version(str): os version, e.g. "openEuler-22.03-LTS"
-
-        Returns:
-            list: unaffected CVEs
-        """
-        os_unaffected_cve_list = self._get_os_unaffected_cve(os_version)
-
-        unaffected_cve_list = []
-        for cve in cves:
-            if cve in os_unaffected_cve_list:
-                unaffected_cve_list.append(cve)
-
-        return unaffected_cve_list
-
-    def _get_os_unaffected_cve(self, os_version: str) -> list:
-        """
-        Query the unaffected cves under the os.
-        Args:
-            os_version(str):e.g. "openEuler-22.03-LTS"
-
-        Returns:
-            list: CVE list, e.g.
-                ['CVE-2018-16301', 'CVE-2019-10301', 'CVE-2019-11301']
-        """
-        cves_list_query = (
-            self.session.query(CveAffectedPkgs.cve_id)
-            .filter(CveAffectedPkgs.os_version == os_version, CveAffectedPkgs.affected == 0)
-            .all()
-        )
-
-        cve_list = []
-        if cves_list_query:
-            cve_list = [cve[0] for cve in cves_list_query]
-
-        return cve_list
-
-    def _update_host_scan(self, update_type, host_list, reboot=False, username=None):
-        """
-        Update hosts scan status and last_scan time
-        Args:
-            update_type (str): 'init' or 'finish'
-            host_list (list): host id list
-            reboot (bool): host restart status
-            username (str): user name
-        Returns:
-
-        """
-        if update_type == "init":
-            update_dict = {Host.status: HostStatus.SCANNING, Host.last_scan: int(time())}
-        elif update_type == "finish":
-            update_dict = {Host.status: HostStatus.DONE, Host.reboot: reboot}
-        else:
-            LOGGER.error(
-                "Given host scan update type '%s' is not in default type list ['init', 'finish']." % update_type
-            )
-            return SERVER_ERROR
-
-        host_scan_query = self._query_scan_status_and_time(host_list, username)
-        succeed_list = [row.host_id for row in host_scan_query]
-        fail_list = set(host_list) - set(succeed_list)
-        if fail_list:
-            LOGGER.debug("No data found when setting the status of host: %s." % fail_list)
-            if update_type == "init":
-                return NO_DATA
-
-        # update() is not applicable to 'in_' method without synchronize_session=False
-        host_scan_query.update(update_dict, synchronize_session=False)
-        return SUCCEED
-
-    def _query_scan_status_and_time(self, host_list, username):
-        """
-        query host status and last_scan data of specific user
-        Args:
-            host_list (list): host id list, when empty, query all hosts
-            username (str/None): user name
-        Returns:
-            sqlalchemy.orm.query.Query
-        """
-        filters = set()
-        if host_list:
-            filters.add(Host.host_id.in_(host_list))
-        if username:
-            filters.add(Host.user == username)
-
-        hosts_status_query = self.session.query(Host).filter(*filters)
-        return hosts_status_query
 
     def get_task_list(self, data):
         """
@@ -506,13 +153,13 @@ class TaskMysqlProxy(MysqlProxy):
             return result
 
         sort_column = getattr(Task, data.get("sort")) if "sort" in data else None
-        direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
+        direction, page, per_page = (data.get("direction"), data.get("page"), data.get("per_page"))
 
         processed_query, total_page = sort_and_page(task_list_query, sort_column, direction, per_page, page)
 
-        result['result'] = self._task_list_row2dict(processed_query)
-        result['total_page'] = total_page
-        result['total_count'] = total_count
+        result["result"] = self._task_list_row2dict(processed_query)
+        result["total_page"] = total_page
+        result["total_count"] = total_count
 
         return result
 
@@ -663,9 +310,7 @@ class TaskMysqlProxy(MysqlProxy):
 
         # filter task's type in case of other type added into task table
         task_query = self.session.query(Task.task_id, Task.task_type).filter(
-            Task.username == username,
-            Task.task_id.in_(task_list),
-            Task.task_type.in_(TaskType.attribute()),
+            Task.username == username, Task.task_id.in_(task_list), Task.task_type.in_(TaskType.attribute())
         )
 
         for row in task_query:
@@ -682,7 +327,12 @@ class TaskMysqlProxy(MysqlProxy):
     @staticmethod
     def _get_status_result():
         def status_dict():
-            return {TaskStatus.SUCCEED: 0, TaskStatus.FAIL: 0, TaskStatus.RUNNING: 0, TaskStatus.UNKNOWN: 0}
+            return {
+                TaskStatus.SUCCEED: 0,
+                TaskStatus.FAIL: 0,
+                TaskStatus.RUNNING: 0,
+                TaskStatus.UNKNOWN: 0,
+            }
 
         return defaultdict(status_dict)
 
@@ -883,51 +533,6 @@ class TaskMysqlProxy(MysqlProxy):
         }
         return task_info
 
-    def fix_task_status(self, task_id, task_type):
-        """
-        After executing the task, in case that internal error occured, set the status of
-        running host in the task to 'unknown'.
-
-        Args:
-            task_id (str)
-            task_type (str)
-
-        Returns:
-            int: status code
-        """
-        try:
-            status_code = self._set_failed_task_status(task_id, task_type)
-            if status_code != SUCCEED:
-                return status_code
-            self.session.commit()
-            LOGGER.debug("Finished setting task %s status to unknown." % task_id)
-            return SUCCEED
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("Setting task %s status to unknown failed due to internal error." % task_id)
-            return DATABASE_UPDATE_ERROR
-
-    def _set_failed_task_status(self, task_id, task_type):
-        """
-        set failed task's running hosts' status to "unknown"
-        """
-        if task_type == TaskType.CVE_FIX or task_type == TaskType.CVE_ROLLBACK:
-            host_query = self.session.query(HotpatchRemoveTask).filter(
-                HotpatchRemoveTask.task_id == task_id, HotpatchRemoveTask.status == TaskStatus.RUNNING
-            )
-            host_query.update({HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False)
-        elif task_type == TaskType.REPO_SET:
-            host_query = self.session.query(TaskHostRepoAssociation).filter(
-                TaskHostRepoAssociation.task_id == task_id, TaskHostRepoAssociation.status == TaskStatus.RUNNING
-            )
-            host_query.update({TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
-        else:
-            LOGGER.error("Unknown task type '%s' when setting its status." % task_type)
-            return SERVER_ERROR
-
-        return SUCCEED
-
     def get_task_type(self, task_id, username):
         """
         Return the type of the task, return None if check failed.
@@ -954,17 +559,18 @@ class TaskMysqlProxy(MysqlProxy):
         """
         query task's type.
         """
-        type_query = self.session.query(Task.task_type).filter(Task.task_id == task_id, Task.username == username)
-
-        if not type_query.count():
+        try:
+            type_info = (
+                self.session.query(Task.task_type).filter(Task.task_id == task_id, Task.username == username).one()
+            )
+        except sqlalchemy.orm.exc.NoResultFound:
             LOGGER.error("Querying type of task '%s' failed due to no data found." % task_id)
             return NO_DATA, None
-        if type_query.count() > 1:
-            LOGGER.error("Querying type of task '%s' failed due to internal error." % task_id)
+        except sqlalchemy.orm.exc.MultipleResultsFound:
+            LOGGER.error("Querying type of task '%s' failed due to multiple data found." % task_id)
             return DATABASE_QUERY_ERROR, None
 
-        task_type = type_query.one().task_type
-        return SUCCEED, task_type
+        return SUCCEED, type_info.task_type
 
     def update_task_execute_time(self, task_id, cur_time):
         """
@@ -993,16 +599,13 @@ class TaskMysqlProxy(MysqlProxy):
         """
         update a task's latest execute time
         """
-        status_query = self.session.query(Task).filter(Task.task_id == task_id)
+        task_info = self.session.query(Task).filter(Task.task_id == task_id).first()
 
-        if not status_query.count():
+        if not task_info:
             LOGGER.error("Updating latest execute time of task '%s' failed due to no data found." % task_id)
             return NO_DATA
-        if status_query.count() > 1:
-            LOGGER.error("Updating latest execute time of task '%s' failed due to internal error." % task_id)
-            return DATABASE_UPDATE_ERROR
 
-        status_query.one().latest_execute_time = cur_time
+        task_info.latest_execute_time = cur_time
         return SUCCEED
 
     def check_task_status(self, task_id, task_type):
@@ -1046,122 +649,6 @@ class TaskMysqlProxy(MysqlProxy):
             return DATABASE_QUERY_ERROR, ""
 
         return SUCCEED, user.email
-
-    def query_host_cve_info(self, username: str) -> Tuple[str, list]:
-        """
-        query cve info with host info from database
-
-        Args:
-            username (str)
-
-        Returns:
-            Tuple[str, list]
-            a tuple containing two elements (status code, host with its cve info list).
-        """
-        try:
-            host_cve_info_list = self._quer_processed_host_cve_info(username)
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            LOGGER.error("update task_cve_host table status failed.")
-            return DATABASE_QUERY_ERROR, []
-
-        return SUCCEED, host_cve_info_list
-
-    def _quer_processed_host_cve_info(self, username: str) -> List[dict]:
-        """
-        query and process host with its cve info
-
-        Args:
-            username(str)
-
-        Returns:
-            list: host cve info list. e.g
-                [{
-                    "host_id": 1,
-                    "host_ip": "127.0.0.1",
-                    "host_name": "client",
-                    "cve_id": "CVE-XXXX-XXXX",
-                    "cvss_score": 7.5,
-                    "severity": "Important",
-                    "installed_rpm": "rpm-name-6.2.5-1.x86_64",
-                    "source_package": {"rpm-name.src.rpm"},
-                    "available_rpms": {"rpm-name-6.2.5-2.x86_64","patch-rpm-name-6.2.5-1-ACC...."},
-                    "support_ways": {"hotpatch", "coldpatch"},
-                }]
-        """
-        subquery = (
-            self.session.query(
-                CveHostAssociation.host_id,
-                CveHostAssociation.cve_id,
-                CveHostAssociation.installed_rpm,
-                CveHostAssociation.available_rpm,
-                CveHostAssociation.support_way,
-                case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
-                case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity"),
-                case([(CveAffectedPkgs.package == None, "-")], else_=CveAffectedPkgs.package).label("package"),
-            )
-            .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id)
-            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)
-            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed == False)
-            .subquery()
-        )
-
-        query_rows = (
-            self.session.query(
-                Host.host_ip,
-                Host.host_name,
-                subquery.c.host_id,
-                subquery.c.cve_id,
-                subquery.c.installed_rpm,
-                func.ifnull(subquery.c.available_rpm, "-").label("available_rpm"),
-                func.ifnull(subquery.c.support_way, "-").label("support_way"),
-                subquery.c.cvss_score,
-                subquery.c.severity,
-                func.ifnull(subquery.c.package, "-").label("package"),
-            )
-            .outerjoin(subquery, Host.host_id == subquery.c.host_id)
-            .filter(Host.user == username)
-            .all()
-        )
-
-        host_cve_info = self._host_cve_info_rows_to_dict(query_rows)
-        return host_cve_info
-
-    @staticmethod
-    def _host_cve_info_rows_to_dict(rows: list) -> List[dict]:
-        """
-        turn query rows to dict
-
-        Args:
-            rows(list): sqlalchemy query result list
-
-        Returns:
-            list
-        """
-        result = dict()
-
-        for row in rows:
-            key = f"{row.host_id}-{row.cve_id}-{row.installed_rpm}"
-
-            if key in result:
-                result[key]["available_rpms"].add(row.available_rpm)
-                result[key]["support_ways"].add(row.support_way)
-                result[key]["source_package"].add(row.package)
-            else:
-                result[key] = {
-                    "host_id": row.host_id,
-                    "host_ip": row.host_ip,
-                    "host_name": row.host_name,
-                    "cve_id": row.cve_id,
-                    "cvss_score": row.cvss_score,
-                    "severity": row.severity,
-                    "installed_rpm": row.installed_rpm,
-                    "source_package": {row.package},
-                    "available_rpms": {row.available_rpm},
-                    "support_ways": {row.support_way},
-                }
-
-        return list(result.values())
 
 
 class TaskEsProxy(ElasticsearchProxy):
@@ -1214,11 +701,11 @@ class TaskEsProxy(ElasticsearchProxy):
         """
         query_body = self._general_body()
         query_body.update({"from": 0, "size": 10000})
-        query_body['query']['bool']['must'].append({"term": {"task_id": task_id}})
+        query_body["query"]["bool"]["must"].append({"term": {"task_id": task_id}})
         if username:
-            query_body['query']['bool']['must'].append({"term": {"username": username}})
+            query_body["query"]["bool"]["must"].append({"term": {"username": username}})
         if host_id:
-            query_body['query']['bool']['must'].append({"term": {"host_id": host_id}})
+            query_body["query"]["bool"]["must"].append({"term": {"host_id": host_id}})
 
         operation_code, res = self.query(TASK_INDEX, query_body, source)
         return operation_code, res
@@ -1429,110 +916,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         running_task_list = [(task.task_id, task.create_time) for task in task_query]
         return running_task_list, host_info_list
 
-    def update_host_status(self, host_id_list: list):
-        """
-        Change the status of the exception service to succeed
-
-        Args:
-            host_id_list: A list of IDs for the exception host
-
-        Returns:
-            int: status_code
-        """
-        host_query = self.session.query(Host).filter(Host.host_id.in_(host_id_list))
-        try:
-            host_query.update({Host.status: HostStatus.UNKNOWN}, synchronize_session=False)
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("update host table status failed.")
-            return DATABASE_UPDATE_ERROR
-
-        self.session.commit()
-
-        return SUCCEED
-
-    def update_task_status(self, task_id_list: list):
-        """
-        Change the status of the exception service to succeed
-
-        Args:
-            task_id_list: A list of IDs for the exception task
-
-        Returns:
-            int: status_code
-        """
-        cve_task_query = self.session.query(HotpatchRemoveTask).filter(HotpatchRemoveTask.task_id.in_(task_id_list))
-        try:
-            cve_task_query.update({HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False)
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("update task_cve_host table status failed.")
-            return DATABASE_UPDATE_ERROR
-
-        repo_task_query = self.session.query(TaskHostRepoAssociation).filter(
-            TaskHostRepoAssociation.task_id.in_(task_id_list)
-        )
-        try:
-            repo_task_query.update({TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("update task_host_repo table status failed.")
-            return DATABASE_UPDATE_ERROR
-
-        self.session.commit()
-
-        return SUCCEED
-
-    def update_repo_task_status(self, task_id_list: list):
-        """
-        Change the status of the exception service to unknown
-
-        Args:
-            task_id_list: A list of IDs for the exception task
-
-        Returns:
-            int: status_code
-        """
-
-        repo_task_query = self.session.query(TaskHostRepoAssociation).filter(
-            TaskHostRepoAssociation.task_id.in_(task_id_list)
-        )
-        try:
-            repo_task_query.update({TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False)
-            self.session.commit()
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("update task_host_repo table status failed.")
-            return DATABASE_UPDATE_ERROR
-
-        return SUCCEED
-
-    def update_cve_host_task_status(self, task_id_list: list):
-        """
-        Change the status of the exception service to unknown
-
-        Args:
-            task_id_list: A list of IDs for the exception task
-
-        Returns:
-            int: status_code
-        """
-        cve_task_query = self.session.query(HotpatchRemoveTask).filter(HotpatchRemoveTask.task_id.in_(task_id_list))
-        try:
-            cve_task_query.update({HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False)
-            self.session.commit()
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("update task_cve_host table status failed.")
-            return DATABASE_UPDATE_ERROR
-
-        return SUCCEED
-
     def validate_cves(self, cve_id: list) -> bool:
         """
         Verifying cve validity
@@ -1641,4 +1024,4 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 .group_by(CveRollbackTask.host_id)
                 .all()
             )
-        return hosts
+        return [host.host_id for host in hosts]

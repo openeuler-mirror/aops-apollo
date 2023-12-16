@@ -22,6 +22,7 @@ from typing import Dict, Tuple
 import uuid
 
 import sqlalchemy.orm
+from sqlalchemy.sql import or_
 from elasticsearch import ElasticsearchException
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
@@ -775,7 +776,8 @@ class CveFixTaskProxy(TaskProxy):
                     "per_page": 10,
                     "username": "admin",
                     "filter": {
-                        "status": []
+                        "status": ["fail","running","succeed"],
+                        "search_key": "host_name/host_ip"
                     }
                 }
 
@@ -860,6 +862,13 @@ class CveFixTaskProxy(TaskProxy):
 
         if filter_dict.get("status"):
             filters.add(CveFixTask.status.in_(filter_dict["status"]))
+        if filter_dict.get("search_key"):
+            filters.add(
+                or_(
+                    CveFixTask.host_ip.like("%" + filter_dict["search_key"] + "%"),
+                    CveFixTask.host_name.like("%" + filter_dict["search_key"] + "%"),
+                )
+            )
         return filters
 
     def _query_cve_fix_task(self, filters):

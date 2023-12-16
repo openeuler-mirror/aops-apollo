@@ -16,6 +16,7 @@ Author:
 Description: Host table operation
 """
 
+from typing import List, Tuple
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
@@ -123,10 +124,17 @@ class HostMysqlProxy(MysqlProxy):
         Returns:
             dict
         """
-        subquery = self.session.query(
-            CveHostAssociation.host_id, CveHostAssociation.cve_id, CveHostAssociation.fixed, CveHostAssociation.affected
-        ).filter(CveHostAssociation.host_id.in_(host_ids)).distinct().subquery()
-
+        subquery = (
+            self.session.query(
+                CveHostAssociation.host_id,
+                CveHostAssociation.cve_id,
+                CveHostAssociation.fixed,
+                CveHostAssociation.affected,
+            )
+            .filter(CveHostAssociation.host_id.in_(host_ids))
+            .distinct()
+            .subquery()
+        )
 
         host_cve_fixed_list = (
             self.session.query(
@@ -645,3 +653,169 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             )
 
         return host_cve_info_list
+
+    def get_user_host_info(self, username, host_list):
+        """
+        Query host info according to host id list.
+
+        Args:
+            username (str): user name
+            host_list (list): host id list, can be empty
+
+        Returns:
+            list: host info, e.g.
+                [
+                    {
+                        "host_id": 1,
+                        "host_ip": "",
+                        "host_name": "",
+                        "status": ""
+                    }
+                ]
+        """
+        result = []
+        try:
+            result = self._get_host_info(username, host_list)
+            LOGGER.debug("Finished getting host info.")
+            return result
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("Getting host info failed due to internal error.")
+            return result
+
+    def _get_host_info(self, username, host_list):
+        """
+        get info of the host id in host_list. If host list is empty, query all hosts
+        """
+        filters = {Host.user == username}
+        if host_list:
+            filters.add(Host.host_id.in_(host_list))
+
+        info_query = self.session.query(Host.host_id, Host.host_name, Host.host_ip, Host.status).filter(*filters)
+
+        info_list = []
+        for row in info_query:
+            host_info = {
+                "host_id": row.host_id,
+                "host_name": row.host_name,
+                "host_ip": row.host_ip,
+                "status": row.status,
+            }
+            info_list.append(host_info)
+        return info_list
+
+    def query_host_cve_info(self, username: str) -> Tuple[str, list]:
+        """
+        query cve info with host info from database
+
+        Args:
+            username (str)
+
+        Returns:
+            Tuple[str, list]
+            a tuple containing two elements (status code, host with its cve info list).
+        """
+        try:
+            host_cve_info_list = self._quer_processed_host_cve_info(username)
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("update task_cve_host table status failed.")
+            return DATABASE_QUERY_ERROR, []
+
+        return SUCCEED, host_cve_info_list
+
+    def _quer_processed_host_cve_info(self, username: str) -> List[dict]:
+        """
+        query and process host with its cve info
+
+        Args:
+            username(str)
+
+        Returns:
+            list: host cve info list. e.g
+                [{
+                    "host_id": 1,
+                    "host_ip": "127.0.0.1",
+                    "host_name": "client",
+                    "cve_id": "CVE-XXXX-XXXX",
+                    "cvss_score": 7.5,
+                    "severity": "Important",
+                    "installed_rpm": "rpm-name-6.2.5-1.x86_64",
+                    "source_package": {"rpm-name.src.rpm"},
+                    "available_rpms": {"rpm-name-6.2.5-2.x86_64","patch-rpm-name-6.2.5-1-ACC...."},
+                    "support_ways": {"hotpatch", "coldpatch"},
+                }]
+        """
+        subquery = (
+            self.session.query(
+                CveHostAssociation.host_id,
+                CveHostAssociation.cve_id,
+                CveHostAssociation.installed_rpm,
+                CveHostAssociation.available_rpm,
+                CveHostAssociation.support_way,
+                case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
+                case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity"),
+                case([(CveAffectedPkgs.package == None, "-")], else_=CveAffectedPkgs.package).label("package"),
+            )
+            .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id)
+            .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)
+            .filter(CveHostAssociation.affected == True, CveHostAssociation.fixed == False)
+            .subquery()
+        )
+
+        query_rows = (
+            self.session.query(
+                Host.host_ip,
+                Host.host_name,
+                subquery.c.host_id,
+                subquery.c.cve_id,
+                subquery.c.installed_rpm,
+                func.ifnull(subquery.c.available_rpm, "-").label("available_rpm"),
+                func.ifnull(subquery.c.support_way, "-").label("support_way"),
+                subquery.c.cvss_score,
+                subquery.c.severity,
+                func.ifnull(subquery.c.package, "-").label("package"),
+            )
+            .outerjoin(subquery, Host.host_id == subquery.c.host_id)
+            .filter(Host.user == username)
+            .all()
+        )
+
+        host_cve_info = self._host_cve_info_rows_to_dict(query_rows)
+        return host_cve_info
+
+    @staticmethod
+    def _host_cve_info_rows_to_dict(rows: list) -> List[dict]:
+        """
+        turn query rows to dict
+
+        Args:
+            rows(list): sqlalchemy query result list
+
+        Returns:
+            list
+        """
+        result = dict()
+
+        for row in rows:
+            key = f"{row.host_id}-{row.cve_id}-{row.installed_rpm}"
+
+            if key in result:
+                result[key]["available_rpms"].add(row.available_rpm)
+                result[key]["support_ways"].add(row.support_way)
+                result[key]["source_package"].add(row.package)
+            else:
+                result[key] = {
+                    "host_id": row.host_id,
+                    "host_ip": row.host_ip,
+                    "host_name": row.host_name,
+                    "cve_id": row.cve_id,
+                    "cvss_score": row.cvss_score,
+                    "severity": row.severity,
+                    "installed_rpm": row.installed_rpm,
+                    "source_package": {row.package},
+                    "available_rpms": {row.available_rpm},
+                    "support_ways": {row.support_way},
+                }
+
+        return list(result.values())

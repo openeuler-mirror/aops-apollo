@@ -99,11 +99,12 @@ class GenerateCveTaskSchema(Schema):
     info = fields.List(fields.Nested(CveInfoDictSchema), required=True, validate=lambda s: len(s) > 0)
 
 
-class CveTaskInfoFilterSchema(Schema):
+class CveFixTaskInfoFilterSchema(Schema):
     """
     filter schema of cve task info getting interface
     """
 
+    search_key = fields.String(required=False, validate=lambda s: 0 < len(s) <= 50)
     status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
 
 
@@ -115,7 +116,7 @@ class GetCveTaskInfoSchema(PaginationSchema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     sort = fields.String(required=False, validate=validate.OneOf(["host_num"]))
     direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
-    filter = fields.Nested(CveTaskInfoFilterSchema, required=False)
+    filter = fields.Nested(CveFixTaskInfoFilterSchema, required=False)
 
 
 class HotpatchRemoveTaskCveInfoSchema(Schema):
@@ -258,8 +259,8 @@ class CallbackSchma(Schema):
 class CveFixCallbackSchema(CallbackSchma):
     check_items = fields.Nested(PreCheckItemsResultSchema, many=True)
     rpms = fields.Nested(CveFixResultCallbackSchema, many=True)
-    dnf_event_start = fields.Integer(required=False, validate=lambda s: s > 0)
-    dnf_event_end = fields.Integer(required=False, validate=lambda s: s > 0)
+    dnf_event_start = fields.Integer(required=False, allow_none=True, validate=lambda s: s > 0)
+    dnf_event_end = fields.Integer(required=False, allow_none=True, validate=lambda s: s > 0)
 
 
 class CheckItemsSchema(Schema):
@@ -360,25 +361,25 @@ class TaskCveRpmHostSchema(Schema):
 
 
 __all__ = [
-    'GetTaskListSchema',
-    'GetTaskProgressSchema',
-    'GetTaskInfoSchema',
-    'GenerateCveTaskSchema',
-    'GetCveTaskInfoSchema',
-    'GetHotpatchRemoveTaskHostCveStatusSchema',
-    'GetHotpatchRemoveTaskProgressSchema',
-    'GetTaskResultSchema',
-    'RollbackCveTaskSchema',
-    'GenerateRepoTaskSchema',
-    'GetRepoTaskInfoSchema',
-    'GetRepoTaskResultSchema',
-    'ExecuteTaskSchema',
-    'DeleteTaskSchema',
-    'CveFixCallbackSchema',
-    'RepoSetCallbackSchema',
-    'CveScanCallbackSchema',
-    'GenerateCveRollbackTaskSchema',
-    'GenerateHotpatchRemoveTaskSchema',
-    'HotpatchRemoveCallbackSchema',
-    'TaskCveRpmInfoSchema',
+    "GetTaskListSchema",
+    "GetTaskProgressSchema",
+    "GetTaskInfoSchema",
+    "GenerateCveTaskSchema",
+    "GetCveTaskInfoSchema",
+    "GetHotpatchRemoveTaskHostCveStatusSchema",
+    "GetHotpatchRemoveTaskProgressSchema",
+    "GetTaskResultSchema",
+    "RollbackCveTaskSchema",
+    "GenerateRepoTaskSchema",
+    "GetRepoTaskInfoSchema",
+    "GetRepoTaskResultSchema",
+    "ExecuteTaskSchema",
+    "DeleteTaskSchema",
+    "CveFixCallbackSchema",
+    "RepoSetCallbackSchema",
+    "CveScanCallbackSchema",
+    "GenerateCveRollbackTaskSchema",
+    "GenerateHotpatchRemoveTaskSchema",
+    "HotpatchRemoveCallbackSchema",
+    "TaskCveRpmInfoSchema",
 ]
