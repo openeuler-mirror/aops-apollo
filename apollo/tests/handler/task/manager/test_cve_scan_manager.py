@@ -26,7 +26,6 @@ from apollo.tests import BaseTestCase
 
 
 class CveScanManagerTestCase(BaseTestCase):
-
     @mock.patch.object(TaskProxy, 'query_host_cve_info')
     def test_create_task_should_return_SUCCEED_when_query_from_database_success(self, mock_proxy):
         host_info = [{"host_id": 1, "host_ip": "127.0.0.1", "host_name": "host_name1", "status": "0"}]
@@ -35,7 +34,7 @@ class CveScanManagerTestCase(BaseTestCase):
         mock_proxy.return_value = (SUCCEED, Mock())
         self.assertEqual(manager.create_task(), SUCCEED)
 
-    @mock.patch.object(TaskProxy, 'update_host_scan')
+    @mock.patch.object(TaskProxy, 'update_host_scan_status')
     def test_pre_handle_should_return_False_when_update_host_scan_fail(self, mock_update_host_scan):
         proxy = TaskProxy()
         host_info = [{"host_id": 1, "host_ip": "127.0.0.1", "host_name": "host_name1", "status": "0"}]
@@ -43,7 +42,7 @@ class CveScanManagerTestCase(BaseTestCase):
         mock_update_host_scan.return_value = DATABASE_UPDATE_ERROR
         self.assertEqual(manager.pre_handle(), False)
 
-    @mock.patch.object(TaskProxy, 'update_host_scan')
+    @mock.patch.object(TaskProxy, 'update_host_scan_status')
     def test_pre_handle_should_return_True_when_update_host_scan_succeed(self, mock_update_host_scan):
         proxy = TaskProxy()
         host_info = [{"host_id": 1, "host_ip": "127.0.0.1", "host_name": "host_name1", "status": "0"}]
@@ -73,11 +72,9 @@ class CveScanManagerTestCase(BaseTestCase):
         fake_result = Mock()
         mock_response.return_value = {
             "code": "200",
-            "data": {
-                "task_result": fake_result
-            },
+            "data": {"task_result": fake_result},
             "label": "Succeed",
-            "message": "operation succeed"
+            "message": "operation succeed",
         }
         manager.handle()
         self.assertEqual(manager.result, fake_result)
@@ -112,7 +109,7 @@ class CveScanManagerTestCase(BaseTestCase):
         fake_result[2]['status'] = "unknown"
         self.assertEqual(manager.result, fake_result)
 
-    @mock.patch.object(TaskProxy, "update_host_scan")
+    @mock.patch.object(TaskProxy, "update_host_scan_status")
     def test_fault_handle_should_have_correct_step(self, mock_update_host_scan):
         host_list = [{"host_id": 1}]
         proxy = TaskProxy()

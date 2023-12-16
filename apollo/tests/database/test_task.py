@@ -39,49 +39,14 @@ class TestTaskMysqlFirst(DatabaseTestCase):
         self.task_database = TaskProxy()
         self.task_database.connect()
 
-    def test_get_scan_host_info(self):
-        # query all host's info
-        expected_result = [
-            {
-                "host_id": 1,
-                "host_name": "host1",
-                "host_ip": "127.0.0.1",
-                "status": "done",
-            },
-            {
-                "host_id": 2,
-                "host_name": "host2",
-                "host_ip": "127.0.0.2",
-                "status": "scanning",
-            },
-            {
-                "host_id": 3,
-                "host_name": "host3",
-                "host_ip": "127.0.0.2",
-                "status": "scanning",
-            },
-        ]
-        self.assertEqual(self.task_database.get_scan_host_info("admin", []), expected_result)
-
-        # query one host's info
-        expected_result = [
-            {
-                "host_id": 2,
-                "host_name": "host2",
-                "host_ip": "127.0.0.2",
-                "status": "scanning",
-            }
-        ]
-        self.assertEqual(self.task_database.get_scan_host_info("admin", [2]), expected_result)
-
     def test_update_host_scan(self):
         # update not exist host
-        self.assertEqual(self.task_database.update_host_scan("init", [4, 1]), NO_DATA)
+        self.assertEqual(self.task_database.update_host_scan_status("init", [4, 1]), NO_DATA)
 
-        self.assertEqual(self.task_database.update_host_scan("finish", [4, 2]), SUCCEED)
+        self.assertEqual(self.task_database.update_host_scan_status("finish", [4, 2]), SUCCEED)
 
         # update exist host
-        self.assertEqual(self.task_database.update_host_scan("init", [1, 2]), SUCCEED)
+        self.assertEqual(self.task_database.update_host_scan_status("init", [1, 2]), SUCCEED)
 
         host_database = HostProxy(configuration)
         host_database.connect()
@@ -89,7 +54,7 @@ class TestTaskMysqlFirst(DatabaseTestCase):
             host_database.get_hosts_status({"host_list": [1, 2], "username": "admin"}),
             (SUCCEED, {"result": {1: "scanning", 2: "scanning"}}),
         )
-        self.assertEqual(self.task_database.update_host_scan("finish", [1, 2]), SUCCEED)
+        self.assertEqual(self.task_database.update_host_scan_status("finish", [1, 2]), SUCCEED)
 
         host_database = HostProxy(configuration)
         host_database.connect()
@@ -99,13 +64,13 @@ class TestTaskMysqlFirst(DatabaseTestCase):
         )
 
         # update all host
-        self.task_database.update_host_scan("init", [])
+        self.task_database.update_host_scan_status("init", [])
         self.assertEqual(
             host_database.get_hosts_status({"host_list": [], "username": "admin"}),
             (SUCCEED, {"result": {1: "scanning", 2: "scanning", 3: "scanning"}}),
         )
 
-        self.task_database.update_host_scan("finish", [])
+        self.task_database.update_host_scan_status("finish", [])
         self.assertEqual(
             host_database.get_hosts_status({"host_list": [], "username": "admin"}),
             (SUCCEED, {"result": {1: "done", 2: "done", 3: "done"}}),
@@ -424,7 +389,7 @@ class TestTaskMysqlFirst(DatabaseTestCase):
             "host_id": 1,
             "status": "fixed",
         }
-        self.assertEqual(self.task_database.update_cve_status(**data), SUCCEED)
+        self.assertEqual(self.task_database.update_hotpatch_remove_cve_status(**data), SUCCEED)
 
         data = {
             "task_id": "not_exist_id",
@@ -432,7 +397,7 @@ class TestTaskMysqlFirst(DatabaseTestCase):
             "host_id": 1,
             "status": "fixed",
         }
-        self.assertEqual(self.task_database.update_cve_status(**data), NO_DATA)
+        self.assertEqual(self.task_database.update_hotpatch_remove_cve_status(**data), NO_DATA)
 
     def test_get_running_task_form_task_cve_host(self):
         self.assertEqual(
@@ -454,13 +419,6 @@ class TestTaskMysqlFirst(DatabaseTestCase):
                 ("aaaaaaaaaapoiuytrewqasdfghjklmnb", "repo set", 123836141),
             ],
         )
-
-    def test_update_task_status(self):
-        data = ["2ab6d20a67a311edb556c85acf0079ce", "2d987ccd67a311eda545c85acf0179ce"]
-        self.assertEqual(self.task_database.update_task_status(data), SUCCEED)
-
-        data = ["not_exist_id"]
-        self.assertEqual(self.task_database.update_task_status(data), SUCCEED)
 
 
 class TestTaskMysqlSecond(DatabaseTestCase):

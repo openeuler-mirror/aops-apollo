@@ -20,6 +20,7 @@ import uuid
 from typing import Dict
 
 from flask import request
+from apollo.database.proxy.host import HostProxy
 from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
@@ -36,6 +37,7 @@ from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
 from apollo.database.proxy.task.cve_rollback import CveRollbackTask
 from apollo.database.proxy.task.cve_fix import CveFixTaskProxy
 from apollo.database.proxy.task.repo_set import RepoSetProxy
+from apollo.database.proxy.task.scan import ScanProxy
 from apollo.function.schema.host import ScanHostSchema
 from apollo.function.schema.task import *
 from apollo.function.schema.task import GetHotpatchRemoveTaskCveInfoSchema
@@ -71,9 +73,9 @@ class VulScanHost(BaseResponse):
         # but the actual host list should not be empty.
         host_list = []
         for host in actual_host_list:
-            if host['status'] == HostStatus.SCANNING:
+            if host["status"] == HostStatus.SCANNING:
                 return False
-            host_list.append(host['host_id'])
+            host_list.append(host["host_id"])
 
         if not query_host_list:
             if not actual_host_list:
@@ -91,7 +93,7 @@ class VulScanHost(BaseResponse):
 
         return True
 
-    def _handle(self, proxy, args):
+    def _handle(self, proxy: HostProxy, args):
         """
         Generate scan task according to host info, and run it.
 
@@ -102,30 +104,29 @@ class VulScanHost(BaseResponse):
         Returns:
             int: status code
         """
-        access_token = request.headers.get('access_token')
-
         # verify host id
-        username = args['username']
-        host_list = args['host_list']
-        host_info = proxy.get_scan_host_info(username, host_list)
+        username = args["username"]
+        host_list = args["host_list"]
+        host_info = proxy.get_user_host_info(username, host_list)
         if not self._verify_param(host_list, host_info):
             LOGGER.error("There are some host in %s that can not be scanned.", host_list)
             return PARAM_ERROR
-        task_id = str(uuid.uuid1()).replace('-', '')
+        task_id = str(uuid.uuid1()).replace("-", "")
         # init status
-        cve_scan_manager = ScanManager(task_id, proxy, host_info, username)
-        cve_scan_manager.token = access_token
-        cve_scan_manager.create_task()
-        if not cve_scan_manager.pre_handle():
-            return DATABASE_UPDATE_ERROR
+        with ScanProxy() as scan_proxy:
+            cve_scan_manager = ScanManager(task_id, scan_proxy, host_info, username)
+            cve_scan_manager.token = request.headers.get("access_token")
+            cve_scan_manager.create_task()
+            if not cve_scan_manager.pre_handle():
+                return DATABASE_UPDATE_ERROR
 
-        # run the task
-        cve_scan_manager.execute_task()
+            # run the task
+            cve_scan_manager.execute_task()
 
         return SUCCEED
 
-    @BaseResponse.handle(schema=ScanHostSchema, proxy=TaskMysqlProxy)
-    def post(self, callback: TaskMysqlProxy, **params):
+    @BaseResponse.handle(schema=ScanHostSchema, proxy=HostProxy)
+    def post(self, callback: HostProxy, **params):
         """
         Scan host's cve
 
@@ -419,9 +420,12 @@ class VulGenerateRepoTask(BaseResponse):
                     "data": {"task_id": "1"}
                 }
         """
-        task_id = str(uuid.uuid1()).replace('-', '')
+        task_id = str(uuid.uuid1()).replace("-", "")
         task_info = dict(
-            task_id=task_id, task_type=TaskType.REPO_SET, create_time=int(time.time()), username=params["username"]
+            task_id=task_id,
+            task_type=TaskType.REPO_SET,
+            create_time=int(time.time()),
+            username=params["username"],
         )
         task_info.update(params)
         data = dict(task_id=task_id)
@@ -496,10 +500,10 @@ class VulExecuteTask(BaseResponse):
         Returns:
             int: status code
         """
-        task_id = args['task_id']
+        task_id = args["task_id"]
         with CveFixTaskProxy() as cve_fix_proxy:
             manager = CveFixManager(cve_fix_proxy, task_id)
-            manager.token = args['token']
+            manager.token = args["token"]
             status_code = manager.create_task()
             if status_code != SUCCEED:
                 return status_code
@@ -521,10 +525,10 @@ class VulExecuteTask(BaseResponse):
             int: status code
         """
         with RepoSetProxy() as repo_set_proxy:
-            repo_manager = RepoManager(repo_set_proxy, args['task_id'])
+            repo_manager = RepoManager(repo_set_proxy, args["task_id"])
 
-            repo_manager.token = args['token']
-            status_code = repo_manager.create_task(args['username'])
+            repo_manager.token = args["token"]
+            status_code = repo_manager.create_task(args["username"])
             if status_code != SUCCEED:
                 return status_code
 
@@ -545,10 +549,10 @@ class VulExecuteTask(BaseResponse):
         Returns:
             int: status code
         """
-        task_id = args['task_id']
+        task_id = args["task_id"]
         with HotpatchRemoveProxy() as hotpatch_proxy:
             manager = HotpatchRemoveManager(hotpatch_proxy, task_id)
-            manager.token = args['token']
+            manager.token = args["token"]
             status_code = manager.create_task()
             if status_code != SUCCEED:
                 return status_code
@@ -569,18 +573,18 @@ class VulExecuteTask(BaseResponse):
         Returns:
             int: status code
         """
-        access_token = request.headers.get('access_token')
-        args['token'] = access_token
+        access_token = request.headers.get("access_token")
+        args["token"] = access_token
 
         # verify the task:
         # 1.belongs to the user;
         # 2.task type is supported.
-        task_type = proxy.get_task_type(args['task_id'], args['username'])
+        task_type = proxy.get_task_type(args["task_id"], args["username"])
         if task_type is None or task_type not in self.type_map.keys():
             return PARAM_ERROR
         LOGGER.debug(task_type)
 
-        if not proxy.check_task_status(args['task_id'], task_type):
+        if not proxy.check_task_status(args["task_id"], task_type):
             return REPEAT_TASK_EXECUTION
 
         func_name = self.type_map[task_type]
@@ -688,8 +692,8 @@ class VulCveScanTaskCallback(BaseResponse):
     Restful interface for cve scan callback.
     """
 
-    @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(schema=CveScanCallbackSchema, proxy=ScanProxy)
+    def post(self, callback: ScanProxy, **params):
         """
         Args:
             host_id (str)
@@ -721,7 +725,7 @@ class VulGenerateCveRollbackTask(BaseResponse):
             int: status code
             dict: body including task id
         """
-        task_id = str(uuid.uuid1()).replace('-', '')
+        task_id = str(uuid.uuid1()).replace("-", "")
         task_info = dict(
             task_id=task_id,
             fix_task_id=args["fix_task_id"],
@@ -772,7 +776,7 @@ class VulGenerateHotpatchRemove(BaseResponse):
             int: status code
             dict: body including task id
         """
-        task_id = str(uuid.uuid1()).replace('-', '')
+        task_id = str(uuid.uuid1()).replace("-", "")
         task_info = dict(
             task_id=task_id,
             task_type=TaskType.HOTPATCH_REMOVE,
@@ -862,8 +866,8 @@ class VulGetTaskCveRpmInfo(BaseResponse):
 
 
 class VulCveScanNotice(BaseResponse):
-    @BaseResponse.handle(proxy=TaskProxy)
-    def post(self, callback: TaskProxy, **params):
+    @BaseResponse.handle(proxy=HostProxy)
+    def post(self, callback: HostProxy, **params):
         """
         Restful interface for email notifications
         """
@@ -1008,5 +1012,5 @@ class VulGetTaskHost(BaseResponse):
                     "data": [1,2,3]
                 }
         """
-        status_code, data = callback.get_task_hosts(params)
+        status_code, data = callback.get_task_hosts(params["task_id"])
         return self.response(code=status_code, data=data)

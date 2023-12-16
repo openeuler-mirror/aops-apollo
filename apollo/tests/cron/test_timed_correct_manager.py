@@ -66,12 +66,3 @@ class TestTimedCorrectTask(BaseTestCase):
     ):
         mock_get_abnormal_task.return_value = ([], [])
         self.assertEqual(self.timed_correct.execute(), None)
-
-    @mock.patch.object(TimedCorrectTask, "get_abnormal_task")
-    @mock.patch.object(TaskProxy, "update_task_status")
-    def test_create_timed_scan_task_should_return_none_when_update_task_status_succeed(
-        self, mock_update_task_status, mock_get_abnormal_task
-    ):
-        mock_get_abnormal_task.return_value = (["QWERTYUIOP"], [])
-        mock_update_task_status.return_value = SUCCEED
-        self.assertEqual(self.timed_correct.execute(), None)

@@ -24,6 +24,7 @@ from email.mime.text import MIMEText
 from io import BytesIO
 from typing import List
 
+from vulcanus.database.proxy import connect_database
 from vulcanus.conf.constant import URL_FORMAT
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, TASK_EXECUTION_FAIL
@@ -32,6 +33,7 @@ from vulcanus.send_email import Email
 
 from apollo.conf import configuration
 from apollo.conf.constant import EXECUTE_CVE_SCAN, VUL_TASK_CVE_SCAN_CALLBACK
+from apollo.database.proxy.host import HostProxy
 from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.manager import Manager
 
@@ -81,7 +83,7 @@ class ScanManager(Manager):
         Returns:
             bool
         """
-        if self.proxy.update_host_scan("init", self.host_list, self.username) != SUCCEED:
+        if self.proxy.update_host_scan_status("init", self.host_list, self.username) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop scanning.")
             return False
 
@@ -114,10 +116,11 @@ class EmailNoticeManager:
     email notice method manager
     """
 
-    def __init__(self, username: str, proxy: TaskProxy) -> None:
+    def __init__(self, username: str, proxy: HostProxy) -> None:
         self.username = username
         self.proxy = proxy
 
+    @connect_database()
     def send_email_to_user(self) -> None:
         """
         send email to user with cve scan result
@@ -129,10 +132,11 @@ class EmailNoticeManager:
         sender = configuration.email.get("SENDER")
 
         # Get user email address
-        status, receiver = self.proxy.query_user_email(self.username)
-        if status != SUCCEED:
-            LOGGER.warning(f"Query {self.username} email address failed!Can't send email")
-            return
+        with TaskProxy() as task_proxy:
+            status, receiver = task_proxy.query_user_email(self.username)
+            if status != SUCCEED:
+                LOGGER.warning(f"Query {self.username} email address failed!Can't send email")
+                return
 
         # Generate email body
         message = self._generate_email_body(sender, receiver)
