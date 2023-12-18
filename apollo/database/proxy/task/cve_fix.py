@@ -273,7 +273,7 @@ class CveFixTaskProxy(TaskProxy):
             else:
                 host_rpm_dict[rpm["installed_rpm"]] = [rpm["available_rpm"]]
 
-        host_packages = (
+        host_package_list = (
             self.session.query(CveHostAssociation)
             .filter(
                 CveHostAssociation.cve_id == cve_id,
@@ -285,7 +285,7 @@ class CveFixTaskProxy(TaskProxy):
         )
         host_wait_fix_package_dict = dict()
         for host_id in host_rpms["hosts"]:
-            filter_host_package = list(filter(lambda host_package: host_package.host_id == host_id, host_packages))
+            filter_host_package = list(filter(lambda host_package: host_package.host_id == host_id, host_package_list))
             if not host_rpm_dict and filter_host_package:
                 installed_rpm = self._filter_installed_rpm(filter_host_package)
                 for rpm in installed_rpm:
