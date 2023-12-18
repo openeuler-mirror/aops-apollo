@@ -296,7 +296,7 @@ class ScanProxy(TaskProxy):
         if update_type == "init":
             update_dict = {Host.status: HostStatus.SCANNING, Host.last_scan: int(time())}
         elif update_type == "finish":
-            update_dict = {Host.status: HostStatus.DONE, Host.reboot: reboot}
+            update_dict = {Host.status: HostStatus.ONLINE, Host.reboot: reboot}
         else:
             LOGGER.error(
                 "Given host scan update type '%s' is not in default type list ['init', 'finish']." % update_type

@@ -58,8 +58,6 @@ class HostStatus:
     OFFLINE = 1
     UNESTABLISHED = 2
     SCANNING = 3
-    DONE = 4
-    UNKNOWN = 5
 
 
 class CvssScore:
@@ -172,6 +170,7 @@ EXECUTE_CVE_FIX = '/manage/vulnerability/cve/fix'
 EXECUTE_CVE_ROLLBACK = '/manage/vulnerability/cve/rollback'
 EXECUTE_CVE_SCAN = '/manage/vulnerability/cve/scan'
 EXECUTE_HOTPATCH_REMOVE = "/manage/vulnerability/cve/hotpatch-remove"
+HOST_STATUS_GET = "/manage/host/status/get"
 
 VUL_CVE_UNFIXED_PACKAGES = "/vulnerability/cve/unfixed/packages/get"
 VUL_CVE_FIXED_PACKAGES = "/vulnerability/cve/fixed/packages/get"

@@ -19,10 +19,14 @@ import datetime
 import time
 
 from vulcanus.database.proxy import connect_database
-from vulcanus.conf.constant import TIMEOUT
+from vulcanus.conf.constant import TIMEOUT, URL_FORMAT
 from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.restful.response import BaseResponse
 from vulcanus.timed import TimedTask
 
+from apollo.conf import configuration
+from apollo.conf.constant import HOST_STATUS_GET
 from apollo.database.proxy.task.base import TaskProxy
 from apollo.database.proxy.task.timed_proxy import TimedProxy
 
@@ -38,9 +42,10 @@ class TimedCorrectTask(TimedTask):
         Start the correct after the specified time of day.
         """
         LOGGER.info("Begin to correct the whole host in %s.", str(datetime.datetime.now()))
+        abnormal_task_ids, abnormal_host_ids = self.get_abnormal_task()
+        self._update_host_status(abnormal_host_ids)
         with TimedProxy() as proxy:
-            abnormal_task_ids, abnormal_host_ids = self.get_abnormal_task()
-            proxy.timed_correct_error_task_status(abnormal_task_ids, abnormal_host_ids)
+            proxy.timed_correct_error_task_status(abnormal_task_ids)
 
     @staticmethod
     def _abnormal_task(tasks):
@@ -74,3 +79,22 @@ class TimedCorrectTask(TimedTask):
         abnormal_hosts = self._abnormal_task(hosts)
 
         return abnormal_tasks, abnormal_hosts
+
+    @staticmethod
+    def _update_host_status(host_ids):
+        """
+        update host status
+
+        Args:
+            host_ids(list): host id list
+
+        Returns:
+        """
+        update_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), HOST_STATUS_GET)
+        header = {"exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
+                  "Content-Type": "application/json; charset=UTF-8"}
+
+        parameter = {"host_list": host_ids}
+        response = BaseResponse.get_response('POST', update_url, parameter, header)
+        if response.get('label') != SUCCEED:
+            LOGGER.error("Failed to update host status")
