@@ -108,14 +108,12 @@ class CveFixTaskInfoFilterSchema(Schema):
     status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
 
 
-class GetCveTaskInfoSchema(PaginationSchema):
+class GetCveFixTaskInfoSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/cve/info/get
     """
 
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    sort = fields.String(required=False, validate=validate.OneOf(["host_num"]))
-    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
     filter = fields.Nested(CveFixTaskInfoFilterSchema, required=False)
 
 
@@ -365,7 +363,7 @@ __all__ = [
     "GetTaskProgressSchema",
     "GetTaskInfoSchema",
     "GenerateCveTaskSchema",
-    "GetCveTaskInfoSchema",
+    "GetCveFixTaskInfoSchema",
     "GetHotpatchRemoveTaskHostCveStatusSchema",
     "GetHotpatchRemoveTaskProgressSchema",
     "GetTaskResultSchema",

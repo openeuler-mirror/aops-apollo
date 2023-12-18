@@ -285,13 +285,11 @@ class VulGetCveFixTaskInfo(BaseResponse):
     Restful interface for getting the info of a task which fixes cve.
     """
 
-    @BaseResponse.handle(schema=GetCveTaskInfoSchema, proxy=CveFixTaskProxy)
+    @BaseResponse.handle(schema=GetCveFixTaskInfoSchema, proxy=CveFixTaskProxy)
     def post(self, callback: CveFixTaskProxy, **params):
         """
         Args:
             task_id (str)
-            sort (str, optional): can be chosen from host_num.
-            direction (str, optional): asc or desc. Defaults to asc.
             page (int, optional): current page in web.
             per_page (int, optional): number of items in each page.
             filter (dict, optional): filter condition.
