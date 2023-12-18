@@ -185,7 +185,9 @@ class TimedDownloadSATask(TimedTask):
             if response:
                 sa_list = response.decode("utf-8").replace("\r", "").split("\n")
                 # 2021/cvrf-openEuler-SA-2021-1022.xml, we don't need the first five characters
-                return [sa_name[5:] for sa_name in sa_list]
+                # When there are empty lines in the security advisory information file, the variable
+                # sa_list will extract a blank string.
+                return [sa_name[5:] for sa_name in sa_list if sa_name]
 
         except retrying.RetryError:
             LOGGER.error("Downloading a security bulletin record error: %s" % TimedDownloadSATask.sa_records)
