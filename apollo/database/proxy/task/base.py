@@ -972,7 +972,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             sqlalchemy.orm.Query
         """
         task_query = self.session.query(
-            Task.task_id, Task.task_name, Task.task_type, Task.check_items, Task.accepted, Task.takeover, Task.fix_type
+            Task
         ).filter(Task.task_id == task_id)
         return task_query
 

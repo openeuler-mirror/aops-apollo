@@ -243,7 +243,7 @@ class CveRollbackTask(Base, MyBase):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
-    rollback_fix_task_id = Column(String(20), nullable=False)
+    fix_task_id = Column(String(20), nullable=False)
     # rollback_type can be "hotpatch" and "coldpatch"
     rollback_type = Column(String(20))
     host_id = Column(Integer)
