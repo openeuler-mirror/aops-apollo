@@ -669,10 +669,11 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             sort_page['limt_size'] = int(per_page)
 
         # sort by host num by default
+        sort_page["order_by"] = data.get("direction", "asc")
         sort_page["order_by_filed"] = data.get('sort', "cve_id")
         if sort_page["order_by_filed"] == "host_num":
-            sort_page["order_by_filed"] = "cve_id, host_num"
-        sort_page["order_by"] = data.get("direction", "asc")
+            sort_page["order_by_filed"] = f"host_num {sort_page['order_by']},cve_id "
+
         return sort_page
 
     def _query_cve_list(self, data):
