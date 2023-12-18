@@ -24,7 +24,7 @@ import uuid
 import sqlalchemy.orm
 from sqlalchemy.sql import or_
 from elasticsearch import ElasticsearchException
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page
 from vulcanus.log.log import LOGGER
@@ -770,8 +770,6 @@ class CveFixTaskProxy(TaskProxy):
             data (dict): parameter, e.g.
                 {
                     "task_id": "id1",
-                    "sort": "host_id",
-                    "direction": "asc",
                     "page": 1,
                     "per_page": 10,
                     "username": "admin",
@@ -823,8 +821,8 @@ class CveFixTaskProxy(TaskProxy):
         if not task_info:
             return result
         filters = self._get_cve_task_filters(data.get("filter", dict()), data["task_id"])
-
-        task_cve_fix_query = self._query_cve_fix_task(filters)
+        status = data.get("filter", dict()).get("status")
+        task_cve_fix_query = self._query_cve_fix_task(status, filters)
 
         total_count = task_cve_fix_query.count()
         # # NO_DATA code is NOT returned because no data situation here is normal
@@ -832,11 +830,8 @@ class CveFixTaskProxy(TaskProxy):
         if not total_count:
             return result
 
-        sort_column = data.get('sort', "host_id")
-        if sort_column not in ("host_id", "host_ip", "host_name"):
-            sort_column = "host_id"
-        direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
-        cve_fix_info_result, total_page = sort_and_page(task_cve_fix_query, sort_column, direction, per_page, page)
+        page, per_page = data.get('page'), data.get('per_page')
+        cve_fix_info_result, total_page = sort_and_page(task_cve_fix_query, None, None, per_page, page)
 
         result['result'] = self._cve_fix_task_info_row2dict(cve_fix_info_result)
         result['total_page'] = total_page
@@ -859,9 +854,6 @@ class CveFixTaskProxy(TaskProxy):
             set
         """
         filters = {CveFixTask.task_id == task_id}
-
-        if filter_dict.get("status"):
-            filters.add(CveFixTask.status.in_(filter_dict["status"]))
         if filter_dict.get("search_key"):
             filters.add(
                 or_(
@@ -871,10 +863,11 @@ class CveFixTaskProxy(TaskProxy):
             )
         return filters
 
-    def _query_cve_fix_task(self, filters):
+    def _query_cve_fix_task(self, status, filters):
         """
         query needed cve task's cve info
         Args:
+            status: host status
             filters (set): filter given by user
 
         Returns:
@@ -887,7 +880,7 @@ class CveFixTaskProxy(TaskProxy):
                     "status": "running,succeed,failed"
                 }
         """
-        task_cve_fix_query = (
+        task_cve_fix_subquery = (
             self.session.query(
                 CveFixTask.host_id,
                 CveFixTask.host_ip,
@@ -897,7 +890,32 @@ class CveFixTaskProxy(TaskProxy):
             )
             .filter(*filters)
             .group_by(CveFixTask.host_id, CveFixTask.host_ip, CveFixTask.host_name)
+            .subquery()
         )
+        task_cve_fix_status_subquery = self.session.query(
+            task_cve_fix_subquery.c.host_id,
+            task_cve_fix_subquery.c.host_ip,
+            task_cve_fix_subquery.c.host_name,
+            case(
+                [
+                    (task_cve_fix_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
+                    (task_cve_fix_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
+                    (task_cve_fix_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN),
+                ],
+                else_=TaskStatus.SUCCEED,
+            ).label("status"),
+            task_cve_fix_subquery.c.cves,
+        ).subquery()
+
+        task_cve_fix_query = self.session.query(
+            task_cve_fix_status_subquery.c.host_id,
+            task_cve_fix_status_subquery.c.host_ip,
+            task_cve_fix_status_subquery.c.host_name,
+            task_cve_fix_status_subquery.c.status,
+            task_cve_fix_status_subquery.c.cves,
+        )
+        if status:
+            task_cve_fix_query = task_cve_fix_query.filter(task_cve_fix_status_subquery.c.status.in_(status))
 
         return task_cve_fix_query
 
@@ -912,7 +930,7 @@ class CveFixTaskProxy(TaskProxy):
                         "host_name": "",
                         "host_ip": "127.0.0.1",
                         "cves": "cve-2023-0989,cve-2022-2989",
-                        "status": "running,succeed,failed"
+                        "status": "running/succeed/failed"
                     }
         Returns:
             list. e.g.
@@ -926,21 +944,13 @@ class CveFixTaskProxy(TaskProxy):
         """
         cve_fix_info_list = []
         for row in cve_fix_info_result:
-            cves = len(set(row.cves.split(",")))
-            status = TaskStatus.SUCCEED
-            if TaskStatus.RUNNING in row.status:
-                status = TaskStatus.RUNNING
-            if TaskStatus.FAIL in row.status:
-                status = TaskStatus.FAIL
-            if TaskStatus.UNKNOWN in row.status:
-                status = TaskStatus.UNKNOWN
             cve_fix_info_list.append(
                 {
                     "host_id": row.host_id,
                     "host_name": row.host_name,
                     "host_ip": row.host_ip,
-                    "cve_num": cves,
-                    "status": status,
+                    "cve_num": len(set(row.cves.split(","))),
+                    "status": row.status,
                 }
             )
         return cve_fix_info_list
