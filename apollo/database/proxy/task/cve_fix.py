@@ -482,7 +482,7 @@ class CveFixTaskProxy(TaskProxy):
         task_info["host_num"] = len(wait_fix_rpms.keys())
         task_info["fix_type"] = fix_way
         if subtask:
-            task_prefix = "Coldpatch fix subtask: " if fix_way == "coldpatch" else "Hotpatch fix subtask: "
+            task_prefix = "冷补丁修复：" if fix_way == "coldpatch" else "热补丁修复："
             task_info["description"] = task_prefix + task_info["description"]
             task_info["task_name"] = task_prefix + task_info["task_name"]
             task_info["takeover"] = False if fix_way == "coldpatch" else task_info["takeover"]
