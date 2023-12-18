@@ -18,29 +18,24 @@ from vulcanus.restful.resp.state import (
     SUCCEED,
 )
 
-from apollo.conf.constant import HostStatus, TaskStatus
+from apollo.conf.constant import TaskStatus
 from apollo.database.table import (
     HotpatchRemoveTask,
     TaskHostRepoAssociation,
-    Host,
 )
 
 
 class TimedProxy(MysqlProxy):
-    def timed_correct_error_task_status(self, task_ids, host_ids):
+    def timed_correct_error_task_status(self, task_ids):
         """
         Change the status of the exception task to unknown
 
         Args:
             task_ids: task id list
-            host_ids: host id list
         Returns:
             str: status_code
         """
         try:
-            self.session.query(Host).filter(Host.host_id.in_(host_ids)).update(
-                {Host.status: HostStatus.UNKNOWN}, synchronize_session=False
-            )
             self.session.query(HotpatchRemoveTask).filter(HotpatchRemoveTask.task_id.in_(task_ids)).update(
                 {HotpatchRemoveTask.status: TaskStatus.UNKNOWN}, synchronize_session=False
             )

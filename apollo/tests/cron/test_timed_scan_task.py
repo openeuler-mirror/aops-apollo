@@ -53,7 +53,7 @@ class TestTimedScanTask(unittest.TestCase):
     def test_check_host_info_should_return_True_when_host_no_scanning(self):
         username = "admin"
         host = dict()
-        host["status"] = HostStatus.DONE
+        host["status"] = HostStatus.ONLINE
         host_info = [host]
         self.assertEqual(self.cve_scan._check_host_info(username, host_info), True)
 
