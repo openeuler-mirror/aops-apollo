@@ -1532,6 +1532,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
     def _get_processed_cve_packages_host(self, data):
         result = {"total_count": 0, "total_page": 0, "result": []}
         filters = {
+            CveHostAssociation.host_user == data["username"],
             CveHostAssociation.cve_id == data["cve_id"],
             CveHostAssociation.installed_rpm == data["installed_rpm"],
             CveHostAssociation.fixed == data["fixed"],
