@@ -20,7 +20,7 @@ import copy
 from collections import defaultdict
 
 from elasticsearch import ElasticsearchException
-from sqlalchemy import func, tuple_, case
+from sqlalchemy import func, tuple_, case, or_
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
@@ -200,7 +200,11 @@ class CveMysqlProxy(MysqlProxy):
         if filter_dict.get("host_group"):
             filters.add(Host.host_group_name.in_(filter_dict["host_group"]))
         if filter_dict.get("repo"):
-            filters.add(Host.repo_name.in_(filter_dict["repo"]))
+            if all(filter_dict.get("repo")):
+                filters.add(Host.repo_name.in_(filter_dict["repo"]))
+            else:
+                repo_names = list(filter(None, filter_dict["repo"]))
+                filters.add(or_(Host.repo_name.in_(repo_names), Host.repo_name == None))
         return filters
 
     def _query_cve_hosts(self, username: str, cve_id: str, filters: set):

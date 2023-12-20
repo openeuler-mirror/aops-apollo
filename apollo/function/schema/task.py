@@ -18,7 +18,7 @@ Description: For task related restful interfaces schema
 from marshmallow import Schema
 from marshmallow import fields
 from marshmallow import validate
-from vulcanus.restful.serialize.validate import PaginationSchema
+from vulcanus.restful.serialize.validate import PaginationSchema, ValidateRules
 
 from apollo.conf.constant import TaskType, TaskStatus
 
@@ -248,7 +248,7 @@ class CveFixResultCallbackSchema(Schema):
 class CallbackSchma(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    host_ip = fields.IP(required=True)
+    host_ip = fields.String(required=True, validate=ValidateRules.ipv4_address_check)
     host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     execution_time = fields.Integer(required=True)
@@ -270,7 +270,7 @@ class CheckItemsSchema(Schema):
 class RepoSetCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    host_ip = fields.IP(required=True)
+    host_ip = fields.String(required=True, validate=ValidateRules.ipv4_address_check)
     host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     execution_time = fields.Integer(required=True)
