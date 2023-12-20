@@ -22,6 +22,8 @@ from apollo.conf.constant import TaskStatus
 from apollo.database.table import (
     HotpatchRemoveTask,
     TaskHostRepoAssociation,
+    CveFixTask,
+    CveRollbackTask,
 )
 
 
@@ -41,6 +43,12 @@ class TimedProxy(MysqlProxy):
             )
             self.session.query(TaskHostRepoAssociation).filter(TaskHostRepoAssociation.task_id.in_(task_ids)).update(
                 {TaskHostRepoAssociation.status: TaskStatus.UNKNOWN}, synchronize_session=False
+            )
+            self.session.query(CveFixTask).filter(CveFixTask.task_id.in_(task_ids)).update(
+                {CveFixTask.status: TaskStatus.UNKNOWN}, synchronize_session=False
+            )
+            self.session.query(CveRollbackTask).filter(CveRollbackTask.task_id.in_(task_ids)).update(
+                {CveRollbackTask.status: TaskStatus.UNKNOWN}, synchronize_session=False
             )
             self.session.commit()
         except SQLAlchemyError as error:
