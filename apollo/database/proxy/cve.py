@@ -1019,7 +1019,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             self.session.commit()
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("delete advisory download failed record error.")
+            LOGGER.error("Delete advisory download failed record error.")
             self.session.rollback()
 
     def save_security_advisory(self, file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year=None, sa_number=None):
