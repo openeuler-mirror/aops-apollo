@@ -41,11 +41,15 @@ class TimedCorrectTask(TimedTask):
         """
         Start the correct after the specified time of day.
         """
-        LOGGER.info("Begin to correct the whole host in %s.", str(datetime.datetime.now()))
+        LOGGER.info(
+            "Begin to correct the status of timeout tasks and scan timeout host in %s.",
+            str(datetime.datetime.now()))
         abnormal_task_ids, abnormal_host_ids = self.get_abnormal_task()
-        self._update_host_status(abnormal_host_ids)
-        with TimedProxy() as proxy:
-            proxy.timed_correct_error_task_status(abnormal_task_ids)
+        if len(abnormal_host_ids) != 0:
+            self._update_host_status(abnormal_host_ids)
+        if len(abnormal_task_ids) != 0:
+            with TimedProxy() as proxy:
+                proxy.timed_correct_error_task_status(abnormal_task_ids)
 
     @staticmethod
     def _abnormal_task(tasks):

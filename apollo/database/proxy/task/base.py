@@ -861,17 +861,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         raise EsOperationError("Delete task from elasticsearch failed due to internal error.")
 
-    def get_running_task_form_task_cve_host(self) -> list:
+    def get_running_task_form_hotpatch_remove_task(self) -> list:
         """
-        Get all CVE repair tasks with running status under Username
+        Get all hotpatch remove tasks with running status under Username
 
         Returns:
             list: task id list
         """
-        task_cve_query = (
-            self.session.query(HotpatchRemoveTask).filter(HotpatchRemoveTask.status == TaskStatus.RUNNING).all()
+        hotpatch_remove_query = (
+            self.session.query(HotpatchRemoveTask.task_id).filter(HotpatchRemoveTask.status == TaskStatus.RUNNING).all()
         )
-        task_id_list = [task.task_id for task in task_cve_query]
+        task_id_list = [task.task_id for task in hotpatch_remove_query]
         return task_id_list
 
     def get_running_task_form_task_host_repo(self) -> list:
@@ -882,11 +882,37 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             list: task id list
         """
         host_repo_query = (
-            self.session.query(TaskHostRepoAssociation)
+            self.session.query(TaskHostRepoAssociation.task_id)
             .filter(TaskHostRepoAssociation.status == TaskStatus.RUNNING)
             .all()
         )
         task_id_list = [task.task_id for task in host_repo_query]
+        return task_id_list
+
+    def get_running_task_form_cve_fix_task(self) -> list:
+        """
+        Get all CVE fix tasks with running status
+
+        Returns:
+            list: task id list
+        """
+        cve_fix_query = (
+            self.session.query(CveFixTask.task_id).filter(CveFixTask.status == TaskStatus.RUNNING).all()
+        )
+        task_id_list = [task.task_id for task in cve_fix_query]
+        return task_id_list
+
+    def get_running_task_form_cve_rollback_task(self) -> list:
+        """
+        Get all CVE rollback tasks with running status
+
+        Returns:
+            list: task id list
+        """
+        cve_rollback_query = (
+            self.session.query(CveRollbackTask.task_id).filter(CveRollbackTask.status == TaskStatus.RUNNING).all()
+        )
+        task_id_list = [task.task_id for task in cve_rollback_query]
         return task_id_list
 
     def get_scanning_status_and_time_from_host(self) -> list:
@@ -907,13 +933,17 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Returns:
             list: Each element is a task information, including the task ID, task type, creation time
         """
-        task_cve_id_list = self.get_running_task_form_task_cve_host()
-        task_repo_id_list = self.get_running_task_form_task_host_repo()
         host_info_list = self.get_scanning_status_and_time_from_host()
-        task_id_list = task_cve_id_list + task_repo_id_list
+
+        task_cve_id_list = self.get_running_task_form_hotpatch_remove_task()
+        task_repo_id_list = self.get_running_task_form_task_host_repo()
+        task_cve_fix_list = self.get_running_task_form_cve_fix_task()
+        task_cve_rollback_list = self.get_running_task_form_cve_rollback_task()
+
+        task_id_list = task_cve_id_list + task_repo_id_list + task_cve_fix_list + task_cve_rollback_list
 
         task_query = self.session.query(Task).filter(Task.task_id.in_(task_id_list)).all()
-        running_task_list = [(task.task_id, task.create_time) for task in task_query]
+        running_task_list = [(task.task_id, task.latest_execute_time) for task in task_query]
         return running_task_list, host_info_list
 
     def validate_cves(self, cve_id: list) -> bool:

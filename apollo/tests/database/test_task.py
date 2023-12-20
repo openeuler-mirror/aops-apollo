@@ -401,7 +401,7 @@ class TestTaskMysqlFirst(DatabaseTestCase):
 
     def test_get_running_task_form_task_cve_host(self):
         self.assertEqual(
-            self.task_database.get_running_task_form_task_cve_host(),
+            self.task_database.get_running_task_form_hotpatch_remove_task(),
             ["1111111111poiuytrewqasdfghjklmnb"],
         )
 
