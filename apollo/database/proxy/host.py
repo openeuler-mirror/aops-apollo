@@ -341,7 +341,8 @@ class HostMysqlProxy(MysqlProxy):
                         "repo": "20.03-update",
                         "affected_cve_num": 12,
                         "unaffected_cve_num": 1,
-                        "last_scan": 1111111111
+                        "last_scan": 1111111111,
+                        "reboot": true/false
                     }
                 }
         """
@@ -412,6 +413,7 @@ class HostMysqlProxy(MysqlProxy):
                 Host.host_group_name,
                 Host.repo_name,
                 Host.last_scan,
+                Host.reboot,
                 func.COUNT(func.IF(subquery.c.fixed == True, 1, None)).label("fixed_cve_num"),
                 func.COUNT(func.IF(and_(subquery.c.fixed == False, subquery.c.affected == True), 1, None)).label(
                     "affected_cve_num"
@@ -437,6 +439,7 @@ class HostMysqlProxy(MysqlProxy):
             "unaffected_cve_num": row.unaffected_cve_num,
             "last_scan": row.last_scan,
             "fixed_cve_num": row.fixed_cve_num,
+            "reboot": row.reboot,
         }
         return host_info
 
