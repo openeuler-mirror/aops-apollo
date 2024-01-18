@@ -722,7 +722,7 @@ class HostProxy(HostMysqlProxy, CveEsProxy):
             host_cve_info_list = self._quer_processed_host_cve_info(username)
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("update task_cve_host table status failed.")
+            LOGGER.error("Update task_cve_host table status failed.")
             return DATABASE_QUERY_ERROR, []
 
         return SUCCEED, host_cve_info_list
