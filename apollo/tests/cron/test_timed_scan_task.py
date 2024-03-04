@@ -41,29 +41,29 @@ class TestTimedScanTask(unittest.TestCase):
     def test_check_host_info_should_return_False_when_host_info_is_null(self):
         username = "admin"
         host_info = []
-        self.assertEqual(self.cve_scan._check_host_info(username, host_info), False)
+        self.assertFalse(self.cve_scan._check_host_info(username, host_info))
 
-    def test_check_host_info_should_return_False_when_host_status_is_scanning(self):
+    def test_check_host_info_should_return_false_when_host_status_is_scanning(self):
         username = "admin"
         host = dict()
         host["status"] = HostStatus.SCANNING
         host_info = [host]
-        self.assertEqual(self.cve_scan._check_host_info(username, host_info), False)
+        self.assertFalse(self.cve_scan._check_host_info(username, host_info))
 
-    def test_check_host_info_should_return_True_when_host_no_scanning(self):
+    def test_check_host_info_should_return_true_when_host_no_scanning(self):
         username = "admin"
         host = dict()
         host["status"] = HostStatus.ONLINE
         host_info = [host]
-        self.assertEqual(self.cve_scan._check_host_info(username, host_info), True)
+        self.assertTrue(self.cve_scan._check_host_info(username, host_info))
 
     @mock.patch.object(TaskMysqlProxy, "_create_session")
-    def test_task_enter_should_return_None_when_connect_error(self, mock_connect):
+    def test_task_enter_should_return_none_when_connect_error(self, mock_connect):
         mock_connect.side_effect = sqlalchemy.exc.SQLAlchemyError("Connection error")
         self.assertEqual(self.cve_scan.execute(), None)
 
     @mock.patch.object(TaskMysqlProxy, "get_total_host_info")
-    def test_task_enter_should_return_None_when_get_total_host_info_fail(self, mock_get_total_host_info):
+    def test_task_enter_should_return_none_when_get_total_host_info_fail(self, mock_get_total_host_info):
         mock_get_total_host_info.return_value = DATABASE_QUERY_ERROR, {"host_infos": {}}
         self.assertEqual(self.cve_scan.execute(), None)
 
@@ -71,7 +71,7 @@ class TestTimedScanTask(unittest.TestCase):
     @mock.patch.object(TimedScanTask, "_check_host_info")
     @mock.patch.object(ScanManager, "create_task")
     @mock.patch.object(ScanManager, "pre_handle")
-    def test_task_enter_should_return_None_when_pre_handle_fail(
+    def test_task_enter_should_return_none_when_pre_handle_fail(
         self, mock_pre_handle, mock_create_task, mock__check_host_info, mock_get_total_host_info
     ):
         mock_get_total_host_info.return_value = SUCCEED, {
@@ -89,7 +89,7 @@ class TestTimedScanTask(unittest.TestCase):
     @mock.patch.object(TimedScanTask, "_check_host_info")
     @mock.patch.object(ScanManager, "create_task")
     @mock.patch.object(ScanManager, "pre_handle")
-    def test_task_enter_should_return_None_when_task_enter_succeed(
+    def test_task_enter_should_return_none_when_task_enter_succeed(
         self, mock_pre_handle, mock_create_task, mock__check_host_info, mock_get_total_host_info, mock_fault_handle
     ):
         mock_get_total_host_info.return_value = SUCCEED, {

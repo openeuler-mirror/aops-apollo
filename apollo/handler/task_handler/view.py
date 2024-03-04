@@ -18,10 +18,8 @@ Description: Handle about task related operation
 import time
 import uuid
 from typing import Dict
-
 from flask import request
-from apollo.database.proxy.host import HostProxy
-from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
+
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
     REPEAT_TASK_EXECUTION,
@@ -32,6 +30,8 @@ from vulcanus.restful.resp.state import (
 )
 from vulcanus.restful.response import BaseResponse
 
+from apollo.database.proxy.host import HostProxy
+from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
 from apollo.conf.constant import HostStatus, TaskType
 from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
 from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
@@ -39,8 +39,33 @@ from apollo.database.proxy.task.cve_fix import CveFixTaskProxy
 from apollo.database.proxy.task.repo_set import RepoSetProxy
 from apollo.database.proxy.task.scan import ScanProxy
 from apollo.function.schema.host import ScanHostSchema
-from apollo.function.schema.task import *
-from apollo.function.schema.task import GetHotpatchRemoveTaskCveInfoSchema
+from apollo.function.schema.task import (
+    GetHotpatchRemoveTaskCveInfoSchema,
+    GetTaskListSchema,
+    GetTaskProgressSchema,
+    GetTaskInfoSchema,
+    GenerateCveTaskSchema,
+    GetCveFixTaskInfoSchema,
+    GetHotpatchRemoveTaskHostCveStatusSchema,
+    GetTaskResultSchema,
+    GenerateRepoTaskSchema,
+    GetRepoTaskInfoSchema,
+    GetRepoTaskResultSchema,
+    ExecuteTaskSchema,
+    DeleteTaskSchema,
+    CveFixCallbackSchema,
+    RepoSetCallbackSchema,
+    CveScanCallbackSchema,
+    CveRollbackCallbackSchema,
+    GenerateCveRollbackTaskSchema,
+    GetCveRollbackTaskInfoSchema,
+    GetCveRollbackTaskRpmInfoSchema,
+    GetCveRollbackTaskResultSchema,
+    GenerateHotpatchRemoveTaskSchema,
+    GetHotpatchRemoveTaskProgressSchema,
+    HotpatchRemoveCallbackSchema,
+    TaskCveRpmInfoSchema,
+)
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.handler.task_handler.callback.hotpatch_remove import HotpatchRemoveCallback
@@ -607,6 +632,7 @@ class VulExecuteTask(BaseResponse):
         task_type = proxy.get_task_type(args["task_id"], args["username"])
         if task_type is None or task_type not in self.type_map.keys():
             return PARAM_ERROR
+
         LOGGER.debug(task_type)
 
         if not proxy.check_task_status(args["task_id"], task_type):

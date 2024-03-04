@@ -32,26 +32,26 @@ class CveFixManagerTestCase(BaseTestCase):
         super().setUp()
         TASK_CACHE.queue = OrderedDict()
 
-    def test_create_task_should_return_SUCCEED_directly_when_task_is_in_cache(self):
+    def test_create_task_should_return_succeed_directly_when_task_is_in_cache(self):
         fake_task = Mock()
         TASK_CACHE.put("id1", fake_task)
         manager = CveFixManager(Mock(), "id1")
         self.assertEqual(manager.create_task(), SUCCEED)
         self.assertEqual(manager.task, fake_task)
 
-    def test_create_task_should_return_PARAM_ERROR_when_proxy_is_none(self):
+    def test_create_task_should_return_param_error_when_proxy_is_none(self):
         manager = CveFixManager(None, "id1")
         self.assertEqual(manager.create_task(), PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, 'get_cve_basic_info')
-    def test_create_task_should_return_no_SUCCEED_when_query_from_database_fail(self, mock_proxy):
+    def test_create_task_should_return_no_succeed_when_query_from_database_fail(self, mock_proxy):
         proxy = TaskProxy()
         manager = CveFixManager(proxy, "id1")
         mock_proxy.return_value = (SERVER_ERROR, Mock())
         self.assertEqual(manager.create_task(), SERVER_ERROR)
 
     @mock.patch.object(TaskProxy, 'get_cve_basic_info')
-    def test_create_task_should_return_SUCCEED_and_query_from_db_when_task_in_db(self, mock_proxy):
+    def test_create_task_should_return_succeed_and_query_from_db_when_task_in_db(self, mock_proxy):
         proxy = TaskProxy()
         manager = CveFixManager(proxy, "id1")
         fake_task = {"mock": Mock()}
@@ -61,20 +61,20 @@ class CveFixManagerTestCase(BaseTestCase):
         self.assertEqual(manager.task, fake_task)
 
     @mock.patch.object(TaskProxy, 'init_cve_task')
-    def test_pre_handle_should_return_False_when_init_task_fail(self, mock_init_status):
+    def test_pre_handle_should_return_false_when_init_task_fail(self, mock_init_status):
         proxy = TaskProxy()
         manager = CveFixManager(proxy, Mock())
         mock_init_status.return_value = Mock()
-        self.assertEqual(manager.pre_handle(), False)
+        self.assertFalse(manager.pre_handle())
 
     @mock.patch.object(TaskProxy, 'update_task_execute_time')
     @mock.patch.object(TaskProxy, 'init_cve_task')
-    def test_pre_handle_should_return_True_when_init_task_succeed(self, mock_init_status, mock_update_time):
+    def test_pre_handle_should_return_true_when_init_task_succeed(self, mock_init_status, mock_update_time):
         proxy = TaskProxy()
         manager = CveFixManager(proxy, Mock())
         mock_init_status.return_value = SUCCEED
         mock_update_time.return_value = SUCCEED
-        self.assertEqual(manager.pre_handle(), True)
+        self.assertTrue(manager.pre_handle())
 
     @mock.patch.object(BaseResponse, 'get_response')
     def test_handle_should_assign_result_with_empty_when_response_fail(self, mock_response):

@@ -21,6 +21,8 @@ from vulcanus.restful.resp.state import (
     NO_DATA,
     DATABASE_INSERT_ERROR,
 )
+
+from apollo.function.params import SecurityCvrfInfo
 from apollo.tests.database import DatabaseTestCase
 from apollo.database.proxy.cve import CveProxy
 
@@ -300,9 +302,9 @@ class TestCveProxy(DatabaseTestCase):
                 "description": "a long description",
             },
         ]
-
+        security_cvrf_info = SecurityCvrfInfo(cve_rows, cve_pkg_rows, cve_pkg_docs, None, None)
         self.assertEqual(
-            self.cve_database.save_security_advisory(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
+            self.cve_database.save_security_advisory(filename, security_cvrf_info),
             SUCCEED,
         )
 
@@ -315,8 +317,9 @@ class TestCveProxy(DatabaseTestCase):
                 "reboot": False,
             }
         ]
+        security_cvrf_info = SecurityCvrfInfo(cve_rows, cve_pkg_rows, cve_pkg_docs, None, None)
         self.assertEqual(
-            self.cve_database.save_security_advisory(filename, cve_rows, cve_pkg_rows, cve_pkg_docs),
+            self.cve_database.save_security_advisory(filename, security_cvrf_info),
             DATABASE_INSERT_ERROR,
         )
 

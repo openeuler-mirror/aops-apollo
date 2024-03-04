@@ -207,9 +207,9 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
+            security_cvrf_info = parse_security_advisory(file_path)
             os.remove(file_path)
-            if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
+            if not all([security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows, security_cvrf_info.cve_pkg_docs]):
                 return WRONG_FILE_FORMAT
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
@@ -217,7 +217,7 @@ class VulUploadAdvisory(BaseResponse):
             LOGGER.error(error)
             return WRONG_FILE_FORMAT
 
-        status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
+        status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
 
         return status_code
 
@@ -245,8 +245,9 @@ class VulUploadAdvisory(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
-                if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
+                security_cvrf_info = parse_security_advisory(file_path)
+                if not all([security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows,
+                            security_cvrf_info.cve_pkg_docs]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
@@ -260,9 +261,7 @@ class VulUploadAdvisory(BaseResponse):
                 LOGGER.error(error)
                 continue
             # elasticsearch need 1 second to update doc
-            status_code = proxy.save_security_advisory(
-                file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
-            )
+            status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
@@ -417,40 +416,54 @@ class VulExportExcel(BaseResponse):
     Restful interface for export cve to excel
     """
 
-    def _handle(self, proxy, args):
+    @staticmethod
+    def _handle(proxy, args):
         """
         Handle export csv
         Returns:
-            int: status code
+            dict: result. e.g.
+                {
+                    "status": status,
+                    "fileinfo": {
+                        "filename": filename,
+                        "filepath": "filepath"
+                        }
+                }
         """
 
         if not os.path.exists(CSV_SAVED_PATH):
             os.makedirs(CSV_SAVED_PATH)
-        self.filepath = os.path.join(CSV_SAVED_PATH, args["username"])
-        if os.path.exists(self.filepath):
-            shutil.rmtree(self.filepath)
-        os.mkdir(self.filepath)
+        filepath = os.path.join(CSV_SAVED_PATH, args["username"])
+        if os.path.exists(filepath):
+            shutil.rmtree(filepath)
+        os.mkdir(filepath)
 
         status, cve_body = proxy.query_host_name_and_related_cves(args["host_list"], args["username"])
+        result = {}
         if status != SUCCEED:
-            return status
+            result["status"] = status
+            return result
 
-        self.filename = "host_cve_info.csv"
+        filename = "host_cve_info.csv"
         csv_head = ["host_ip", "host_name", "cve_id", "installed_rpm", "available_rpm", "support_way", "fixed_way"]
 
-        export_csv(cve_body, os.path.join(self.filepath, self.filename), csv_head)
+        export_csv(cve_body, os.path.join(filepath, filename), csv_head)
 
-        if len(os.listdir(self.filepath)) == 0:
-            return NO_DATA
-        if len(os.listdir(self.filepath)) > FILE_NUMBER:
-            zip_filename, zip_save_path = compress_cve(self.filepath, "host.zip")
+        if len(os.listdir(filepath)) == 0:
+            result["status"] = NO_DATA
+            return result
+        if len(os.listdir(filepath)) > FILE_NUMBER:
+            zip_filename, zip_save_path = compress_cve(filepath, "host.zip")
             if zip_filename and zip_save_path:
-                self.filename = zip_filename
-                self.filepath = zip_save_path
-                return SUCCEED
+                filename = zip_filename
+                filepath = zip_save_path
             else:
-                return SERVER_ERROR
-        return SUCCEED
+                result["status"] = SERVER_ERROR
+                return result
+        result["status"] = SUCCEED
+        file_info = {"filename": filename, "filepath": filepath}
+        result["fileinfo"] = file_info
+        return result
 
     @BaseResponse.handle(proxy=CveProxy, schema=ExportCveExcelSchema)
     def post(self, callback: CveProxy, **params):
@@ -461,8 +474,10 @@ class VulExportExcel(BaseResponse):
             dict: response body
         """
         result = self._handle(callback, params)
-        if result == SUCCEED:
-            return make_download_response(os.path.join(self.filepath, self.filename), self.filename)
+        if result.get("status") == SUCCEED:
+            fileinfo = result.get("fileinfo")
+            return make_download_response(os.path.join(fileinfo.get("filepath"), fileinfo.get("filename")),
+                                          fileinfo.get("filename"))
         return self.response(code=result)
 
 

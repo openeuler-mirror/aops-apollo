@@ -71,16 +71,16 @@ def compress_cve(cve_dir_path: str, zip_filename: str):
     Returns:
         str,str: zip filename, zip file's folder path
     """
-    zip = zipfile.ZipFile(os.path.join(cve_dir_path, zip_filename), "w", zipfile.ZIP_DEFLATED)
+    zip_file = zipfile.ZipFile(os.path.join(cve_dir_path, zip_filename), "w", zipfile.ZIP_DEFLATED)
     try:
         for path, dirnames, filenames in os.walk(cve_dir_path):
             for filename in filenames:
                 suffix = filename.split('.')[-1]
                 if suffix != "zip":
-                    zip.write(os.path.join(path, filename), os.path.join(filename))
-        zip.close()
+                    zip_file.write(os.path.join(path, filename), os.path.join(filename))
+        zip_file.close()
         return zip_filename, cve_dir_path
     except zipfile.BadZipFile as error:
         LOGGER.error(error)
-        zip.close()
+        zip_file.close()
         return "", ""

@@ -58,13 +58,13 @@ class TestHostScanView(BaseTestCase):
         host_list = []
         actual_host_list = []
         res = interface._verify_param(host_list, actual_host_list)
-        self.assertEqual(res, False)
+        self.assertFalse(res)
 
         actual_host_list = [{"host_id": 1, "status": "aa"}]
         res = interface._verify_param(host_list, actual_host_list)
-        self.assertEqual(res, True)
+        self.assertTrue(res)
 
         host_list = [1, 2]
         actual_host_list = [{"host_id": 2, "status": "b"}]
         res = interface._verify_param(host_list, actual_host_list)
-        self.assertEqual(res, False)
+        self.assertFalse(res)

@@ -42,13 +42,13 @@ class TestDownloadSecurityManage(BaseTestCase):
         self.download_sa_task = TimedDownloadSATask(timed_config=self.timed_config)
 
     @mock.patch.object(CveProxy, "_create_session")
-    def test_task_enter_should_return_None_when_database_connect_fail(self, mock_connect):
+    def test_task_enter_should_return_none_when_database_connect_fail(self, mock_connect):
         mock_connect.side_effect = sqlalchemy.exc.SQLAlchemyError("Connection error")
         self.assertEqual(self.download_sa_task.execute(), None)
 
     @mock.patch.object(CveProxy, "save_advisory_download_record")
     @mock.patch.object(os, "listdir")
-    def test_save_security_advisory_to_database_should_return_None_when_dir_is_None(
+    def test_save_security_advisory_to_database_should_return_none_when_dir_is_none(
         self, mock_listdir, mock_save_advisory_download_record
     ):
         proxy = CveProxy()
@@ -62,7 +62,7 @@ class TestDownloadSecurityManage(BaseTestCase):
     @mock.patch.object(re, "findall")
     @mock.patch("apollo.cron.download_sa_manager.parse_security_advisory")
     @mock.patch.object(CveProxy, "save_security_advisory")
-    def test_save_security_advisory_to_database_should_return_None_when_parse_security_advisory_fail(
+    def test_save_security_advisory_to_database_should_return_none_when_parse_security_advisory_fail(
         self,
         mock_save_security_advisory,
         mock_parse_security_advisory,
@@ -94,7 +94,7 @@ class TestDownloadSecurityManage(BaseTestCase):
     @mock.patch.object(re, "findall")
     @mock.patch("apollo.cron.download_sa_manager.parse_security_advisory")
     @mock.patch.object(CveProxy, "save_security_advisory")
-    def test_save_security_advisory_to_database_should_return_None_when_parse_security_advisory_ok(
+    def test_save_security_advisory_to_database_should_return_none_when_parse_security_advisory_ok(
         self,
         mock_save_security_advisory,
         mock_parse_security_advisory,
@@ -131,7 +131,7 @@ class TestDownloadSecurityManage(BaseTestCase):
         )
 
     @mock.patch.object(requests, "get")
-    def test_get_response_should_return_None_when_request_fail(self, mock_get):
+    def test_get_response_should_return_none_when_request_fail(self, mock_get):
         mock_get.side_effect = requests.exceptions.RequestException
         url = "http://www.baidu.com/3434"
         self.assertRaises(retrying.RetryError, TimedDownloadSATask.get_response, url)

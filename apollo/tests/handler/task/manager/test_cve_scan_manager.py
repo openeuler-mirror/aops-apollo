@@ -27,7 +27,7 @@ from apollo.tests import BaseTestCase
 
 class CveScanManagerTestCase(BaseTestCase):
     @mock.patch.object(TaskProxy, 'query_host_cve_info')
-    def test_create_task_should_return_SUCCEED_when_query_from_database_success(self, mock_proxy):
+    def test_create_task_should_return_succeed_when_query_from_database_success(self, mock_proxy):
         host_info = [{"host_id": 1, "host_ip": "127.0.0.1", "host_name": "host_name1", "status": "0"}]
         proxy = TaskProxy()
         manager = ScanManager("id1", proxy, host_info, "admin")
@@ -35,20 +35,20 @@ class CveScanManagerTestCase(BaseTestCase):
         self.assertEqual(manager.create_task(), SUCCEED)
 
     @mock.patch.object(TaskProxy, 'update_host_scan_status')
-    def test_pre_handle_should_return_False_when_update_host_scan_fail(self, mock_update_host_scan):
+    def test_pre_handle_should_return_false_when_update_host_scan_fail(self, mock_update_host_scan):
         proxy = TaskProxy()
         host_info = [{"host_id": 1, "host_ip": "127.0.0.1", "host_name": "host_name1", "status": "0"}]
         manager = ScanManager("id1", proxy, host_info, "admin")
         mock_update_host_scan.return_value = DATABASE_UPDATE_ERROR
-        self.assertEqual(manager.pre_handle(), False)
+        self.assertFalse(manager.pre_handle())
 
     @mock.patch.object(TaskProxy, 'update_host_scan_status')
-    def test_pre_handle_should_return_True_when_update_host_scan_succeed(self, mock_update_host_scan):
+    def test_pre_handle_should_return_true_when_update_host_scan_succeed(self, mock_update_host_scan):
         proxy = TaskProxy()
         host_info = [{"host_id": 1, "host_ip": "127.0.0.1", "host_name": "host_name1", "status": "0"}]
         manager = ScanManager("id1", proxy, host_info, "admin")
         mock_update_host_scan.return_value = SUCCEED
-        self.assertEqual(manager.pre_handle(), True)
+        self.assertTrue(manager.pre_handle())
 
     @mock.patch.object(BaseResponse, 'get_response')
     def test_handle_should_assign_result_with_empty_when_response_fail(self, mock_response):

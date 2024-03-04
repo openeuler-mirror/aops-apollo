@@ -49,6 +49,7 @@ from apollo.database.table import (
     User,
 )
 from apollo.function.customize_exception import EsOperationError
+from apollo.function.params import SplitTask
 
 
 class TaskMysqlProxy(MysqlProxy):
@@ -273,13 +274,13 @@ class TaskMysqlProxy(MysqlProxy):
         """
         task_list = data["task_list"]
         username = data["username"]
-        repo_task, cve_task, cve_rollback_task, hp_remove_task = self._split_task_list(username, task_list)
+        split_task = self._split_task_list(username, task_list)
 
         result = {}
-        result.update(self._get_repo_task_progress(repo_task))
-        result.update(self._get_cve_series_task_progress(cve_task, TaskType.CVE_FIX))
-        result.update(self._get_cve_series_task_progress(cve_rollback_task, TaskType.CVE_ROLLBACK))
-        result.update(self._get_cve_series_task_progress(hp_remove_task, TaskType.HOTPATCH_REMOVE))
+        result.update(self._get_repo_task_progress(split_task.repo_task))
+        result.update(self._get_cve_series_task_progress(split_task.cve_task, TaskType.CVE_FIX))
+        result.update(self._get_cve_series_task_progress(split_task.cve_rollback_task, TaskType.CVE_ROLLBACK))
+        result.update(self._get_cve_series_task_progress(split_task.hp_remove_task, TaskType.HOTPATCH_REMOVE))
 
         succeed_list = list(result.keys())
         fail_list = list(set(task_list) - set(succeed_list))
@@ -290,7 +291,7 @@ class TaskMysqlProxy(MysqlProxy):
         status_code = judge_return_code(status_dict, NO_DATA)
         return status_code, {"result": result}
 
-    def _split_task_list(self, username: str, task_list: list) -> Tuple[list, list, list, list]:
+    def _split_task_list(self, username: str, task_list: list) -> SplitTask:
         """
         split task list based on task's type
         Args:
@@ -298,10 +299,12 @@ class TaskMysqlProxy(MysqlProxy):
             task_list (list): task id list
 
         Returns:
-            list: repo task list
-            list: cve task list
-            liST: cve rollback task list
-            list: hotpatch remove task list
+            SplitTask: {
+                list: repo task list
+                list: cve task list
+                liST: cve rollback task list
+                list: hotpatch remove task list
+            }
         """
         repo_task = []
         cve_task = []
@@ -322,7 +325,8 @@ class TaskMysqlProxy(MysqlProxy):
                 cve_rollback_task.append(row.task_id)
             elif row.task_type == TaskType.HOTPATCH_REMOVE:
                 hp_remove_task.append(row.task_id)
-        return repo_task, cve_task, cve_rollback_task, hp_remove_task
+        result = SplitTask(repo_task, cve_task, cve_rollback_task, hp_remove_task)
+        return result
 
     @staticmethod
     def _get_status_result():

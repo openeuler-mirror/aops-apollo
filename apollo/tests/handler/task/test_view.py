@@ -169,12 +169,12 @@ class VulGenerteCveTaskTestCase(BaseTestCase):
 class VulExecuteTaskTestCase(unittest.TestCase):
     def test_handle_should_return_error_when_request_method_is_wrong(self):
         args = {}
-        response = client.get(VUL_TASk_EXECUTE, json=args).json
+        response = client.get(VUL_TASK_EXECUTE, json=args).json
         self.assertEqual(response.get("message"), 'The method is not allowed for the requested URL.')
 
     def test_handle_should_return_param_error_when_input_wrong_param(self):
         args = {"task_id": 2}
-        response = client.post(VUL_TASk_EXECUTE, json=args, headers=header_with_token).json
+        response = client.post(VUL_TASK_EXECUTE, json=args, headers=header_with_token).json
         self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, '_create_session')
@@ -182,7 +182,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
     def test_handle_should_return_connect_error_when_database_error(self, mock_verify_request, mock_connect):
         mock_verify_request.return_value = {}, SUCCEED
         mock_connect.side_effect = DatabaseConnectionFailed
-        response = client.post(VUL_TASk_EXECUTE, json={}, headers=header_with_token).json
+        response = client.post(VUL_TASK_EXECUTE, json={}, headers=header_with_token).json
         self.assertEqual(response['label'], DATABASE_CONNECT_ERROR)
 
     @mock.patch.object(TaskProxy, 'get_task_type')
@@ -196,7 +196,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
         mock_verify_request.return_value = {"task_id": fake_task_id, "username": fake_username}, SUCCEED
         mock_connect.return_value = True
         mock_get_task_type.return_value = Mock()
-        response = client.post(VUL_TASk_EXECUTE, json={}, headers=header_with_token).json
+        response = client.post(VUL_TASK_EXECUTE, json={}, headers=header_with_token).json
         self.assertEqual(response['label'], PARAM_ERROR)
 
     @mock.patch.object(TaskProxy, 'check_task_status')
@@ -212,7 +212,7 @@ class VulExecuteTaskTestCase(unittest.TestCase):
         mock_connect.return_value = True
         mock_get_task_type.return_value = "cve fix"
         mock_check_task_status.return_value = False
-        response = client.post(VUL_TASk_EXECUTE, json={}, headers=header_with_token).json
+        response = client.post(VUL_TASK_EXECUTE, json={}, headers=header_with_token).json
         self.assertEqual(response['label'], REPEAT_TASK_EXECUTION)
 
     @mock.patch.object(CveFixManager, 'create_task')
