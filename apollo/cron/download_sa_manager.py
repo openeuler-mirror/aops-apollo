@@ -119,14 +119,16 @@ class TimedDownloadSATask(TimedTask):
             file_path = os.path.join(advisory_dir, file_name)
             advisory_year, advisory_serial_number = re.findall("\d+", file_name)
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs, _, _ = parse_security_advisory(file_path)
+                security_cvrf_info = parse_security_advisory(file_path)
+                security_cvrf_info.sa_year = None
+                security_cvrf_info.sa_number = None
             except (KeyError, ParseAdvisoryError) as error:
                 LOGGER.error(error)
                 LOGGER.error("Some error occurred when parse advisory '%s'." % file_name)
                 self._record_download_result(advisory_year, advisory_serial_number, False)
                 continue
 
-            save_status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
+            save_status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
             status = True if save_status_code == SUCCEED else False
             self._record_download_result(advisory_year, advisory_serial_number, status)
 

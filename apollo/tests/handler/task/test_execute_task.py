@@ -28,7 +28,7 @@ from vulcanus.restful.resp.state import (
 from vulcanus.restful.response import BaseResponse
 from vulcanus.restful.resp import make_response
 
-from apollo.conf.constant import VUL_TASk_EXECUTE
+from apollo.conf.constant import VUL_TASK_EXECUTE
 from apollo.database.proxy.task.base import TaskProxy
 from apollo.handler.task_handler.view import VulExecuteTask
 from apollo.tests import BaseTestCase
@@ -47,13 +47,13 @@ class TestExecuteTaskView(BaseTestCase):
         mock_verify_token.return_value = SUCCEED
         mock_handle.return_value = SUCCEED
         args = {"task_id": "a"}
-        response = self.client.post(VUL_TASk_EXECUTE, json=args, headers=self.headers)
+        response = self.client.post(VUL_TASK_EXECUTE, json=args, headers=self.headers)
         res = response.json
         expected_res = make_response(SUCCEED)
         self.assertDictEqual(res, expected_res)
 
         args = {"task": "a"}
-        response = self.client.post(VUL_TASk_EXECUTE, json=args, headers=self.headers)
+        response = self.client.post(VUL_TASK_EXECUTE, json=args, headers=self.headers)
         res = response.json
         expected_res = make_response(PARAM_ERROR)
         self.assertDictEqual(res, expected_res)
@@ -68,14 +68,14 @@ class TestExecuteTaskView(BaseTestCase):
         interface = VulExecuteTask()
         mcok_verify_request.return_value = {"task_id": 1, "username": "mock_user"}, SUCCEED
         mock_connect.side_effect = DatabaseConnectionFailed
-        response = self.client.post(VUL_TASk_EXECUTE, json={"task_id": "1"}, headers=self.headers).json
+        response = self.client.post(VUL_TASK_EXECUTE, json={"task_id": "1"}, headers=self.headers).json
         self.assertEqual(response.get("label"), DATABASE_CONNECT_ERROR)
 
         # test check task type fail
         mcok_verify_request.return_value = {"task_id": 1, "username": "mock_user"}, SUCCEED
         mock_connect.side_effect = None
         mock_get_task_type.return_value = 'a'
-        response = self.client.post(VUL_TASk_EXECUTE, json={"task_id": "1"}, headers=self.headers).json
+        response = self.client.post(VUL_TASK_EXECUTE, json={"task_id": "1"}, headers=self.headers).json
         self.assertEqual(response.get("label"), PARAM_ERROR)
 
         # test task running repeatedly
@@ -83,11 +83,11 @@ class TestExecuteTaskView(BaseTestCase):
         mock_get_task_type.return_value = 'repo set'
         mock_check_status.return_value = False
         args = {"task_id": "1"}
-        response = self.client.post(VUL_TASk_EXECUTE, json=args, headers=self.headers).json
+        response = self.client.post(VUL_TASK_EXECUTE, json=args, headers=self.headers).json
         self.assertEqual(response.get("label"), REPEAT_TASK_EXECUTION, response)
 
         # # test succeed
         mock_check_status.return_value = True
         mock_handle_repo.return_value = SUCCEED
-        response = self.client.post(VUL_TASk_EXECUTE, json=args, headers=self.headers).json
+        response = self.client.post(VUL_TASK_EXECUTE, json=args, headers=self.headers).json
         self.assertEqual(response.get("label"), SUCCEED, response)

@@ -30,6 +30,7 @@ from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ER
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import Cve, CveHostAssociation, CveAffectedPkgs, AdvisoryDownloadRecord, Host
 from apollo.function.customize_exception import EsOperationError
+from apollo.function.params import SecurityCvrfInfo
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -1026,22 +1027,23 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.error("Delete advisory download failed record error.")
             self.session.rollback()
 
-    def save_security_advisory(self, file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year=None, sa_number=None):
+    def save_security_advisory(self, file_name, security_cvrf_info):
         """
         save security advisory to mysql and es
         Args:
             file_name (str): security advisory's name
-            cve_rows (list): list of dict to insert to mysql Cve table
-            cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
-            cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
-            sa_year(str): security advisory year
-            sa_number(str): security advisory order number
-
+            security_cvrf_info (SecurityCvrfInfo): {
+                cve_rows (list): list of dict to insert to mysql Cve table
+                cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
+                cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
+                sa_year(str): security advisory year
+                sa_number(str): security advisory order number
+            }
         Returns:
             int: status code
         """
         try:
-            self._save_security_advisory(cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
+            self._save_security_advisory(security_cvrf_info)
             self.session.commit()
             LOGGER.debug("Finished saving security advisory '%s'." % file_name)
             return SUCCEED
@@ -1051,27 +1053,30 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.error("Saving security advisory '%s' failed due to internal error." % file_name)
             return DATABASE_INSERT_ERROR
 
-    def _save_security_advisory(self, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year=None, sa_number=None):
+    def _save_security_advisory(self, security_cvrf_info):
         """
         save data into mysql and es
 
         Args:
-            cve_rows (list): list of dict to insert to mysql Cve table
-            cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
-            cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
-            sa_year(str): security advisory year
-            sa_number(str): security advisory order number
+            security_cvrf_info (SecurityCvrfInfo): {
+                cve_rows (list): list of dict to insert to mysql Cve table
+                cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
+                cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
+                sa_year(str): security advisory year
+                sa_number(str): security advisory order number
+            }
+
 
         Raises:
             SQLAlchemyError, ElasticsearchException, EsOperationError
         """
-        cve_list = [row_dict["cve_id"] for row_dict in cve_rows]
+        cve_list = [row_dict["cve_id"] for row_dict in security_cvrf_info.cve_rows]
         cve_query = self.session.query(Cve.cve_id).filter(Cve.cve_id.in_(cve_list))
         update_cve_set = {row.cve_id for row in cve_query}
 
         update_cve_rows = []
         insert_cve_rows = []
-        for row in cve_rows:
+        for row in security_cvrf_info.cve_rows:
             if row["cve_id"] in update_cve_set:
                 update_cve_rows.append(row)
             else:
@@ -1086,11 +1091,12 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         self.session.commit()
         try:
             self.session.bulk_update_mappings(Cve, update_cve_rows)
-            self._insert_cve_pkg_rows(cve_pkg_rows)
-            self._save_cve_docs(cve_pkg_docs)
-            if all([sa_year, sa_number]):
+            self._insert_cve_pkg_rows(security_cvrf_info.cve_pkg_rows)
+            self._save_cve_docs(security_cvrf_info.cve_pkg_docs)
+            if all([security_cvrf_info.sa_year, security_cvrf_info.sa_number]):
                 self.save_advisory_download_record(
-                    [{"advisory_year": sa_year, "advisory_serial_number": sa_number, "download_status": True}]
+                    [{"advisory_year": security_cvrf_info.sa_year,
+                      "advisory_serial_number": security_cvrf_info.sa_number, "download_status": True}]
                 )
         except (SQLAlchemyError, ElasticsearchException, EsOperationError):
             self.session.rollback()

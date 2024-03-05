@@ -18,12 +18,12 @@ Description:
 import unittest
 from unittest import mock
 
-from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
-
 from vulcanus.restful.resp import make_response
 from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR
 from vulcanus.restful.response import BaseResponse
+from vulcanus.manage import init_application
 
+from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
 from apollo.conf.constant import (
     VUL_TASK_CVE_FIX_INFO_GET,
     VUL_TASK_CVE_FIX_RESULT_GET,
@@ -34,7 +34,6 @@ from apollo.conf.constant import (
     VUL_TASK_REPO_INFO_GET,
     VUL_TASK_REPO_RESULT_GET,
 )
-from vulcanus.manage import init_application
 from apollo.conf import configuration
 from apollo.url import URLS
 

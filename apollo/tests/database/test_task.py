@@ -677,13 +677,13 @@ class TestTaskMysqlSecond(DatabaseTestCase):
 
     def test_check_task_status(self):
         result = self.task_database.check_task_status("1111111111poiuytrewqasdfghjklmnb", "cve fix")
-        self.assertEqual(result, False)
+        self.assertFalse(result)
 
         result = self.task_database.check_task_status("2222222222poiuytrewqasdfghjklmnb", "cve fix")
-        self.assertEqual(result, True)
+        self.assertTrue(result)
 
         result = self.task_database.check_task_status("aaaaaaaaaapoiuytrewqasdfghjklmnb", "repo set")
-        self.assertEqual(result, False)
+        self.assertFalse(result)
 
 
 class TestTaskEsProxy(DatabaseTestCase):

@@ -37,14 +37,14 @@ class TestRepoManager(BaseTestCase):
         with mock.patch.object(TaskProxy, 'set_repo_status') as mock_init_status:
             mock_init_status.return_value = 1
             res = self.manager.pre_handle()
-            self.assertEqual(res, False)
+            self.assertFalse(res)
 
         with mock.patch.object(TaskProxy, 'set_repo_status') as mock_init_status:
             mock_init_status.return_value = SUCCEED
             with mock.patch.object(TaskProxy, 'update_task_execute_time') as mock_update:
                 mock_update.return_value = SUCCEED
                 res = self.manager.pre_handle()
-                self.assertEqual(res, True)
+                self.assertTrue(res)
 
     def test_handle_call_agent_api_should_success_when_call_agent_is_right(self):
         with mock.patch.object(BaseResponse, 'get_response') as mock_agent:

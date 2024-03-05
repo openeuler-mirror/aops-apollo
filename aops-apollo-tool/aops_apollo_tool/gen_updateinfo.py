@@ -32,7 +32,7 @@ CONF = configparser.ConfigParser()
 CONF.read(filenames=UPDATEINFO_FILE)
 
 
-def parse_updateinfo_xml_file_to_ET(input_updateinfo_xml_path: str) -> ET:
+def parse_updateinfo_xml_file_to_elementtree(input_updateinfo_xml_path: str) -> ET:
     """
     Parse the updateinfo.xml as ElementTree.
 
@@ -175,17 +175,17 @@ def generate_references(reference_type: str, reference_id: list, reference_href:
     """
 
     references = Element('references')
-    reference_info = {id: dict() for id in reference_id}
+    reference_info = {ref_id: dict() for ref_id in reference_id}
     if reference_href:
-        for id, href in zip(reference_id, reference_href):
-            reference_info[id]['href'] = href
+        for ref_id, href in zip(reference_id, reference_href):
+            reference_info[ref_id]['href'] = href
 
-    for id in reference_id:
+    for ref_id in reference_id:
         reference = Element('reference')
-        if 'href' in reference_info[id].keys():
-            reference.attrib['href'] = reference_info[id]['href']
-        reference.attrib['id'] = id
-        reference.attrib['title'] = id
+        if 'href' in reference_info[ref_id].keys():
+            reference.attrib['href'] = reference_info[ref_id]['href']
+        reference.attrib['id'] = ref_id
+        reference.attrib['title'] = ref_id
         reference.attrib['type'] = reference_type
         references.append(reference)
 
@@ -271,7 +271,7 @@ def gene_advisory_and_add_in_updateinfo_xml(args) -> None:
     update = generate_advisory(args)
 
     if args.input_path:
-        tree = parse_updateinfo_xml_file_to_ET(input_updateinfo_xml_path)
+        tree = parse_updateinfo_xml_file_to_elementtree(input_updateinfo_xml_path)
         root = tree.getroot()
         check_uniqueness_of_advisory_id(root, args.id)
     else:

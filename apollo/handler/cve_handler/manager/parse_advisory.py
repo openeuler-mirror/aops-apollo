@@ -22,6 +22,7 @@ from xml.etree.ElementTree import ParseError
 from vulcanus.log.log import LOGGER
 
 from apollo.function.customize_exception import ParseAdvisoryError
+from apollo.function.params import SecurityCvrfInfo
 from apollo.handler.cve_handler.manager.srcpackage_whitelist import SRC_PACKAGES_WHITE_LIST
 
 __all__ = ["parse_security_advisory"]
@@ -34,10 +35,13 @@ def parse_security_advisory(xml_path):
         xml_path (str): cvrf xml file's path
 
     Returns:
-        list: list of dict, each dict is a row for mysql Cve table
-        list: list of dict, each dict is a row for mysql CveAffectedPkgs table
-        list: list of dict, each dict is a document for es cve package index
-
+        SecurityCvrfInfo: {
+            list: list of dict, each dict is a row for mysql Cve table
+            list: list of dict, each dict is a row for mysql CveAffectedPkgs table
+            list: list of dict, each dict is a document for es cve package index
+            str: sa year
+            str: sa number
+        }
     Raises:
         KeyError, ParseXmlError, IsADirectoryError
     """
@@ -50,8 +54,8 @@ def parse_security_advisory(xml_path):
 
     root = tree.getroot()
     xml_dict = etree_to_dict(root)
-    cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_cvrf_dict(xml_dict)
-    return cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
+    security_cvrf_info = parse_cvrf_dict(xml_dict)
+    return security_cvrf_info
 
 
 def etree_to_dict(node):
@@ -93,11 +97,13 @@ def parse_cvrf_dict(cvrf_dict):
         cvrf_dict (dict): cvrf(Common Vulnerability Reporting Framework) info dict
 
     Returns:
-        list: list of dict, each dict is a row for mysql Cve table
-        list: list of dict, each dict is a row for mysql CveAffectedPkgs table
-        list: list of dict, each dict is a document for es cve package index
-        str: sa year
-        str: sa number
+        security_cvrf_info (security_cvrf_info): {
+            list: list of dict, each dict is a row for mysql Cve table
+            list: list of dict, each dict is a row for mysql CveAffectedPkgs table
+            list: list of dict, each dict is a document for es cve package index
+            str: sa year
+            str: sa number
+        }
 
     Raises:
         ParseXmlError
@@ -106,7 +112,8 @@ def parse_cvrf_dict(cvrf_dict):
     cve_document_notes = cvrf_dict["cvrfdoc"].get("DocumentNotes", "")
     cve_document_tracking = cvrf_dict["cvrfdoc"].get("DocumentTracking", "")
     if not all([cve_document_notes, cve_document_tracking]):
-        return [], [], [], "", ""
+        security_cvrf_info = SecurityCvrfInfo([], [], [], "", "")
+        return security_cvrf_info
 
     cve_info_list = cvrf_dict["cvrfdoc"]["Vulnerability"]
     cvrf_sa = cve_document_tracking["Identification"]["ID"]
@@ -135,7 +142,8 @@ def parse_cvrf_dict(cvrf_dict):
     except (KeyError, TypeError, ParseAdvisoryError) as error:
         LOGGER.error(error)
         raise ParseAdvisoryError("Some error happened when parsing the advisory xml.")
-    return cve_table_rows, cve_pkg_rows, es_cve_pkg_docs, sa_year, sa_number
+    security_cvrf_info = SecurityCvrfInfo(cve_table_rows, cve_pkg_rows, es_cve_pkg_docs, sa_year, sa_number)
+    return security_cvrf_info
 
 
 def parse_cve_info(cve_info_list, srcpackage_list, package_info_list):

@@ -33,7 +33,7 @@ class CveRollbackManagerTestCase(BaseTestCase):
         """
         with mock.patch.object(TaskProxy, 'init_cve_rollback_task') as mock_init_status:
             mock_init_status.return_value = DATABASE_UPDATE_ERROR
-            self.assertEqual(self.manager.pre_handle(), False)
+            self.assertFalse(self.manager.pre_handle())
 
     @mock.patch.object(TaskProxy, "update_task_execute_time")
     @mock.patch.object(TaskProxy, "init_cve_rollback_task")
@@ -45,7 +45,7 @@ class CveRollbackManagerTestCase(BaseTestCase):
         """
         mock_init_cve_task.return_value = SUCCEED
         mock_update_task_execute_time.return_value = SUCCEED
-        self.assertEqual(self.manager.pre_handle(), True)
+        self.assertTrue(self.manager.pre_handle())
 
     @mock.patch.object(BaseResponse, "get_response")
     def test_handle_should_success_when_request_task_execute_exists_response_data(self, mock_get_response):
