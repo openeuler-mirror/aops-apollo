@@ -67,6 +67,10 @@ class RepoManager(Manager):
         Returns:
             bool
         """
+        if self.proxy.delete_task_log(self.task_id) != SUCCEED:
+            LOGGER.error("Delete the task log for repo set task %s failed.", self.task_id)
+            return False
+
         if self.proxy.set_repo_status(self.task_id, [], RepoStatus.RUNNING) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop repo setting task %s.", self.task_id)
             return False
@@ -88,5 +92,6 @@ class RepoManager(Manager):
 
         if response.get('label') != SUCCEED:
             LOGGER.error("Set repo task %s execute failed.", self.task_id)
+            self.proxy.set_repo_status(self.task_id, [], RepoStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
         return SUCCEED

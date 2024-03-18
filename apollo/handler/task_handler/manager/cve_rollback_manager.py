@@ -64,6 +64,10 @@ class CveRollbackManager(Manager):
         Returns:
             bool: succeed or fail
         """
+        if self.proxy.delete_task_log(self.task_id) != SUCCEED:
+            LOGGER.error("Delete task log for cve rollback task %s failed.", self.task_id)
+            return False
+
         if self.proxy.update_cve_rollback_task_status(self.task_id, TaskStatus.RUNNING) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop cve rollback task %s.", self.task_id)
             return False

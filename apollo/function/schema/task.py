@@ -248,8 +248,9 @@ class CveFixResultCallbackSchema(Schema):
 class CallbackSchma(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    host_ip = fields.String(required=True, validate=ValidateRules.ipv4_address_check)
-    host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
+    # After the host is deleted during task execution, the ip and name are empty
+    host_ip = fields.String(required=False, missing=None, validate=ValidateRules.ipv4_address_check)
+    host_name = fields.String(required=False, missing=None, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     execution_time = fields.Integer(required=True)
 
@@ -270,8 +271,8 @@ class CheckItemsSchema(Schema):
 class RepoSetCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     host_id = fields.Integer(required=True, validate=lambda s: s > 0)
-    host_ip = fields.String(required=True, validate=ValidateRules.ipv4_address_check)
-    host_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
+    host_ip = fields.String(required=False, missing=None, validate=ValidateRules.ipv4_address_check)
+    host_name = fields.String(required=False, missing=None, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     execution_time = fields.Integer(required=True)
     repo = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
@@ -324,6 +325,7 @@ class CveRollbackTaskInfoFilterSchema(Schema):
     """
     filter schema of cve rollback task info getting interface
     """
+
     # search_key could be host name or host ip
     search_key = fields.String(required=False, validate=lambda s: 0 < len(s) <= 50)
     status = fields.List(fields.String(validate=validate.OneOf(TaskStatus.attribute())), required=False)
@@ -333,6 +335,7 @@ class GetCveRollbackTaskInfoSchema(PaginationSchema):
     """
     validators for parameter of /vulnerability/task/cve-rollback/info/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
     filter = fields.Nested(CveRollbackTaskInfoFilterSchema, required=False)
 
@@ -351,6 +354,7 @@ class GetCveRollbackTaskResultSchema(Schema):
     """
     validators for parameter of /vulnerability/task/cve-rollback/result/get
     """
+
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 
