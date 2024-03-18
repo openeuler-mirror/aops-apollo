@@ -64,6 +64,10 @@ class CveFixManager(Manager):
         Returns:
             bool: succeed or fail
         """
+        if self.proxy.delete_task_log(self.task_id) != SUCCEED:
+            LOGGER.error("Delete task log for cve fix task %s failed.", self.task_id)
+            return False
+
         if self.proxy.init_cve_fix_task(self.task_id) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop cve fixing task %s.", self.task_id)
             return False

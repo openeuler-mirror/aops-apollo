@@ -48,6 +48,10 @@ class HotpatchRemoveManager(Manager):
         Returns:
             bool: succeed or fail
         """
+        if self.proxy.delete_task_log(self.task_id) != SUCCEED:
+            LOGGER.error("Delete task log for hotpatch remove task %s failed.", self.task_id)
+            return False
+
         if self.proxy.init_hotpatch_remove_task(self.task_id, []) != SUCCEED:
             LOGGER.error("Init the host status in database failed, stop hotpatch remove task %s.", self.task_id)
             return False

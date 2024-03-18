@@ -714,7 +714,7 @@ class TaskEsProxy(ElasticsearchProxy):
         operation_code, res = self.query(TASK_INDEX, query_body, source)
         return operation_code, res
 
-    def get_task_log_info(self, task_id, host_id=None, username=None) -> Tuple[int, list]:
+    def get_task_log_info(self, task_id, host_id=None, username=None) -> Tuple[str, list]:
         """
         Get task's info (log) from es
 
@@ -741,6 +741,28 @@ class TaskEsProxy(ElasticsearchProxy):
 
         LOGGER.debug("Querying task log succeed.")
         return SUCCEED, task_infos
+
+    def delete_task_log(self, task_id, host_id=None) -> str:
+        """
+        Delete task log
+
+        Args:
+            task_id (str): task id
+            host_id (int): host id
+
+        Returns:
+            str: delete log result
+        """
+        body = self._general_body()
+        body["query"]["bool"]["must"].append({"term": {"task_id": task_id}})
+        if host_id:
+            document_id = hash_value(str(task_id) + "_" + str(host_id))
+            body = {"query": {"term": {"_id": document_id}}}
+        delete_result = TaskEsProxy.delete(self, TASK_INDEX, body)
+        if not delete_result:
+            LOGGER.error(f"Deleting task log failed, task id: {task_id}.")
+            return DATABASE_DELETE_ERROR
+        return SUCCEED
 
 
 class TaskProxy(TaskMysqlProxy, TaskEsProxy):
@@ -900,9 +922,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Returns:
             list: task id list
         """
-        cve_fix_query = (
-            self.session.query(CveFixTask.task_id).filter(CveFixTask.status == TaskStatus.RUNNING).all()
-        )
+        cve_fix_query = self.session.query(CveFixTask.task_id).filter(CveFixTask.status == TaskStatus.RUNNING).all()
         task_id_list = [task.task_id for task in cve_fix_query]
         return task_id_list
 
@@ -1005,9 +1025,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Returns:
             sqlalchemy.orm.Query
         """
-        task_query = self.session.query(
-            Task
-        ).filter(Task.task_id == task_id)
+        task_query = self.session.query(Task).filter(Task.task_id == task_id)
         return task_query
 
     def get_task_hosts(self, task_id) -> tuple:
