@@ -28,10 +28,9 @@ from vulcanus.restful.resp.state import (
     DATABASE_UPDATE_ERROR,
     DATA_EXIST,
     SUCCEED,
-    DATA_DEPENDENCY_ERROR,
 )
 
-from apollo.database.table import Repo, Host
+from apollo.database.table import Repo
 
 
 class RepoProxy(MysqlProxy):
@@ -76,9 +75,8 @@ class RepoProxy(MysqlProxy):
 
         """
         repo_name = data["repo_name"]
-        username = data["username"]
 
-        if self._if_repo_name_exists(repo_name, username):
+        if self._if_repo_name_exists(repo_name, data["cluster_id"]):
             LOGGER.debug("Insert repo failed due to repo name already exists.")
             return DATA_EXIST
 
@@ -89,19 +87,19 @@ class RepoProxy(MysqlProxy):
         self.session.add(repo)
         return SUCCEED
 
-    def _if_repo_name_exists(self, repo_name, username):
+    def _if_repo_name_exists(self, repo_name, cluster_id):
         """
         if the repo name already exists in database
         Args:
             repo_name (str): repo name
-            username (str): user name
+            cluster_id (str): cluster id info of repo
 
         Returns:
             bool
         """
         repo_count = (
             self.session.query(func.count(Repo.repo_id))
-            .filter(Repo.repo_name == repo_name, Repo.username == username)
+            .filter(Repo.repo_name == repo_name, Repo.cluster_id == cluster_id)
             .scalar()
         )
 
@@ -144,9 +142,8 @@ class RepoProxy(MysqlProxy):
 
         """
         repo_name = data["repo_name"]
-        username = data["username"]
 
-        if not self._if_repo_name_exists(repo_name, username):
+        if not self._if_repo_name_exists(repo_name, data.get("cluster_id")):
             LOGGER.debug("Update repo failed due to repo '%s' doesn't exist." % repo_name)
             return NO_DATA
 
@@ -154,25 +151,22 @@ class RepoProxy(MysqlProxy):
         # mock repo attr. Will get from request in the future
         repo_attr = ""
 
-        repo_info = self.session.query(Repo).filter(Repo.username == username, Repo.repo_name == repo_name).one()
+        repo_info = self.session.query(Repo).filter(Repo.repo_name == repo_name).one()
         repo_info.repo_data = repo_data
         repo_info.repo_attr = repo_attr
 
         return SUCCEED
 
-    def get_repo(self, data):
+    def get_repo(self, repo_id_list, cluster_id_list):
         """
         Get repo from database
 
         Args:
-            data(dict): parameter, e.g.
-                {
-                    "repo_name_list": [],  // if empty, get all repo
-                    "username": "admin"
-                }
+            repo_id_list(list): repo id list, e.g. ["repo_id_1","repo_id_2"]
+            cluster_id_list(list): cluster id list
 
         Returns:
-            int: status code
+            str: status code
             dict: query result. e.g.
                 {
                     "result": [
@@ -193,7 +187,7 @@ class RepoProxy(MysqlProxy):
         """
         result = {}
         try:
-            status_code, result = self._get_processed_repo(data)
+            status_code, result = self._get_processed_repo(repo_id_list, cluster_id_list)
             LOGGER.debug("Finished querying repo info.")
             return status_code, result
         except SQLAlchemyError as error:
@@ -201,44 +195,34 @@ class RepoProxy(MysqlProxy):
             LOGGER.error("Querying repo info failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
-    def _get_processed_repo(self, data):
+    def _get_processed_repo(self, repo_id_list, cluster_id_list):
         """
         get processed repo data
         Args:
-            data (dict): parameter
+            repo_id_list (list): repo id list
+            cluster_id_list(list): cluster id list
 
         Returns:
             status_code, list
         """
-        repo_list = data["repo_name_list"]
-        username = data["username"]
+        repo_info_query = self._query_repo_list_info(repo_id_list, cluster_id_list)
+        return SUCCEED, self._repo_info_row2dict(repo_info_query)
 
-        repo_info_query = self._query_repo_list_info(username, repo_list)
-        result = self._repo_info_row2dict(repo_info_query)
-
-        succeed_list = [row.repo_name for row in repo_info_query]
-        fail_list = list(set(repo_list) - set(succeed_list))
-
-        if fail_list:
-            LOGGER.debug("No data found when getting the info of repo: %s." % fail_list)
-
-        status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
-        status_code = judge_return_code(status_dict, NO_DATA)
-        return status_code, {"result": result}
-
-    def _query_repo_list_info(self, username, repo_list):
+    def _query_repo_list_info(self, repo_list, cluster_id_list):
         """
-        query repo info based on repo's name list
+        query repo info based on repo's id list
         Args:
-            username (str): user name
-            repo_list (list): repo name list, when empty, query all repo info
+            repo_list (list): repo id list, if repo list is empty, query all repo info
+            cluster_id_list(list):  cluster id list, if cluster list is empty, query the repo of all clusters
 
         Returns:
             sqlalchemy.orm.query.Query
         """
-        filters = {Repo.username == username}
+        filters = set()
         if repo_list:
-            filters.add(Repo.repo_name.in_(repo_list))
+            filters.add(Repo.repo_id.in_(repo_list))
+        if cluster_id_list:
+            filters.add(Repo.cluster_id.in_(cluster_id_list))
 
         repo_info_query = self.session.query(Repo).filter(*filters)
         return repo_info_query
@@ -252,74 +236,30 @@ class RepoProxy(MysqlProxy):
                 "repo_name": row.repo_name,
                 "repo_data": row.repo_data,
                 "repo_attr": row.repo_attr,
+                "cluster_id": row.cluster_id,
             }
             result.append(repo_info)
         return result
 
-    def delete_repo(self, data):
+    def delete_repo(self, repo_list, cluster_list) -> str:
         """
         Delete repo from database
         Notice, if a repo is still in use, all repo will not be deleted;
                 if a repo doesn't exist, considered has been deleted successfully
         Args:
-            data(dict): parameter, e.g.
-                {
-                    "repo_name_list": ["20.09", "21.09"],
-                    "username": ""admin
-                }
+            repo_list (list): List of repository names to delete, e.g., ["20.09", "21.09"].
+            cluster_list (list): List of cluster id, e.g., ["cluster1", "cluster2"].
 
         Returns:
-            int: status code
+            str: status code
         """
         try:
-            status_code = self._delete_repo(data)
-            if status_code == SUCCEED:
-                self.session.commit()
-                LOGGER.debug("Finished deleting repo info.")
-            return status_code
+            self._query_repo_list_info(repo_list, cluster_list).delete(synchronize_session=False)
+            self.session.commit()
+            LOGGER.debug("Finished deleting repo info.")
+            return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("Deleting repo info failed due to internal error.")
             return DATABASE_DELETE_ERROR
-
-    def _delete_repo(self, data):
-        """
-        delete repo list from database
-        Args:
-            data (dict): repo name list info
-
-        Returns:
-            int: status code
-        """
-        repo_list = data["repo_name_list"]
-        username = data["username"]
-
-        fail_list = self._get_repo_in_use(username, repo_list)
-        if fail_list:
-            LOGGER.debug("Repos are still in use when deleting repo: %s." % fail_list)
-            return DATA_DEPENDENCY_ERROR
-
-        # query and delete.
-        # delete() is not applicable to 'in_' method without synchronize_session=False
-        self._query_repo_list_info(username, repo_list).delete(synchronize_session=False)
-        return SUCCEED
-
-    def _get_repo_in_use(self, username, repo_list):
-        """
-        get the repo in use
-        Args:
-            username (str): user name
-            repo_list (list): repo name list
-
-        Returns:
-            list
-        """
-        repo_in_use_query = (
-            self.session.query(Host.repo_name)
-            .filter(Host.repo_name.in_(repo_list))
-            .filter(Host.user == username)
-            .group_by(Host.repo_name)
-        )
-        repo_in_use = [row.repo_name for row in repo_in_use_query]
-        return repo_in_use

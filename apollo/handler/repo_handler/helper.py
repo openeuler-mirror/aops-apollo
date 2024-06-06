@@ -33,7 +33,7 @@ def get_template_stream_response(file_name="template.repo"):
     """
     response = Response(string_iterator(TEMPLATE_REPO_STR))
     response.headers['Content-Type'] = "application/octet-stream"
-    response.headers['Content-Disposition'] = "application;file_name='{}'".format(file_name)
+    response.headers['Content-Disposition'] = "attachment;filename='{}'".format(file_name)
     return response
 
 
