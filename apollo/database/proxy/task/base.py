@@ -634,6 +634,27 @@ class TaskMysqlProxy(MysqlProxy):
             return False
         return True
 
+    def get_account_name_by_task_id(self, task_id: str) -> Tuple[_get_status_result, str]:
+        """
+        Get the account name associated with the given task ID.
+
+        Args:
+            task_id (str): The ID of the task.
+
+        Returns:
+            Tuple[int, str]: A tuple containing the status code and the account name.
+                - If the status code is DATABASE_QUERY_ERROR, the account name will be an empty string.
+                - Otherwise, the status code will indicate success and the account name will be
+                retrieved from the database.
+        """
+        try:
+            task = self.session.query(Task.username).filter(Task.task_id == task_id).one()
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, ""
+
+        return SUCCEED, task.username
+
     def query_user_email(self, username: str) -> tuple:
         """
         query user email from database by username

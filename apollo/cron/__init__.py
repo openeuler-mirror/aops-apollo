@@ -10,9 +10,9 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
+from apollo.cron.correct import CorrectTask
+from apollo.cron.download_advisory import DownloadSATask
+from apollo.cron.notification import NotificationTask
+from apollo.cron.scan import TimedScanTask
 
-from apollo.cron.download_sa_manager import TimedDownloadSATask
-from apollo.cron.timed_correct_manager import TimedCorrectTask
-from apollo.cron.timed_scan_task import TimedScanTask
-
-task_meta = {"cve_scan": TimedScanTask, "data_correct": TimedCorrectTask, "sa_download": TimedDownloadSATask}
+__all__ = ["DownloadSATask", "CorrectTask", "TimedScanTask", "NotificationTask"]
