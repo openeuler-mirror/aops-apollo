@@ -10,8 +10,9 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from typing import Dict, Tuple
 from collections import defaultdict
+from typing import Dict, Tuple
+
 from elasticsearch import ElasticsearchException
 from sqlalchemy import case, func
 from sqlalchemy.exc import SQLAlchemyError
@@ -20,22 +21,17 @@ from vulcanus.database.helper import sort_and_page
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
     DATABASE_INSERT_ERROR,
-    NO_DATA,
     DATABASE_QUERY_ERROR,
     DATABASE_UPDATE_ERROR,
-    SUCCEED,
+    NO_DATA,
     PARTIAL_SUCCEED,
+    SUCCEED,
 )
 
 from apollo.conf.constant import TaskStatus
-from apollo.database.table import (
-    CveAffectedPkgs,
-    Task,
-    HotpatchRemoveTask,
-    Host,
-)
-from apollo.function.customize_exception import EsOperationError
 from apollo.database.proxy.task.base import TaskProxy
+from apollo.database.table import CveAffectedPkgs, CveHostAssociation, HotpatchRemoveTask, Task
+from apollo.function.customize_exception import EsOperationError
 
 
 class HotpatchRemoveProxy(TaskProxy):
@@ -237,13 +233,12 @@ class HotpatchRemoveProxy(TaskProxy):
                 task_cve_host[task_info["host_id"]].append(cve["cve_id"])
 
         task_cve_host_rows = []
-        hosts = self.session.query(Host).filter(Host.host_id.in_(list(task_cve_host.keys()))).all()
-        for host in hosts:
-            host_info = {"host_id": host.host_id, "host_name": host.host_name, "host_ip": host.host_ip}
-            for cve_id in task_cve_host[host.host_id]:
-                task_cve_host_id = hash_value(text=task_id + cve_id + str(host.host_id))
+        for host in data.pop("hosts"):
+            host_id = host.get("host_id")
+            for cve_id in task_cve_host[host_id]:
+                task_cve_host_id = hash_value(text=task_id + cve_id + str(host_id))
                 task_cve_host_rows.append(
-                    self._hotpatch_remove_task_cve_row_dict(task_cve_host_id, task_id, cve_id, host_info)
+                    self._hotpatch_remove_task_cve_row_dict(task_cve_host_id, task_id, cve_id, host)
                 )
 
         # insert data into mysql tables
@@ -322,7 +317,7 @@ class HotpatchRemoveProxy(TaskProxy):
         result = {"total_count": 0, "total_page": 0, "result": []}
 
         task_id = data["task_id"]
-        task_info = self.session.query(Task).filter(Task.task_id == task_id, Task.username == data["username"]).first()
+        task_info = self.session.query(Task).filter(Task.task_id == task_id).first()
         if not task_info:
             return result
         filters = self._get_hotpatch_remove_task_filters(data.get("filter", dict()), task_id)
@@ -471,7 +466,7 @@ class HotpatchRemoveProxy(TaskProxy):
         """
         result = {}
         try:
-            status_code, result = self.get_task_log_info(task_id=data["task_id"], username=data["username"])
+            status_code, result = self.get_task_log_info(task_id=data["task_id"])
             LOGGER.debug("Finished getting hotpatch remove task result.")
             return status_code, result
         except (ElasticsearchException, KeyError) as error:
@@ -530,8 +525,7 @@ class HotpatchRemoveProxy(TaskProxy):
         """
         task_id = data["task_id"]
         cve_list = data["cve_list"]
-        username = data["username"]
-        status_query = self._query_hotpatch_remove_task_cve_status(username, task_id, cve_list, with_host=True)
+        status_query = self._query_hotpatch_remove_task_cve_status(task_id, cve_list, with_host=True)
 
         if not status_query.all():
             LOGGER.debug(
@@ -556,7 +550,7 @@ class HotpatchRemoveProxy(TaskProxy):
 
         return SUCCEED, {"result": dict(result)}
 
-    def _query_hotpatch_remove_task_cve_status(self, username, task_id, cve_list, with_host=False):
+    def _query_hotpatch_remove_task_cve_status(self, task_id, cve_list, with_host=False):
         """
         query the hosts' status of given cve list in a cve task
         Args:
@@ -568,7 +562,7 @@ class HotpatchRemoveProxy(TaskProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        filters = {Task.username == username, HotpatchRemoveTask.task_id == task_id}
+        filters = {HotpatchRemoveTask.task_id == task_id}
         if cve_list:
             filters.add(HotpatchRemoveTask.cve_id.in_(cve_list))
 
@@ -639,8 +633,7 @@ class HotpatchRemoveProxy(TaskProxy):
         """
         task_id = data["task_id"]
         cve_list = data["cve_list"]
-        username = data["username"]
-        progress_query = self._query_hotpatch_remove_task_status_progress(username, task_id, cve_list)
+        progress_query = self._query_hotpatch_remove_task_status_progress(task_id, cve_list)
 
         if not progress_query.all():
             LOGGER.debug(
@@ -674,7 +667,7 @@ class HotpatchRemoveProxy(TaskProxy):
 
         return SUCCEED, {"result": result}
 
-    def _query_hotpatch_remove_task_status_progress(self, username, task_id, cve_list):
+    def _query_hotpatch_remove_task_status_progress(self, task_id, cve_list):
         """
         query hotpatch remove task's assigned cve's status and progress
         Args:
@@ -685,7 +678,7 @@ class HotpatchRemoveProxy(TaskProxy):
         Returns:
             sqlalchemy.orm.query.Query
         """
-        filters = {Task.username == username, HotpatchRemoveTask.task_id == task_id}
+        filters = {HotpatchRemoveTask.task_id == task_id}
         if cve_list:
             filters.add(HotpatchRemoveTask.cve_id.in_(cve_list))
         # Count the number of states, sql e.g
@@ -703,3 +696,42 @@ class HotpatchRemoveProxy(TaskProxy):
             .group_by(HotpatchRemoveTask.cve_id)
         )
         return task_query
+
+    def check_cves_and_hotpatch_status(self, cves):
+        """
+        Determines whether the given CVE has been fixed by a hotpatch.
+
+        Args:
+            session: The SQLAlchemy session object to use for querying the database.
+            cves (list): The ID of the CVE to check.
+
+        Returns:
+            bool: True if the CVE has been fixed by a hotpatch, False otherwise.
+        """
+        try:
+            # Query the database for the specified CVE ID
+            rows = (
+                self.session.query(CveHostAssociation.cve_id, CveHostAssociation.fixed_way)
+                .filter(
+                    CveHostAssociation.cve_id.in_(cves),
+                    CveHostAssociation.fixed == True,
+                )
+                .all()
+            )
+
+            # Check if all CVE IDs exist in the database
+            existing_cve_ids = {row.cve_id for row in rows}
+            if not all(cve in existing_cve_ids for cve in cves):
+                LOGGER.error(f"One or more CVEs do not exist in the database when generate hotpatch-remove task!")
+                return False
+
+            # Check if the CVE has been fixed by a hotpatch
+            for row in rows:
+                if row.fixed_way == "hotpatch":
+                    return True
+            LOGGER.error("None of the CVEs have been fixed by a hotpatch.")
+            return False
+
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return False

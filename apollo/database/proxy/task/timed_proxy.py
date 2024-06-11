@@ -13,18 +13,10 @@
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.proxy import MysqlProxy
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import (
-    DATABASE_UPDATE_ERROR,
-    SUCCEED,
-)
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, SUCCEED
 
 from apollo.conf.constant import TaskStatus
-from apollo.database.table import (
-    HotpatchRemoveTask,
-    TaskHostRepoAssociation,
-    CveFixTask,
-    CveRollbackTask,
-)
+from apollo.database.table import CveFixTask, CveRollbackTask, HotpatchRemoveTask, TaskHostRepoAssociation
 
 
 class TimedProxy(MysqlProxy):

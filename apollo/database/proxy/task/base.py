@@ -22,7 +22,19 @@ from typing import Tuple
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
+from flask import g
 from sqlalchemy.exc import SQLAlchemyError
+
+from apollo.conf.constant import TASK_INDEX, TaskStatus, TaskType
+from apollo.database.table import (
+    Task,
+    CveFixTask,
+    CveRollbackTask,
+    HotpatchRemoveTask,
+    TaskHostRepoAssociation,
+    CveHostAssociation,
+)
+from apollo.function.customize_exception import EsOperationError
 from vulcanus.common import hash_value
 from vulcanus.database.helper import sort_and_page, judge_return_code
 from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
@@ -37,20 +49,6 @@ from vulcanus.restful.resp.state import (
     PARTIAL_SUCCEED,
 )
 
-from apollo.conf.constant import TASK_INDEX, HostStatus, TaskStatus, TaskType
-from apollo.database.table import (
-    Task,
-    CveFixTask,
-    CveRollbackTask,
-    HotpatchRemoveTask,
-    TaskHostRepoAssociation,
-    CveHostAssociation,
-    Host,
-    User,
-)
-from apollo.function.customize_exception import EsOperationError
-from apollo.function.params import SplitTask
-
 
 class TaskMysqlProxy(MysqlProxy):
     """
@@ -59,38 +57,7 @@ class TaskMysqlProxy(MysqlProxy):
 
     lock = threading.Lock()
 
-    def get_total_host_info(self):
-        """
-        Get the whole host info of each user.
-        Args:
-
-        Returns:
-            int: status code
-            dict: query result
-        """
-        temp_res = {}
-        result = {"host_infos": temp_res}
-
-        try:
-            users = self.session.query(User).all()
-            for user in users:
-                name = user.username
-                temp_res[name] = []
-                for host in user.hosts:
-                    host_info = {
-                        "host_id": host.host_id,
-                        "host_name": host.host_name,
-                        "host_ip": host.host_ip,
-                        "status": host.status,
-                    }
-                    temp_res[name].append(host_info)
-            return SUCCEED, result
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            LOGGER.error("query host basic info fail")
-            return DATABASE_QUERY_ERROR, result
-
-    def get_task_list(self, data):
+    def get_task_list(self, data, cluster_info):
         """
         Get the task list.
         Args:
@@ -106,8 +73,9 @@ class TaskMysqlProxy(MysqlProxy):
                         "task_type": ["repo set"]
                     }
                 }
+            cluster_info:
         Returns:
-            int: status code
+            str: status code
             dict: query result. e.g.
                 {
                     "total_count": 1,
@@ -126,7 +94,7 @@ class TaskMysqlProxy(MysqlProxy):
         """
         result = {}
         try:
-            result = self._get_processed_task_list(data)
+            result = self._get_processed_task_list(data, cluster_info)
             LOGGER.debug("Finished getting task list.")
             return SUCCEED, result
         except SQLAlchemyError as error:
@@ -134,7 +102,7 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Getting task list failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
-    def _get_processed_task_list(self, data):
+    def _get_processed_task_list(self, data, cluster_info):
         """
         Get sorted, paged and filtered task list.
 
@@ -147,7 +115,7 @@ class TaskMysqlProxy(MysqlProxy):
         result = {"total_count": 0, "total_page": 0, "result": []}
 
         filters = self._get_task_list_filters(data.get("filter"))
-        task_list_query = self._query_task_list(data["username"], filters)
+        task_list_query = self._query_task_list(cluster_info.keys(), filters)
 
         total_count = task_list_query.count()
         if not total_count:
@@ -158,17 +126,17 @@ class TaskMysqlProxy(MysqlProxy):
 
         processed_query, total_page = sort_and_page(task_list_query, sort_column, direction, per_page, page)
 
-        result["result"] = self._task_list_row2dict(processed_query)
+        result["result"] = self._task_list_row2dict(processed_query, cluster_info)
         result["total_page"] = total_page
         result["total_count"] = total_count
 
         return result
 
-    def _query_task_list(self, username, filters):
+    def _query_task_list(self, cluster_list, filters):
         """
         query needed task list
         Args:
-            username (str): user name of the request
+            cluster_list (list): cluster id list
             filters (set): filter given by user
 
         Returns:
@@ -176,15 +144,21 @@ class TaskMysqlProxy(MysqlProxy):
         """
         task_list_query = (
             self.session.query(
-                Task.task_id, Task.task_name, Task.task_type, Task.description, Task.host_num, Task.create_time
+                Task.task_id,
+                Task.task_name,
+                Task.task_type,
+                Task.description,
+                Task.host_num,
+                Task.create_time,
+                Task.cluster_id,
             )
-            .filter(Task.username == username)
+            .filter(Task.cluster_id.in_(cluster_list))
             .filter(*filters)
         )
         return task_list_query
 
     @staticmethod
-    def _task_list_row2dict(rows):
+    def _task_list_row2dict(rows, cluster_info):
         result = []
         for row in rows:
             task_info = {
@@ -194,6 +168,8 @@ class TaskMysqlProxy(MysqlProxy):
                 "description": row.description,
                 "host_num": row.host_num,
                 "create_time": row.create_time,
+                "cluster_id": row.cluster_id,
+                "cluster_name": cluster_info.get(row.cluster_id),
             }
             result.append(task_info)
         return result
@@ -221,6 +197,10 @@ class TaskMysqlProxy(MysqlProxy):
             filters.add(Task.task_name.like("%" + filter_dict["task_name"] + "%"))
         if filter_dict.get("task_type"):
             filters.add(Task.task_type.in_(filter_dict["task_type"]))
+        if filter_dict.get("cluster_list"):
+            filters.add(Task.cluster_id.in_(filter_dict["cluster_list"]))
+        if filter_dict.get("username_list"):
+            filters.add(Task.username.in_(filter_dict["username_list"]))
         return filters
 
     def get_task_progress(self, data):
@@ -233,7 +213,7 @@ class TaskMysqlProxy(MysqlProxy):
                     "username": "admin"
                 }
         Returns:
-            int: status code
+            str: status code
             dict: query result. e.g.
                 {
                     "result": {
@@ -269,18 +249,17 @@ class TaskMysqlProxy(MysqlProxy):
             data (dict): task list info
 
         Returns:
-            int: status code
+            str: status code
             dict: query result
         """
         task_list = data["task_list"]
-        username = data["username"]
-        split_task = self._split_task_list(username, task_list)
+        repo_task, cve_task, cve_rollback_task, hp_remove_task = self._split_task_list(task_list)
 
         result = {}
-        result.update(self._get_repo_task_progress(split_task.repo_task))
-        result.update(self._get_cve_series_task_progress(split_task.cve_task, TaskType.CVE_FIX))
-        result.update(self._get_cve_series_task_progress(split_task.cve_rollback_task, TaskType.CVE_ROLLBACK))
-        result.update(self._get_cve_series_task_progress(split_task.hp_remove_task, TaskType.HOTPATCH_REMOVE))
+        result.update(self._get_repo_task_progress(repo_task))
+        result.update(self._get_cve_series_task_progress(cve_task, TaskType.CVE_FIX))
+        result.update(self._get_cve_series_task_progress(cve_rollback_task, TaskType.CVE_ROLLBACK))
+        result.update(self._get_cve_series_task_progress(hp_remove_task, TaskType.HOTPATCH_REMOVE))
 
         succeed_list = list(result.keys())
         fail_list = list(set(task_list) - set(succeed_list))
@@ -291,20 +270,17 @@ class TaskMysqlProxy(MysqlProxy):
         status_code = judge_return_code(status_dict, NO_DATA)
         return status_code, {"result": result}
 
-    def _split_task_list(self, username: str, task_list: list) -> SplitTask:
+    def _split_task_list(self, task_list: list) -> Tuple[list, list, list, list]:
         """
         split task list based on task's type
         Args:
-            username (str): user name
             task_list (list): task id list
 
         Returns:
-            SplitTask: {
-                list: repo task list
-                list: cve task list
-                liST: cve rollback task list
-                list: hotpatch remove task list
-            }
+            list: repo task list
+            list: cve task list
+            list: cve rollback task list
+            list: hotpatch remove task list
         """
         repo_task = []
         cve_task = []
@@ -313,7 +289,7 @@ class TaskMysqlProxy(MysqlProxy):
 
         # filter task's type in case of other type added into task table
         task_query = self.session.query(Task.task_id, Task.task_type).filter(
-            Task.username == username, Task.task_id.in_(task_list), Task.task_type.in_(TaskType.attribute())
+            Task.task_id.in_(task_list), Task.task_type.in_(TaskType.attribute())
         )
 
         for row in task_query:
@@ -325,8 +301,7 @@ class TaskMysqlProxy(MysqlProxy):
                 cve_rollback_task.append(row.task_id)
             elif row.task_type == TaskType.HOTPATCH_REMOVE:
                 hp_remove_task.append(row.task_id)
-        result = SplitTask(repo_task, cve_task, cve_rollback_task, hp_remove_task)
-        return result
+        return repo_task, cve_task, cve_rollback_task, hp_remove_task
 
     @staticmethod
     def _get_status_result():
@@ -463,7 +438,7 @@ class TaskMysqlProxy(MysqlProxy):
         )
         return task_query
 
-    def get_task_info(self, data):
+    def get_task_info(self, task_id, cluster_info):
         """
         Get a task's info
         Args:
@@ -473,7 +448,7 @@ class TaskMysqlProxy(MysqlProxy):
                     "username": "admin"
                 }
         Returns:
-            int: status code
+            str: status code
             dict: query result. e.g.
                 {
                     "result": {
@@ -488,7 +463,7 @@ class TaskMysqlProxy(MysqlProxy):
         """
         result = {}
         try:
-            status_code, result = self._get_processed_task_info(data)
+            status_code, result = self._get_processed_task_info(task_id, cluster_info)
             LOGGER.debug("Finished getting task info.")
             return status_code, result
         except SQLAlchemyError as error:
@@ -496,37 +471,30 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Getting task info failed due to internal error.")
             return DATABASE_QUERY_ERROR, result
 
-    def _get_processed_task_info(self, data):
+    def _get_processed_task_info(self, task_id, cluster_info):
         """
         query and process task info
         Args:
             data (dict): task id info
 
         Returns:
-            int: status code
+            str: status code
             dict: query result
         """
-        task_id = data["task_id"]
-        username = data["username"]
-
         task_info_data = (
-            self.session.query(
-                Task.task_name, Task.description, Task.host_num, Task.latest_execute_time, Task.accepted, Task.takeover
-            )
-            .filter(Task.task_id == task_id, Task.username == username)
-            .first()
+            self.session.query(Task).filter(Task.task_id == task_id, Task.cluster_id.in_(cluster_info.keys())).first()
         )
 
         if not task_info_data:
             LOGGER.debug("No data found when getting the info of task: %s." % task_id)
-            return NO_DATA, {"result": {}}
+            return NO_DATA, {}
 
         # raise exception when multiple record found
-        info_dict = self._task_info_row2dict(task_info_data)
-        return SUCCEED, {"result": info_dict}
+        info_dict = self._task_info_row2dict(task_info_data, cluster_info)
+        return SUCCEED, info_dict
 
     @staticmethod
-    def _task_info_row2dict(row):
+    def _task_info_row2dict(row, cluster_dict_info):
         task_info = {
             "task_name": row.task_name,
             "description": row.description,
@@ -534,23 +502,23 @@ class TaskMysqlProxy(MysqlProxy):
             "latest_execute_time": row.latest_execute_time,
             "accept": row.accepted,
             "takeover": row.takeover,
+            "cluster_id": row.cluster_id,
+            "cluster_name": cluster_dict_info.get(row.cluster_id),
         }
         return task_info
 
-    def get_task_type(self, task_id, username):
+    def get_task_type(self, task_id, cluster_list):
         """
         Return the type of the task, return None if check failed.
 
         Args:
             task_id (str): task id
-            username (str): user name
-
+            cluster_list(list): cluster id list
         Returns:
-            int
-            str or None
+            Optional(str)
         """
         try:
-            status_code, task_type = self._get_task_type(task_id, username)
+            status_code, task_type = self._get_task_type(task_id, cluster_list)
             if status_code == SUCCEED:
                 LOGGER.debug("Finished getting task's type.")
             return task_type
@@ -559,13 +527,15 @@ class TaskMysqlProxy(MysqlProxy):
             LOGGER.error("Getting task's type failed due to internal error.")
             return None
 
-    def _get_task_type(self, task_id, username):
+    def _get_task_type(self, task_id, cluster_list):
         """
         query task's type.
         """
         try:
             type_info = (
-                self.session.query(Task.task_type).filter(Task.task_id == task_id, Task.username == username).one()
+                self.session.query(Task.task_type)
+                .filter(Task.task_id == task_id, Task.cluster_id.in_(cluster_list))
+                .one()
             )
         except sqlalchemy.orm.exc.NoResultFound:
             LOGGER.error("Querying type of task '%s' failed due to no data found." % task_id)
@@ -584,7 +554,7 @@ class TaskMysqlProxy(MysqlProxy):
             cur_time (int): latest execute time
 
         Returns:
-            int: status code
+            str: status code
         """
         try:
             status_code = self._update_latest_execute_time(task_id, cur_time)
@@ -634,25 +604,26 @@ class TaskMysqlProxy(MysqlProxy):
             return False
         return True
 
-    def query_user_email(self, username: str) -> tuple:
+    def get_account_name_by_task_id(self, task_id: str) -> Tuple[str, str]:
         """
-        query user email from database by username
+        Get the account name associated with the given task ID.
 
         Args:
-            username(str)
+            task_id (str): The ID of the task.
 
         Returns:
-            str: status_code
-            str: email address
+            Tuple[str, str]: A tuple containing the status code and the account name.
+                - If the status code is DATABASE_QUERY_ERROR, the account name will be an empty string.
+                - Otherwise, the status code will indicate success and the account name will be
+                retrieved from the database.
         """
         try:
-            user = self.session.query(User).filter(User.username == username).one()
+            task = self.session.query(Task.username).filter(Task.task_id == task_id).one()
         except SQLAlchemyError as error:
             LOGGER.error(error)
-            LOGGER.error("update task_cve_host table status failed.")
             return DATABASE_QUERY_ERROR, ""
 
-        return SUCCEED, user.email
+        return SUCCEED, task.username
 
 
 class TaskEsProxy(ElasticsearchProxy):
@@ -665,7 +636,7 @@ class TaskEsProxy(ElasticsearchProxy):
             log (str): task's log
 
         Returns:
-            int: status code
+            str: status code
         """
         if not log:
             LOGGER.warning("task log to be inserted is empty")
@@ -695,7 +666,7 @@ class TaskEsProxy(ElasticsearchProxy):
         query task's info from elasticsearch
         Args:
             task_id (str): task id
-            host_id (int): host id
+            host_id (str): host id
             username (str/None): user name, used for authorisation check
             source (bool/list): list of source
 
@@ -723,7 +694,7 @@ class TaskEsProxy(ElasticsearchProxy):
             username (str): user name, used for authorisation check
 
         Returns:
-            int: status code
+            str: status code
             list: needed task log info
         """
 
@@ -790,7 +761,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
                 }
 
         Returns:
-            int: status code
+            str: status code
             task id: running task id list
         """
         try:
@@ -818,24 +789,22 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Raises:
             ElasticsearchException
         """
-        username = data["username"]
         task_list = data["task_list"]
-        deleted_task, running_task = self._delete_task_from_mysql(username, task_list)
-        self._delete_task_from_es(username, deleted_task)
+        deleted_task, running_task = self._delete_task_from_mysql(task_list)
+        self._delete_task_from_es(g.username, deleted_task)
         return running_task
 
-    def _delete_task_from_mysql(self, username, task_list):
+    def _delete_task_from_mysql(self, task_list):
         """
         Delete task from Task table in mysql, related rows in other tables will also be deleted.
         Args:
-            username (str): user name
             task_list (list): task id list
 
         Returns:
             wait_delete_task_list: deleted task id list
             running_task_id_list: running task id list
         """
-        task_query = self.session.query(Task).filter(Task.username == username, Task.task_id.in_(task_list))
+        task_query = self.session.query(Task).filter(Task.task_id.in_(task_list))
 
         succeed_list = [row.task_id for row in task_query]
         fail_list = list(set(task_list) - set(succeed_list))
@@ -939,17 +908,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         task_id_list = [task.task_id for task in cve_rollback_query]
         return task_id_list
 
-    def get_scanning_status_and_time_from_host(self) -> list:
-        """
-        Get all host id and time with scanning status from the host table
-
-        Returns:
-            list: host id list
-        """
-        host_info_query = self.session.query(Host).filter(Host.status == HostStatus.SCANNING).all()
-        host_info_list = [(host.host_id, host.last_scan) for host in host_info_query]
-        return host_info_list
-
     def get_task_create_time(self):
         """
         Get the creation time for each running task
@@ -957,8 +915,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
         Returns:
             list: Each element is a task information, including the task ID, task type, creation time
         """
-        host_info_list = self.get_scanning_status_and_time_from_host()
-
         task_cve_id_list = self.get_running_task_form_hotpatch_remove_task()
         task_repo_id_list = self.get_running_task_form_task_host_repo()
         task_cve_fix_list = self.get_running_task_form_cve_fix_task()
@@ -968,7 +924,7 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
 
         task_query = self.session.query(Task).filter(Task.task_id.in_(task_id_list)).all()
         running_task_list = [(task.task_id, task.latest_execute_time) for task in task_query]
-        return running_task_list, host_info_list
+        return running_task_list
 
     def validate_cves(self, cve_id: list) -> bool:
         """
@@ -990,27 +946,6 @@ class TaskProxy(TaskMysqlProxy, TaskEsProxy):
             )
 
             return True if exists_cve_count == len(cve_id) else False
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            return False
-
-    def validate_hosts(self, host_id: list, username=None) -> bool:
-        """
-        Verifying host validity
-
-        Args:
-            host_id: id of the host to be validate
-            username: system user name
-
-        Returns:
-            bool:  A return of true indicates that the validation passed
-        """
-        try:
-            exists_host_query = self.session.query(Host).filter(Host.host_id.in_(host_id))
-            if username:
-                exists_host_query.filter(Host.user == username)
-            exists_host_count = exists_host_query.count()
-            return True if exists_host_count == len(host_id) else False
         except SQLAlchemyError as error:
             LOGGER.error(error)
             return False
