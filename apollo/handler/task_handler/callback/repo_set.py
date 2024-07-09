@@ -18,9 +18,9 @@ Description: callback function of the repo setting task.
 import json
 
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
-from apollo.conf.constant import TaskType
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, SUCCEED
 
+from apollo.conf.constant import TaskType
 from apollo.handler.task_handler.callback import TaskCallback
 
 
@@ -29,7 +29,7 @@ class RepoSetCallback(TaskCallback):
     Callback function for repo setting.
     """
 
-    def _save_repo_set_result_to_es(self, task_id, host_id, task_result):
+    def _save_repo_set_result_to_es(self, task_id, host_id, task_result, username):
         """
         save host repo set result to es
 
@@ -41,7 +41,6 @@ class RepoSetCallback(TaskCallback):
         Return:
             None
         """
-        username = task_result.pop("username")
         result = {
             "task_id": task_id,
             "host_id": host_id,
@@ -80,13 +79,17 @@ class RepoSetCallback(TaskCallback):
         """
         task_id = task_result.pop("task_id")
         host_id = task_result.pop("host_id")
-        data = dict(task_id=task_id, status=task_result['status'], repo_name=task_result['repo'])
-        status_code = self.proxy.update_repo_host_status_and_host_reponame(data, [host_id])
-        self._save_repo_set_result_to_es(task_id, host_id, task_result)
+        status_code, username = self.proxy.get_account_name_by_task_id(task_id)
+        if status_code != SUCCEED:
+            LOGGER.error("Failed to query task info!")
+            return DATABASE_UPDATE_ERROR
+
+        status_code = self.proxy.update_host_status_in_tasks(task_id, task_result.get("status"), [host_id])
+        self._save_repo_set_result_to_es(task_id, host_id, task_result, username)
 
         if status_code != SUCCEED:
             LOGGER.debug(
-                "Setting repo name to hosts and upate repo host state failed, "
+                "Setting repo name to hosts and update repo host state failed, "
                 f"repo name: {task_result['repo_name']}, task id: {task_id}."
             )
             return DATABASE_UPDATE_ERROR

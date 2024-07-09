@@ -11,8 +11,10 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import json
-import time
-from vulcanus.restful.resp.state import SUCCEED, PARTIAL_SUCCEED
+
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, PARTIAL_SUCCEED, SUCCEED
+
 from apollo.conf.constant import TaskType
 from apollo.handler.task_handler.callback import TaskCallback
 
@@ -22,7 +24,7 @@ class HotpatchRemoveCallback(TaskCallback):
     Callback function for hotpatch remove.
     """
 
-    def _save_result_to_es(self, task_id, host_id, task_type, task_result):
+    def _save_result_to_es(self, task_id, host_id, task_type, task_result, username):
         """
         Save the result to es.
 
@@ -65,7 +67,6 @@ class HotpatchRemoveCallback(TaskCallback):
             "latest_execute_time": task_result.pop("execution_time"),
             "task_result": task_result,
         }
-        username = task_result.pop("username")
         self.proxy.save_task_info(task_id, host_id, log=json.dumps(result), username=username)
 
     def callback(self, task_result: dict) -> str:
@@ -103,11 +104,16 @@ class HotpatchRemoveCallback(TaskCallback):
         """
         task_id = task_result.pop("task_id")
         host_id = task_result.pop("host_id")
+        status_code, username = self.proxy.get_account_name_by_task_id(task_id)
+        if status_code != SUCCEED:
+            LOGGER.error("Failed to query task info!")
+            return DATABASE_UPDATE_ERROR
         self._save_result_to_es(
             task_id=task_id,
             host_id=host_id,
             task_type=TaskType.HOTPATCH_REMOVE,
             task_result=task_result,
+            username=username,
         )
         update_status_result = []
         for cve in task_result["cves"]:

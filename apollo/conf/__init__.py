@@ -15,9 +15,15 @@ Time:
 Author:
 Description: manager configuration
 """
-from vulcanus.conf import Config
+from vulcanus.cache import RedisCacheManage, RedisProxy
+from vulcanus.conf import ConfigHandle
+
 from apollo.conf import default_config
-from apollo.conf.constant import CVE_MANAGER_CONFIG_PATH
 
 # read manager configuration
-configuration = Config(CVE_MANAGER_CONFIG_PATH, default_config)
+config_obj = ConfigHandle("aops-apollo", default_config)
+configuration = config_obj.parser
+
+if RedisProxy.redis_connect is None:
+    RedisProxy()
+cache = RedisCacheManage(configuration.domain, RedisProxy.redis_connect)

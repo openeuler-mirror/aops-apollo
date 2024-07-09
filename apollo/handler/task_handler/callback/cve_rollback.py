@@ -16,15 +16,20 @@ Author:
 Description: callback function of the cve fixing task.
 """
 import json
-from apollo.handler.task_handler.callback import TaskCallback
-from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
+
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, SUCCEED
+
 from apollo.conf.constant import TaskType
+from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
+from apollo.handler.task_handler.callback import TaskCallback
 
 
 class CveRollbackCallback(TaskCallback):
     """
     Callback function for cve rollback task.
     """
+
     def __init__(self, proxy: CveRollbackTaskProxy):
         """
         Args:
@@ -33,7 +38,7 @@ class CveRollbackCallback(TaskCallback):
         super().__init__(proxy)
         self.proxy = proxy
 
-    def _save_result_to_es(self, task_id: str, host_id: str, task_result: dict):
+    def _save_result_to_es(self, task_id: str, host_id: str, task_result: dict, username: str):
         """
         Save the result to es.
 
@@ -42,7 +47,6 @@ class CveRollbackCallback(TaskCallback):
             host_id(str): host id
             task_result(dict): rollback task result from zeus
         """
-        username = task_result["username"]
         result = self._gen_es_log(task_id, host_id, task_result)
         self.proxy.save_task_info(task_id, host_id, log=json.dumps(result), username=username)
 
@@ -107,7 +111,7 @@ class CveRollbackCallback(TaskCallback):
             "check_items": task_result["check_items"],
             "rpms": rpm_info_list,
             "result": task_result["status"],
-            "log": task_result["log"]
+            "log": task_result["log"],
         }
         result = {
             "host_id": task_result["host_id"],
@@ -147,6 +151,10 @@ class CveRollbackCallback(TaskCallback):
         task_id = task_result["task_id"]
         host_id = task_result["host_id"]
         status = task_result["status"]
-        self._save_result_to_es(task_id, host_id, task_result)
+        status_code, username = self.proxy.get_account_name_by_task_id(task_id)
+        if status_code != SUCCEED:
+            LOGGER.error("Failed to query task info!")
+            return DATABASE_UPDATE_ERROR
+        self._save_result_to_es(task_id, host_id, task_result, username)
         status_code = self.proxy.update_cve_rollback_task_status(task_id, status, host_id)
         return status_code
