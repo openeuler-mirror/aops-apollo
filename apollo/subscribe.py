@@ -21,6 +21,8 @@ from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
 from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
 from apollo.database.proxy.task.repo_set import RepoSetProxy
 from apollo.database.proxy.task.scan import ScanProxy
+from apollo.database.proxy.task.synchronize_cancel import SynchronizeCancelProxy
+from apollo.handler.task_handler.callback.cluster_synchronize_cancel import SynchronizeCancelCallback
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
@@ -42,6 +44,7 @@ class TaskCallbackSubscribe:
         TaskChannel.REPO_SET_TASK: (RepoSetCallback, RepoSetProxy),
         TaskChannel.CVE_ROLLBACK_TASK: (CveRollbackCallback, CveRollbackTaskProxy),
         TaskChannel.HOTPATCH_REMOVE_TASK: (HotpatchRemoveCallback, HotpatchRemoveProxy),
+        TaskChannel.CLUSTER_SYNCHRONIZE_CANCEL_TASK: (SynchronizeCancelCallback, SynchronizeCancelProxy),
     }
 
     def __init__(self, subscribe_client: Redis, channels: List[str]) -> None:
@@ -68,6 +71,9 @@ class TaskCallbackSubscribe:
                         self.handle_callback(message["channel"], json.loads(message["data"]))
             except RedisError as error:
                 LOGGER.error(f"Failed to subscribe to channels {self._channels}: {error}")
+                time.sleep(1)
+            except Exception as error:
+                LOGGER.error(error)
                 time.sleep(1)
 
     def _timed_task(self, channel, task_execute_result: dict) -> None:
@@ -134,7 +140,10 @@ class TaskCallbackSubscribe:
             channel (str): The name of the task channel.
             task_execute_result (dict): The result of the task execution.
         """
-        lock = f"{channel}-{task_execute_result['task_id']}-{task_execute_result['host_id']}"
+        if channel == TaskChannel.CLUSTER_SYNCHRONIZE_CANCEL_TASK:
+            lock = f"cluster_synchronize_cancel_task_apollo_subscribe-{task_execute_result['cluster_id']}"
+        else:
+            lock = f"{channel}-{task_execute_result.get('task_id')}-{task_execute_result.get('host_id')}"
         if not self._subscribe.set(lock, 'locked', nx=True, ex=30):
             LOGGER.warning("Another callback task is running, skip this subscribe.")
             return
@@ -147,6 +156,6 @@ class TaskCallbackSubscribe:
             LOGGER.error("Unsupported task type")
         except DatabaseConnectionFailed:
             LOGGER.error(
-                f"Failed to handle the result of task {channel} (ID: {task_execute_result['task_id']})"
-                f"{task_execute_result['host_id']}."
+                f"Failed to handle the result of task {channel} (ID: {task_execute_result.get('task_id')})"
+                f"{task_execute_result.get('host_id')}."
             )
