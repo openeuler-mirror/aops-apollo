@@ -1,5 +1,9 @@
+CREATE DATABASE IF NOT EXISTS aops DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_bin;
 use aops;
 
+-- ----------------------------
+-- Table structure for cve
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `cve`  (
   `cve_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `publish_time` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
@@ -9,6 +13,9 @@ CREATE TABLE IF NOT EXISTS `cve`  (
   PRIMARY KEY (`cve_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for vul_task
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `vul_task` (
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -19,14 +26,16 @@ CREATE TABLE IF NOT EXISTS `vul_task` (
   `host_num` int(11) NULL DEFAULT NULL,
   `check_items` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `accepted` tinyint(1) NULL DEFAULT NULL,
-  `username` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `takeover` tinyint(1) NULL DEFAULT 0,
   `fix_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
-  PRIMARY KEY (`task_id`) USING BTREE,
-  INDEX `username`(`username`) USING BTREE,
-  CONSTRAINT `vul_task_user_ibfk_1` FOREIGN KEY (`username`) REFERENCES `user` (`username`) ON DELETE RESTRICT ON UPDATE RESTRICT
+  `cluster_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `username` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  PRIMARY KEY (`task_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for cve_affected_pkgs
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `cve_affected_pkgs`  (
   `cve_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `package` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -34,14 +43,16 @@ CREATE TABLE IF NOT EXISTS `cve_affected_pkgs`  (
   `os_version` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `affected` int(11) NULL DEFAULT NULL,
   PRIMARY KEY (`cve_id`, `package`, `package_version`, `os_version`) USING BTREE,
-  INDEX `ix_cve_affected_pkgs_os_version`(`os_version`) USING BTREE,
-  CONSTRAINT `cve_affected_pkgs_ibfk_1` FOREIGN KEY (`cve_id`) REFERENCES `cve` (`cve_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+  INDEX `ix_cve_affected_pkgs_os_version`(`os_version`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for cve_host_match
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `cve_host_match`  (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `cve_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
-  `host_id` int(11) NULL DEFAULT NULL,
+  `host_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `affected` tinyint(1) NULL DEFAULT NULL,
   `fixed` tinyint(1) NULL DEFAULT NULL,
   `support_way` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
@@ -49,14 +60,15 @@ CREATE TABLE IF NOT EXISTS `cve_host_match`  (
   `hp_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `installed_rpm` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `available_rpm` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
-  `host_user` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
+  `cluster_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_cve_host_match_host_id`(`host_id`) USING BTREE,
-  INDEX `ix_cve_host_match_cve_id`(`cve_id`) USING BTREE,
-  INDEX `ix_cve_hsot_match_user`(`host_user`) USING BTREE,
-  CONSTRAINT `cve_host_match_ibfk_1` FOREIGN KEY (`host_id`) REFERENCES `host` (`host_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 2621 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
+  INDEX `ix_cve_host_match_cve_id`(`cve_id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for parse_advisory_record
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `parse_advisory_record` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `advisory_year` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -65,22 +77,26 @@ CREATE TABLE IF NOT EXISTS `parse_advisory_record` (
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for repo
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `repo`  (
-  `repo_id` int(11) NOT NULL AUTO_INCREMENT,
+  `repo_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `repo_name` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `repo_attr` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `repo_data` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `username` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
-  PRIMARY KEY (`repo_id`) USING BTREE,
-  INDEX `username`(`username`) USING BTREE,
-  CONSTRAINT `repo_ibfk_1` FOREIGN KEY (`username`) REFERENCES `user` (`username`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
+  `cluster_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
+  PRIMARY KEY (`repo_id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for hotpatch_remove_task
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `hotpatch_remove_task`  (
   `task_cve_host_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `cve_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `host_id` int(11) NOT NULL,
+  `host_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_ip` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
@@ -88,24 +104,30 @@ CREATE TABLE IF NOT EXISTS `hotpatch_remove_task`  (
   INDEX `task_cve_host_vul_fk1`(`task_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+
+-- ----------------------------
+-- Table structure for task_host_repo
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `task_host_repo` (
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `host_id` int(11) NOT NULL,
+  `host_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_ip` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `repo_name` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `repo_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
-  PRIMARY KEY (`task_id`, `host_id`) USING BTREE,
-  CONSTRAINT `task_host_repo_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `vul_task` (`task_id`) ON DELETE CASCADE ON UPDATE RESTRICT
+  PRIMARY KEY (`task_id`, `host_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for cve_fix_task
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `cve_fix_task`  (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `host_id` int(11) NOT NULL,
+  `host_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `host_ip` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `cves` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
+  `cves` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `installed_rpm` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `available_rpm` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `fix_way` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
@@ -116,9 +138,12 @@ CREATE TABLE IF NOT EXISTS `cve_fix_task`  (
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
+-- ----------------------------
+-- Table structure for cve_rollback_task
+-- ----------------------------
 CREATE TABLE IF NOT EXISTS `cve_rollback_task`(
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `host_id` int(11) NULL DEFAULT NULL,
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `host_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `fix_task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
@@ -134,7 +159,21 @@ CREATE TABLE IF NOT EXISTS `cve_rollback_task`(
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin ROW_FORMAT = Dynamic;
 
-CREATE PROCEDURE GET_CVE_LIST_PRO(IN username VARCHAR(20), IN search_key VARCHAR(100), IN severity VARCHAR(200), IN fixed TINYINT, IN affected TINYINT,IN order_by_filed VARCHAR(100),IN order_by VARCHAR(20),IN start_limt INT,IN limt_size INT)
+-- ----------------------------
+-- Procedure structure for GET_CVE_LIST_PRO
+-- ----------------------------
+DROP PROCEDURE IF EXISTS `GET_CVE_LIST_PRO`;
+CREATE DEFINER=`root`@`%` PROCEDURE `GET_CVE_LIST_PRO`(
+    IN search_key VARCHAR(100), 
+    IN severity VARCHAR(200), 
+    IN fixed TINYINT, 
+    IN affected TINYINT,
+    IN order_by_field VARCHAR(100),
+    IN order_by VARCHAR(20),
+    IN start_limit INT,
+    IN limit_size INT,
+    IN host_list VARCHAR(255)
+)
 BEGIN
 		
 		DROP TABLE IF EXISTS cve_host_user_count;
@@ -152,11 +191,19 @@ BEGIN
         SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql, ' AND affected = ', affected, ' ');
     END IF;
 
-    SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql, ' AND host_user = "', username, '" GROUP BY cve_id');
+    IF host_list IS NOT NULL AND host_list != '' THEN
+        SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql, ' AND cve_host_match.host_id IN (', host_list, ') ');
+    ELSE
+        -- If host_list is empty, the query should not return any data. 
+        -- We do this by adding a condition that is always false.
+        SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql, ' AND 0 = 1 ');
+    END IF;
+
+    SET @tmp_cve_host_count_sql = CONCAT(@tmp_cve_host_count_sql,'GROUP BY cve_id');
 		
-		prepare stmt from @tmp_cve_host_count_sql;
+    prepare stmt from @tmp_cve_host_count_sql;
     EXECUTE stmt;
-		DEALLOCATE PREPARE stmt;
+    DEALLOCATE PREPARE stmt;
 
     SET @cve_list_sql = 'SELECT
         cve_host_user_count.cve_id,
@@ -164,68 +211,89 @@ BEGIN
         cve_pkg.package,
         cve.severity,
         cve.cvss_score,
-				cve_host_user_count.host_num
+        cve_host_user_count.host_num
     FROM
         cve_host_user_count
         LEFT JOIN cve ON cve.cve_id = cve_host_user_count.cve_id
-				LEFT JOIN (select DISTINCT cve_id,  GROUP_CONCAT(DISTINCT package SEPARATOR ",") AS package from cve_affected_pkgs group by cve_id) as cve_pkg ON cve_host_user_count.cve_id = cve_pkg.cve_id where 1=1 ';
+        LEFT JOIN (SELECT DISTINCT cve_id, GROUP_CONCAT(DISTINCT package SEPARATOR ",") AS package FROM cve_affected_pkgs GROUP BY cve_id) AS cve_pkg ON cve_host_user_count.cve_id = cve_pkg.cve_id WHERE 1=1 ';
 				
-		set @cve_list_page_count_sql='SELECT
-        count(1) as total
+    SET @cve_list_page_count_sql='SELECT
+        COUNT(1) AS total
     FROM
         cve_host_user_count
         LEFT JOIN cve ON cve.cve_id = cve_host_user_count.cve_id
-        LEFT JOIN (select cve_id,package from cve_affected_pkgs GROUP BY cve_id,package) as cve_pkg ON cve_host_user_count.cve_id = cve_pkg.cve_id where 1=1 ';
+        LEFT JOIN (SELECT cve_id, package FROM cve_affected_pkgs GROUP BY cve_id, package) AS cve_pkg ON cve_host_user_count.cve_id = cve_pkg.cve_id WHERE 1=1 ';
 
-    IF search_key IS NOT NULL and search_key !='' THEN
-        SET @cve_list_sql = CONCAT(@cve_list_sql, 'AND ( LOCATE("', search_key, '", cve_pkg.package) > 0 ',' OR LOCATE("',search_key, '", cve_host_user_count.cve_id) > 0 ) ');
-				SET @cve_list_page_count_sql = CONCAT(@cve_list_page_count_sql, 'AND ( LOCATE("', search_key, '", cve_pkg.package) > 0 ',' OR LOCATE("',search_key, '", cve_host_user_count.cve_id) > 0 ) ');
+    IF search_key IS NOT NULL AND search_key != '' THEN
+        SET @cve_list_sql = CONCAT(@cve_list_sql, 'AND (LOCATE("', search_key, '", cve_pkg.package) > 0 OR LOCATE("', search_key, '", cve_host_user_count.cve_id) > 0) ');
+        SET @cve_list_page_count_sql = CONCAT(@cve_list_page_count_sql, 'AND (LOCATE("', search_key, '", cve_pkg.package) > 0 OR LOCATE("', search_key, '", cve_host_user_count.cve_id) > 0) ');
     END IF;
-    IF severity IS NOT NULL and severity !='' THEN
+
+    IF severity IS NOT NULL AND severity != '' THEN
         SET @cve_list_sql = CONCAT(@cve_list_sql, 'AND cve.severity IN (', severity, ') ');
-				SET @cve_list_page_count_sql = CONCAT(@cve_list_page_count_sql, 'AND cve.severity IN (', severity, ') ');
+        SET @cve_list_page_count_sql = CONCAT(@cve_list_page_count_sql, 'AND cve.severity IN (', severity, ') ');
     END IF;
-		
 -- 		IF order_by_filed IS NULL or order_by_filed ='' THEN
 --         SET @order_by_filed = 'cve_host_user_count.host_num';
 --     END IF;
 -- 		 MySql 5.7 version '@' index error 
-    SET @cve_list_sql = CONCAT('select s.* from ( ', @cve_list_sql,' ) as s ',' ORDER BY ', order_by_filed ,'  ', order_by);
+    SET @cve_list_sql = CONCAT('SELECT s.* FROM ( ', @cve_list_sql, ' ) AS s ORDER BY ', order_by_field, ' ', order_by);
 
-		IF limt_size!=0 THEN
-			SET @cve_list_sql = CONCAT(@cve_list_sql, ' limit ',start_limt ,' ,', limt_size);
-		END IF;
-		
-		prepare stmt from @cve_list_sql;
+    IF limit_size != 0 THEN
+        SET @cve_list_sql = CONCAT(@cve_list_sql, ' LIMIT ', start_limit, ' ,', limit_size);
+    END IF;
+
+    PREPARE stmt FROM @cve_list_sql;
     EXECUTE stmt;
-		DEALLOCATE PREPARE stmt;
-		
-		prepare stmt from @cve_list_page_count_sql;
+    DEALLOCATE PREPARE stmt;
+
+    PREPARE stmt FROM @cve_list_page_count_sql;
     EXECUTE stmt;
-		DEALLOCATE PREPARE stmt;
+    DEALLOCATE PREPARE stmt;
 
 END;
 
-CREATE PROCEDURE GET_CVE_OVERVIEW_PRO(IN username VARCHAR(20))
+-- ----------------------------
+-- Procedure structure for GET_CVE_OVERVIEW_PRO
+-- ----------------------------
+
+DROP PROCEDURE IF EXISTS `GET_CVE_OVERVIEW_PRO`;
+CREATE PROCEDURE `GET_CVE_OVERVIEW_PRO`(IN host_list VARCHAR(255))
 BEGIN
-		
-		DROP TABLE IF EXISTS tmp_cve_overview;
-    SET @tmp_cve_overview_sql = 'CREATE TEMPORARY TABLE tmp_cve_overview SELECT cve_id from cve_host_match where ';
+    DROP TABLE IF EXISTS tmp_cve_overview;
+    SET @tmp_cve_overview_sql = 'CREATE TEMPORARY TABLE tmp_cve_overview SELECT cve_id FROM cve_host_match WHERE ';
 
-    SET @tmp_cve_overview_sql = CONCAT(@tmp_cve_overview_sql, ' host_user = "', username, '" and  affected=1 and fixed=0 GROUP BY cve_id ');
-		
-		prepare stmt from @tmp_cve_overview_sql;
+    SET @tmp_cve_overview_sql = CONCAT(@tmp_cve_overview_sql, 'affected = 1 AND fixed = 0');
+
+    IF host_list IS NOT NULL THEN
+        SET @tmp_cve_overview_sql = CONCAT(@tmp_cve_overview_sql, ' AND host_id IN (', host_list, ')');
+		ELSE
+        -- If host_list is empty, the query should not return any data. 
+        -- We do this by adding a condition that is always false.
+        SET @tmp_cve_overview_sql = CONCAT(@tmp_cve_overview_sql, ' AND 0 = 1 ');
+    END IF;
+
+    SET @tmp_cve_overview_sql = CONCAT(@tmp_cve_overview_sql, ' GROUP BY cve_id');
+
+    PREPARE stmt FROM @tmp_cve_overview_sql;
     EXECUTE stmt;
-		DEALLOCATE PREPARE stmt;
-		
-		select CASE WHEN cve.severity is null THEN 'Unknown' ELSE cve.severity END as severity,count( CASE WHEN cve.severity is null THEN 'Unknown' ELSE cve.severity END ) as severity_count from tmp_cve_overview left join cve on cve.cve_id=tmp_cve_overview.cve_id GROUP BY cve.severity;
+    DEALLOCATE PREPARE stmt;
+
+    SELECT
+        CASE
+            WHEN cve.severity IS NULL THEN 'Unknown'
+            ELSE cve.severity
+        END AS severity,
+        COUNT(
+            CASE
+                WHEN cve.severity IS NULL THEN 'Unknown'
+                ELSE cve.severity
+            END
+        ) AS severity_count
+    FROM
+        tmp_cve_overview
+    LEFT JOIN cve ON cve.cve_id = tmp_cve_overview.cve_id
+    GROUP BY
+        cve.severity;
 
 END;
-
-CREATE TRIGGER tri_cvehost_match_user BEFORE INSERT ON cve_host_match
-FOR EACH ROW
-begin
-	DECLARE host_user varchar(100);
-	SELECT user into @host_user from host where host_id=new.host_id;
-	set new.host_user=@host_user;
-end;
