@@ -56,7 +56,7 @@ class TimedScanTask:
         headers = {"X-Permission": "RSA", "X-Signature": signature, "X-Cluster-Username": ADMIN_USER}
 
         url = f"http://{configuration.domain}{HOSTS_FILTER}?{urlencode(request_args)}"
-        response_data = BaseResponse.get_response(method="GET", url=url, data={}, header=headers)
+        response_data = BaseResponse.get_response(method="GET", url=url, header=headers)
         if response_data.get("label") != SUCCEED:
             LOGGER.warning(f"Failed to query host information during timed scanning task.")
 

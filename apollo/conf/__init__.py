@@ -15,6 +15,7 @@ Time:
 Author:
 Description: manager configuration
 """
+from celery import Celery
 from vulcanus.cache import RedisCacheManage, RedisProxy
 from vulcanus.conf import ConfigHandle
 
@@ -27,3 +28,6 @@ configuration = config_obj.parser
 if RedisProxy.redis_connect is None:
     RedisProxy()
 cache = RedisCacheManage(configuration.domain, RedisProxy.redis_connect)
+celery_broker = f"redis://{configuration.redis.host}:{configuration.redis.port}/0"
+celery_backend = f"redis://{configuration.redis.host}:{configuration.redis.port}/1"
+celery_client = Celery('tasks', broker=celery_broker, backend=celery_backend)

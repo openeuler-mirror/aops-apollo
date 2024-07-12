@@ -15,7 +15,7 @@ Time:
 Author:
 Description:
 """
-from typing import List
+from typing import List, Tuple
 from urllib.parse import urlencode, quote
 
 from flask import Response, g
@@ -92,3 +92,23 @@ def query_user_hosts(host_list: List[str] = None, fields: List[str] = None, **kw
     if not fields:
         return [host_info.get("host_id") for host_info in response_data.get("data")]
     return response_data.get("data")
+
+
+def paginate_data(data: List[dict], per_page: int, page: int) -> Tuple[int, int, List[dict]]:
+    """
+    Paginates the data and returns information for the specified page.
+
+    Args:
+        data: A list of dictionaries representing the original data.
+        per_page: The number of items to display per page.
+        page: The requested page number.
+
+    Returns:
+        A tuple containing the total number of items, total number of pages, and the data for the specified page.
+    """
+    total_count = len(data)
+    total_page = (total_count + per_page - 1) // per_page
+    start_idx = (page - 1) * per_page
+    end_idx = min(start_idx + per_page, total_count)
+    paginated_data = data[start_idx:end_idx]
+    return total_count, total_page, paginated_data

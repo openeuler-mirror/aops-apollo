@@ -15,12 +15,10 @@ Time:
 Author:
 Description: For task related restful interfaces schema
 """
-from marshmallow import Schema
-from marshmallow import fields
-from marshmallow import validate
+from marshmallow import Schema, fields, validate
 from vulcanus.restful.serialize.validate import PaginationSchema, ValidateRules
 
-from apollo.conf.constant import TaskType, TaskStatus
+from apollo.conf.constant import TaskStatus, TaskType
 
 
 class TaskListFilterSchema(Schema):
@@ -30,6 +28,7 @@ class TaskListFilterSchema(Schema):
 
     task_name = fields.String(required=False, validate=lambda s: 0 < len(s) <= 20)
     task_type = fields.List(fields.String(validate=validate.OneOf(TaskType.attribute())), required=False)
+    cluster_list = fields.List(fields.String(required=False, validate=lambda s: 0 < len(s) <= 36), required=False)
 
 
 class GetTaskListSchema(PaginationSchema):
@@ -37,8 +36,8 @@ class GetTaskListSchema(PaginationSchema):
     validators for parameter of /vulnerability/task/list/get
     """
 
-    sort = fields.String(required=False, validate=validate.OneOf(["host_num", "create_time"]))
-    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]))
+    sort = fields.String(required=False, validate=validate.OneOf(["host_num", "create_time"]), missing="create_time")
+    direction = fields.String(required=False, validate=validate.OneOf(["asc", "desc"]), missing="desc")
     filter = fields.Nested(TaskListFilterSchema, required=False)
 
 
@@ -63,7 +62,7 @@ class CveHostInfoDictSchema(Schema):
     single host's info of a cve from
     """
 
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
 
 
 class PackageInfoSchema(Schema):
@@ -180,8 +179,8 @@ class GenerateRepoTaskSchema(Schema):
 
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
-    repo_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    info = fields.List(fields.Nested(CveHostInfoDictSchema), required=True, validate=lambda s: len(s) > 0)
+    repo_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 36)
+    host_list = fields.List(fields.String(required=True, validate=lambda s: 0 < len(s) <= 36), required=True)
 
 
 class RepoTaskInfoFilterSchema(Schema):
@@ -208,7 +207,6 @@ class GetRepoTaskResultSchema(Schema):
     """
 
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    host_list = fields.List(fields.Integer(required=True, validate=lambda s: s > 0), required=True)
 
 
 class ExecuteTaskSchema(Schema):
@@ -247,7 +245,7 @@ class CveFixResultCallbackSchema(Schema):
 
 class CallbackSchma(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
     # After the host is deleted during task execution, the ip and name are empty
     host_ip = fields.String(required=False, missing=None, validate=ValidateRules.ipv4_address_check)
     host_name = fields.String(required=False, missing=None, validate=lambda s: 0 < len(s) <= 50)
@@ -270,7 +268,7 @@ class CheckItemsSchema(Schema):
 
 class RepoSetCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
     host_ip = fields.String(required=False, missing=None, validate=ValidateRules.ipv4_address_check)
     host_name = fields.String(required=False, missing=None, validate=lambda s: 0 < len(s) <= 50)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
@@ -303,7 +301,7 @@ class FixedCveInfoSchema(Schema):
 
 class CveScanCallbackSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
     status = fields.String(required=True, validate=lambda s: len(s) != 0)
     check_items = fields.List(fields.Nested(CheckItemsSchema(), required=False), required=False)
     installed_packages = fields.List(fields.Nested(InstallPcakageInfoSchema(), required=True), required=False)
@@ -342,7 +340,7 @@ class GetCveRollbackTaskInfoSchema(PaginationSchema):
 
 class GetCveRollbackTaskRpmInfoSchema(Schema):
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
 
 
 class CveRollbackCallbackSchema(CallbackSchma):
@@ -363,7 +361,7 @@ class HotpatchRemoveCveInfoSchema(Schema):
 
 
 class HotpatchRemoveInfoSchema(Schema):
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
     cves = fields.List(fields.Nested(HotpatchRemoveCveInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
@@ -385,7 +383,7 @@ class HotpatchRemoveCallbackSchema(CallbackSchma):
 
 
 class TaskCveRpmInfoSchema(Schema):
-    host_id = fields.Integer(required=True, validate=lambda s: s > 0)
+    host_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
     task_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 32)
 
 

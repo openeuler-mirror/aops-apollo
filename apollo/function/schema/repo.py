@@ -33,7 +33,8 @@ class GetYumRepoSchema(Schema):
     validators for parameter of /vulnerability/repo/get. when empty, get all repos
     """
 
-    repo_name_list = fields.List(fields.String(), required=True)
+    repo_id_list = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=False)
+    search_key = fields.String(required=False, validate=lambda s: 0 < len(s) <= 32)
 
 
 class UpdateYumRepoSchema(Schema):
@@ -50,4 +51,4 @@ class DeleteYumRepoSchema(Schema):
     validators for parameter of /vulnerability/repo/delete
     """
 
-    repo_name_list = fields.List(fields.String(), required=True, validate=lambda s: len(s) > 0)
+    repo_id_list = fields.List(fields.String(), required=True, validate=lambda s: len(s) > 0)

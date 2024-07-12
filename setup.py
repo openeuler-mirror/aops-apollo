@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 NAME = "aops-apollo"
-VERSION = "1.3.3"
+VERSION = "2.0.0"
 
 # To install the library, run the following
 #
@@ -13,16 +13,17 @@ VERSION = "1.3.3"
 # http://pypi.python.org/pypi/setuptools
 
 REQUIRES = [
+    'celery',
     'elasticsearch',
     'marshmallow>=3.13.0',
     'Flask',
     'Flask-RESTful',
-    'Flask-APScheduler',
     'setuptools',
     'SQLAlchemy',
+    'PyMySQL',
     'PyYAML',
+    'redis',
     'retrying',
-    'lxml',
     'gevent',
 ]
 
@@ -33,11 +34,9 @@ setup(
     install_requires=REQUIRES,
     packages=find_packages(),
     data_files=[
-        ('/etc/aops', ['conf/apollo.ini']),
-        ('/etc/aops', ['conf/apollo_crontab.yml']),
+        ('/etc/aops/conf.d', ['conf/aops-apollo.yml']),
         ('/usr/lib/systemd/system', ['aops-apollo.service']),
-        ("/opt/aops/database", ["database/apollo.sql"]),
+        ("/opt/aops/database", ["database/aops-apollo.sql"]),
     ],
-    scripts=['aops-apollo'],
     zip_safe=False,
 )

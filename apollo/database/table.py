@@ -15,9 +15,10 @@ Time:
 Author:
 Description: mysql tables
 """
-from sqlalchemy import Column, ForeignKey
+import uuid
+
+from sqlalchemy import Column
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean, Integer, String, Text
 from vulcanus.database.helper import create_tables
 
@@ -41,74 +42,6 @@ class MyBase:  # pylint: disable=R0903
         return {col.name: getattr(self, col.name) for col in self.__table__.columns}  # pylint: disable=E1101
 
 
-class Host(Base, MyBase):  # pylint: disable=R0903
-    """
-    Host table
-    """
-
-    __tablename__ = "host"
-
-    host_id = Column(Integer(), primary_key=True, autoincrement=True)
-    host_name = Column(String(50), nullable=False)
-    host_ip = Column(String(16), nullable=False)
-    management = Column(Boolean, nullable=False)
-    host_group_name = Column(String(20))
-    repo_name = Column(String(20))
-    last_scan = Column(Integer)
-    scene = Column(String(255))
-    os_version = Column(String(40))
-    ssh_user = Column(String(40), default="root")
-    ssh_port = Column(Integer(), default=22)
-    pkey = Column(String(2048))
-    status = Column(Integer(), default=2)
-
-    user = Column(String(40), ForeignKey('user.username'))
-    host_group_id = Column(Integer, ForeignKey('host_group.host_group_id'))
-
-    host_group = relationship('HostGroup', back_populates='hosts')
-    owner = relationship('User', back_populates='hosts')
-    reboot = Column(Boolean, nullable=False, default=False)
-
-    def __eq__(self, o):
-        return self.user == o.user and (
-            self.host_name == o.host_name or f"{self.host_ip}{self.ssh_port}" == f"{o.host_ip}{o.ssh_port}"
-        )
-
-
-class HostGroup(Base, MyBase):
-    """
-    Host group table
-    """
-
-    __tablename__ = "host_group"
-
-    host_group_id = Column(Integer, autoincrement=True, primary_key=True)
-    host_group_name = Column(String(20))
-    description = Column(String(60))
-    username = Column(String(40), ForeignKey('user.username'))
-
-    user = relationship('User', back_populates='host_groups')
-    hosts = relationship('Host', back_populates='host_group')
-
-    def __eq__(self, o):
-        return self.username == o.username and self.host_group_name == o.host_group_name
-
-
-class User(Base, MyBase):  # pylint: disable=R0903
-    """
-    User Table
-    """
-
-    __tablename__ = "user"
-
-    username = Column(String(40), primary_key=True)
-    password = Column(String(255), nullable=False)
-    email = Column(String(40))
-
-    host_groups = relationship('HostGroup', order_by=HostGroup.host_group_name, back_populates='user')
-    hosts = relationship('Host', back_populates='owner')
-
-
 class Cve(Base, MyBase):
     """
     Cve table
@@ -130,7 +63,7 @@ class CveAffectedPkgs(Base, MyBase):
 
     __tablename__ = "cve_affected_pkgs"
 
-    cve_id = Column(String(20), ForeignKey('cve.cve_id'), primary_key=True)
+    cve_id = Column(String(20), primary_key=True)
     package = Column(String(40), primary_key=True)
     package_version = Column(String(50), primary_key=True)
     os_version = Column(String(50), primary_key=True, index=True)
@@ -145,9 +78,9 @@ class CveHostAssociation(Base, MyBase):
 
     __tablename__ = "cve_host_match"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid1()))
     cve_id = Column(String(20))
-    host_id = Column(Integer, ForeignKey('host.host_id', ondelete="CASCADE"), index=True)
+    host_id = Column(String(36), index=True)
     affected = Column(Boolean)
     fixed = Column(Boolean)
     support_way = Column(String(20), default=None)
@@ -155,7 +88,7 @@ class CveHostAssociation(Base, MyBase):
     hp_status = Column(String(20))
     installed_rpm = Column(String(100))
     available_rpm = Column(String(100))
-    host_user = Column(String(100))
+    cluster_id = Column(String(36), nullable=False)
 
 
 class Repo(Base, MyBase):
@@ -165,12 +98,11 @@ class Repo(Base, MyBase):
 
     __tablename__ = "repo"
 
-    repo_id = Column(Integer, autoincrement=True, primary_key=True)
+    repo_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid1()))
     repo_name = Column(String(20), nullable=False)
     repo_attr = Column(String(20), nullable=False)
     repo_data = Column(String(512), nullable=False)
-
-    username = Column(String(40), ForeignKey('user.username'))
+    cluster_id = Column(String(36), nullable=False)
 
 
 class Task(Base, MyBase):
@@ -190,8 +122,9 @@ class Task(Base, MyBase):
     check_items = Column(String(32))
     accepted = Column(Boolean, default=False)
     takeover = Column(Boolean, default=False)
-    username = Column(String(40), ForeignKey('user.username'))
     fix_type = Column(String(20))
+    cluster_id = Column(String(36), nullable=False)
+    username = Column(String(36), nullable=False)
 
 
 class TaskHostRepoAssociation(Base, MyBase):
@@ -202,11 +135,11 @@ class TaskHostRepoAssociation(Base, MyBase):
 
     __tablename__ = "task_host_repo"
 
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"), primary_key=True)
-    host_id = Column(Integer, primary_key=True)
+    task_id = Column(String(32), primary_key=True)
+    host_id = Column(String(36), primary_key=True)
     host_name = Column(String(50), nullable=False)
     host_ip = Column(String(16), nullable=False)
-    repo_name = Column(String(20), nullable=False)
+    repo_id = Column(String(36), nullable=False)
     # status can be "unset", "set" and "running"
     status = Column(String(20))
 
@@ -218,9 +151,9 @@ class CveFixTask(Base, MyBase):
 
     __tablename__ = "cve_fix_task"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
-    host_id = Column(Integer)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid1()))
+    task_id = Column(String(32))
+    host_id = Column(String(36))
     host_ip = Column(String(16), nullable=False)
     host_name = Column(String(50))
     cves = Column(Text)
@@ -241,12 +174,12 @@ class CveRollbackTask(Base, MyBase):
 
     __tablename__ = "cve_rollback_task"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid1()))
+    task_id = Column(String(32))
     fix_task_id = Column(String(20), nullable=False)
     # rollback_type can be "hotpatch" and "coldpatch"
     rollback_type = Column(String(20))
-    host_id = Column(Integer)
+    host_id = Column(String(36))
     host_ip = Column(String(16), nullable=False)
     host_name = Column(String(50), nullable=False)
     cves = Column(Text)
@@ -265,9 +198,9 @@ class HotpatchRemoveTask(Base, MyBase):
 
     __tablename__ = "hotpatch_remove_task"
     task_cve_host_id = Column(String(32), primary_key=True)
-    task_id = Column(String(32), ForeignKey('vul_task.task_id', ondelete="CASCADE"))
+    task_id = Column(String(32))
     cve_id = Column(String(20))
-    host_id = Column(Integer)
+    host_id = Column(String(36))
     host_name = Column(String(50), nullable=False)
     host_ip = Column(String(16), nullable=False)
     # status can be "running", "succeed", "fail", "unknown"
