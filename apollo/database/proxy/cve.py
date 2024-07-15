@@ -20,17 +20,16 @@ from collections import defaultdict
 from typing import Tuple
 
 from elasticsearch import ElasticsearchException
-from sqlalchemy import func, tuple_, case
+from sqlalchemy import func, tuple_, case, and_
 from sqlalchemy.exc import SQLAlchemyError
-
-from vulcanus.database.helper import sort_and_page
-from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
-from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, SUCCEED
 
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import Cve, CveHostAssociation, CveAffectedPkgs, AdvisoryDownloadRecord
 from apollo.function.customize_exception import EsOperationError
+from vulcanus.database.helper import sort_and_page
+from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, SUCCEED
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -260,6 +259,100 @@ class CveMysqlProxy(MysqlProxy):
             .filter(Cve.cve_id.in_(cve_list))
         )
         return cve_pkg_query
+
+    def get_host_cve_fixed_info(self, host_ids):
+        result = {}
+        try:
+            result = self._get_host_cve_fixed_info(host_ids)
+            LOGGER.debug("Finished query host cve info.")
+            return SUCCEED, result
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("Query host cve info failed due to internal error.")
+            return DATABASE_QUERY_ERROR, result
+
+    def _get_host_cve_fixed_info(self, host_ids):
+        """
+        Get host cve fixed info
+        Args:
+            host_ids(list): host id list
+
+        Returns:
+            dict
+        """
+        subquery = (
+            self.session.query(
+                CveHostAssociation.host_id,
+                CveHostAssociation.cve_id,
+                CveHostAssociation.fixed,
+                CveHostAssociation.affected,
+            )
+            .filter(CveHostAssociation.host_id.in_(host_ids))
+            .distinct()
+            .subquery()
+        )
+
+        host_cve_fixed_list = (
+            self.session.query(
+                subquery.c.host_id,
+                func.COUNT(func.IF(subquery.c.fixed == True, 1, None)).label("fixed_cve_num"),
+                func.COUNT(func.IF(subquery.c.fixed == False, 1, None)).label("unfixed_cve_num"),
+            )
+            .group_by(subquery.c.host_id)
+            .all()
+        )
+        return host_cve_fixed_list
+
+    def query_cve_num(self, host_id: int):
+        """
+        query cve num
+        """
+        try:
+            host_cve_info_list = self._query_cve_num(host_id)
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            LOGGER.error("update task_cve_host table status failed.")
+            return DATABASE_QUERY_ERROR, []
+
+        return SUCCEED, host_cve_info_list
+
+    def _query_cve_num(self, host_id: str):
+        """
+        Queries the number of CVEs for a specific host, categorized by their fixed status.
+
+        Args:
+            host_id (str): The ID of the host to query.
+
+        Returns:
+            Row: A Row object with the counts of fixed, affected, and unaffected CVEs.
+
+            The Row object contains the following fields:
+            - fixed_cve_num (int): The number of CVEs with fixed status.
+            - affected_cve_num (int): The number of CVEs that are affected but not fixed.
+            - unaffected_cve_num (int): The number of CVEs that are neither fixed nor affected.
+        """
+        subquery = (
+            self.session.query(
+                CveHostAssociation.cve_id,
+                CveHostAssociation.fixed,
+                CveHostAssociation.affected,
+            )
+            .filter(CveHostAssociation.host_id == host_id)
+            .group_by(CveHostAssociation.cve_id, CveHostAssociation.fixed, CveHostAssociation.affected)
+            .subquery()
+        )
+
+        query = self.session.query(
+            func.count(func.if_(subquery.c.fixed == True, 1, None)).label("fixed_cve_num"),
+            func.count(func.if_(and_(subquery.c.fixed == False, subquery.c.affected == True), 1, None)).label(
+                "affected_cve_num"
+            ),
+            func.count(func.if_(and_(subquery.c.fixed == False, subquery.c.affected == False), 1, None)).label(
+                "unaffected_cve_num"
+            ),
+        ).one()
+
+        return query
 
 
 class CveEsProxy(ElasticsearchProxy):  # pylint:disable=too-few-public-methods
@@ -767,11 +860,11 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         Args:
             file_name (str): security advisory's name
             security_cvrf_info (SecurityCvrfInfo): {
-                cve_rows (list): list of dict to insert to mysql Cve table
-                cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
-                cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
-                sa_year(str): security advisory year
-                sa_number(str): security advisory order number
+            cve_rows (list): list of dict to insert to mysql Cve table
+            cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
+            cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
+            sa_year(str): security advisory year
+            sa_number(str): security advisory order number
             }
         Returns:
             int: status code
@@ -793,11 +886,11 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
 
         Args:
             security_cvrf_info (SecurityCvrfInfo): {
-                cve_rows (list): list of dict to insert to mysql Cve table
-                cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
-                cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
-                sa_year(str): security advisory year
-                sa_number(str): security advisory order number
+            cve_rows (list): list of dict to insert to mysql Cve table
+            cve_pkg_rows (list): list of dict to insert to mysql CveAffectedPkgs table
+            cve_pkg_docs (list): list of dict to insert to es CVE_INDEX
+            sa_year(str): security advisory year
+            sa_number(str): security advisory order number
             }
 
 
@@ -1027,64 +1120,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         insert_cve_list = [row["cve_id"] for row in insert_cve_rows]
         self.session.query(Cve).filter(Cve.cve_id.in_(insert_cve_list)).delete(synchronize_session=False)
 
-    def query_host_name_and_related_cves(self, host_list: list, username: str):
-        """
-        query all cve by host_id
-        Args:
-            host_list(list): host id list which you want to query cve info
-            username: username
-        Returns:
-            str: operation status code
-            list: cve info list, e.g.
-                [
-                    [1, "CVE-XXXX-XXXX", "redis-4.2.5-1", "redis-4.2.5-2", "coldpatch", ""]
-                ]
-
-        """
-        try:
-            filters = {Host.user == username}
-            if host_list:
-                filters.add(CveHostAssociation.host_id.in_(host_list))
-            query_rows = self._query_host_cve_info(filters)
-
-            result = []
-            for row in query_rows:
-                result.append(
-                    [
-                        row.host_ip,
-                        row.host_name,
-                        row.CveHostAssociation.cve_id,
-                        row.CveHostAssociation.installed_rpm,
-                        row.CveHostAssociation.available_rpm,
-                        row.CveHostAssociation.support_way,
-                        row.CveHostAssociation.fixed_way,
-                    ]
-                )
-
-            return SUCCEED, result
-        except SQLAlchemyError as error:
-            LOGGER.error(error)
-            return DATABASE_QUERY_ERROR, []
-
-    def _query_host_cve_info(self, filters: set):
-        """
-        query needed cve info
-
-        Args:
-            filters (set): filter given by user
-
-        Returns:
-            sqlalchemy.orm.query.Query
-        """
-        cve_query = (
-            self.session.query(CveHostAssociation, Host.host_ip, Host.host_name)
-            .join(Host, CveHostAssociation.host_id == Host.host_id)
-            .filter(*filters)
-            .all()
-        )
-        return cve_query
-
-    def get_cve_unfixed_packages(self, cve_id, host_ids: list, username: str):
+    def get_cve_unfixed_packages(self, cve_id, host_ids: list):
         """
         Get unfixed packages of the cve
 
@@ -1105,7 +1141,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             ]
         """
         try:
-            status_code, unfixed_rpms = self._get_cve_unfixed_packages(cve_id, host_ids, username)
+            status_code, unfixed_rpms = self._get_cve_unfixed_packages(cve_id, host_ids)
             if status_code != SUCCEED:
                 LOGGER.debug("Description Failed to query unfixed rpm packages of the cve, cve id: %s" % cve_id)
 
@@ -1114,12 +1150,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.error(error)
             return DATABASE_QUERY_ERROR, []
 
-    def _get_cve_unfixed_packages(self, cve_id, host_ids, username):
-        filters = {
-            CveHostAssociation.cve_id == cve_id,
-            CveHostAssociation.fixed == False,
-            CveHostAssociation.host_user == username,
-        }
+    def _get_cve_unfixed_packages(self, cve_id, host_ids):
+        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == False}
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))
 
@@ -1160,14 +1192,13 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             result.append(unfix_rpm)
         return result
 
-    def get_cve_fixed_packages(self, cve_id, host_ids: list, username: str):
+    def get_cve_fixed_packages(self, cve_id: str, host_ids: list):
         """
         Get fixed packages of the cve
 
         Args:
             cve_id: cve id
             host_ids: host list
-            username: user name
 
         Returns:
             status_code: str
@@ -1180,7 +1211,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     ]
         """
         try:
-            status_code, fixed_rpms = self._get_cve_fixed_packages(cve_id, host_ids, username)
+            status_code, fixed_rpms = self._get_cve_fixed_packages(cve_id, host_ids)
             if status_code != SUCCEED:
                 LOGGER.debug("Description Failed to query fixed rpm packages of the cve, cve id: %s" % cve_id)
 
@@ -1189,12 +1220,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             LOGGER.error(error)
             return DATABASE_QUERY_ERROR, []
 
-    def _get_cve_fixed_packages(self, cve_id, host_ids, username):
-        filters = {
-            CveHostAssociation.cve_id == cve_id,
-            CveHostAssociation.fixed == True,
-            CveHostAssociation.host_user == username,
-        }
+    def _get_cve_fixed_packages(self, cve_id, host_ids):
+        filters = {CveHostAssociation.cve_id == cve_id, CveHostAssociation.fixed == True}
         if host_ids:
             filters.add(CveHostAssociation.host_id.in_(host_ids))
 
@@ -1281,27 +1308,28 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
     def _get_processed_cve_packages_host(self, data):
         result = {"total_count": 0, "total_page": 0, "result": []}
         filters = {
-            CveHostAssociation.host_user == data["username"],
             CveHostAssociation.cve_id == data["cve_id"],
             CveHostAssociation.installed_rpm == data["installed_rpm"],
             CveHostAssociation.fixed == data["fixed"],
         }
+        if data.get("host_ids"):
+            filters.add(CveHostAssociation.host_id.in_(data["host_ids"]))
         if data.get("available_rpm"):
             filters.add(CveHostAssociation.available_rpm == data["available_rpm"])
 
         if data.get("hp_status"):
             filters.add(CveHostAssociation.hp_status == data["hp_status"])
-        cve_package_host_query = self._query_cve_package_host(filters)
+        query = self._query_cve_package_host(filters)
 
-        total_count = cve_package_host_query.count()
+        total_count = query.count()
         if not total_count:
             return result
 
         direction, page, per_page = data.get('direction'), data.get('page'), data.get('per_page')
 
-        processed_query, total_page = sort_and_page(cve_package_host_query, None, direction, per_page, page)
+        processed_query, total_page = sort_and_page(query, None, direction, per_page, page)
 
-        result['result'] = self._cve_pacakge_host_row2dict(processed_query)
+        result['result'] = [row.host_id for row in processed_query]
         result['total_page'] = total_page
         result['total_count'] = total_count
 
@@ -1314,20 +1342,5 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             )
             .filter(*filters)
             .group_by(CveHostAssociation.host_id)
-            .subquery()
         )
-        cve_package_host_query = self.session.query(Host.host_name, Host.host_ip).filter(
-            Host.host_id.in_(host_id_subquery)
-        )
-        return cve_package_host_query
-
-    @staticmethod
-    def _cve_pacakge_host_row2dict(rows):
-        result = []
-        for row in rows:
-            host_info = {
-                "host_name": row.host_name,
-                "host_ip": row.host_ip,
-            }
-            result.append(host_info)
-        return result
+        return host_id_subquery

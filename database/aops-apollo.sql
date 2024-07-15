@@ -172,7 +172,7 @@ CREATE DEFINER=`root`@`%` PROCEDURE `GET_CVE_LIST_PRO`(
     IN order_by VARCHAR(20),
     IN start_limit INT,
     IN limit_size INT,
-    IN host_list VARCHAR(255)
+    IN host_list TEXT
 )
 BEGIN
 		
@@ -258,7 +258,7 @@ END;
 -- ----------------------------
 
 DROP PROCEDURE IF EXISTS `GET_CVE_OVERVIEW_PRO`;
-CREATE PROCEDURE `GET_CVE_OVERVIEW_PRO`(IN host_list VARCHAR(255))
+CREATE PROCEDURE `GET_CVE_OVERVIEW_PRO`(IN host_list TEXT)
 BEGIN
     DROP TABLE IF EXISTS tmp_cve_overview;
     SET @tmp_cve_overview_sql = 'CREATE TEMPORARY TABLE tmp_cve_overview SELECT cve_id FROM cve_host_match WHERE ';

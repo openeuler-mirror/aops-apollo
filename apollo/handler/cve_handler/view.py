@@ -22,38 +22,39 @@ import shutil
 import time
 from collections import defaultdict
 from typing import List, Optional, Tuple
-from urllib.parse import urlencode
 
 from flask import g
-from vulcanus.conf.constant import HOSTS_FILTER
 from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
-    SUCCEED,
     DATABASE_INSERT_ERROR,
-    WRONG_FILE_FORMAT,
     NO_DATA,
-    SERVER_ERROR,
     PARAM_ERROR,
+    SERVER_ERROR,
+    SUCCEED,
+    WRONG_FILE_FORMAT,
 )
 from vulcanus.restful.response import BaseResponse
 
-from apollo.cron.notification import EmailNoticeManager
-from apollo.conf import configuration, cache
+from apollo.conf import cache
 from apollo.conf.constant import FILE_UPLOAD_PATH
-from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
+from apollo.cron.notification import EmailNoticeManager
+from apollo.database.proxy.cve import CveMysqlProxy, CveProxy
+from apollo.database.proxy.file import FileProxy
 from apollo.database.proxy.host import HostProxy
 from apollo.function.customize_exception import ParseAdvisoryError
+from apollo.function.file_utils import FileUtils
 from apollo.function.schema.cve import (
     CveBinaryPackageSchema,
-    GetCveListSchema,
-    GetCveInfoSchema,
+    DownloadFileSchema,
+    ExportCveExcelSchema,
     GetCveHostsSchema,
+    GetCveInfoSchema,
+    GetCveListSchema,
     GetCveTaskHostSchema,
     GetGetCvePackageHostSchema,
-    ExportCveExcelSchema,
 )
-from apollo.function.utils import make_download_response, query_user_hosts
+from apollo.function.utils import make_download_response, query_user_hosts, paginate_data
 from apollo.handler.cve_handler.manager.compress_manager import unzip
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
@@ -101,6 +102,7 @@ class VulGetCveList(BaseResponse):
 
         """
         result = {"total_count": 0, "total_page": 0, "result": []}
+
         params["host_list"] = query_user_hosts()
         status_code, result = callback.get_cve_list(params)
         return self.response(code=status_code, data=result)
@@ -132,35 +134,14 @@ class VulGetCveHosts(BaseResponse):
     Restful interface for getting hosts info of a cve
     """
 
-    @staticmethod
-    def paginate_data(data: List[dict], per_page: int, page: int) -> Tuple[int, int, List[dict]]:
-        """
-        Paginates the data and returns information for the specified page.
-
-        Args:
-            data: A list of dictionaries representing the original data.
-            per_page: The number of items to display per page.
-            page: The requested page number.
-
-        Returns:
-            A tuple containing the total number of items, total number of pages, and the data for the specified page.
-        """
-        total_count = len(data)
-        total_page = (total_count + per_page - 1) // per_page
-        start_idx = (page - 1) * per_page
-        end_idx = min(start_idx + per_page, total_count)
-        paginated_data = data[start_idx:end_idx]
-        return total_count, total_page, paginated_data
-
-    def _query_host_info(self, host_list: List[str], filters: Optional[dict] = None) -> list:
+    def _query_host_info(self, host_list: List[str], filters: Optional[dict] = None):
         """Queries host information for the specified list of hosts.
 
         Args:
-            host_list(List[str]): host id list
             filters(Optional[dict]): Optional filters to apply to the query.
 
         Returns:
-            list: host info list
+            The response data obtained from the query.
         """
         if not filters:
             filters = {}
@@ -168,7 +149,7 @@ class VulGetCveHosts(BaseResponse):
         query_fields = ["host_id", "host_ip", "host_name", "last_scan", "repo_id", "host_group_name", "cluster_id"]
         return query_user_hosts(host_list=host_list, fields=query_fields, **filters)
 
-    def _handle(self, params: dict, proxy: CveMysqlProxy) -> Tuple[str, dict]:
+    def _handle(self, params, proxy: CveMysqlProxy):
         """
         Handles the query for CVE-related host information.
         """
@@ -181,10 +162,8 @@ class VulGetCveHosts(BaseResponse):
         host_list = [row.host_id for row in query_rows]
         if not host_list:
             return status_code, {"total_count": 0, "total_page": 0, "result": []}
-
         # 2. Query all host info
         host_info_list = self._query_host_info(host_list, params.get("filter"))
-
         # 3. Sort all data based on sorting rules
         user_clusters_info = cache.get_user_clusters()
         for host in host_info_list:
@@ -193,12 +172,17 @@ class VulGetCveHosts(BaseResponse):
         direction = params.get("direction") == "desc"
         if sort_field:
             host_info_list = sorted(host_info_list, key=lambda host: host[sort_field], reverse=not direction)
+        # 5. Paginate the data
+        page = params.get("page")
+        per_page = params.get("per_page")
 
-        # 4. Paginate the data
-        total_count, total_page, paginated_data = self.paginate_data(
-            host_info_list, params.get("per_page"), params.get("page")
-        )
-        # 5. Return the target data
+        if page and per_page:
+            total_count, total_page, paginated_data = paginate_data(host_info_list, per_page, page)
+        else:
+            total_count = len(host_info_list)
+            total_page = 1
+            paginated_data = host_info_list
+        # 6. Return the target data
         result = {"total_count": total_count, "total_page": total_page, "result": paginated_data}
         return SUCCEED, result
 
@@ -229,17 +213,12 @@ class VulGetCveTaskHost(BaseResponse):
     Restful interface for getting each CVE's hosts' basic info (id, ip, name)
     """
 
-    def _query_host_info(self, host_list: List[str]) -> dict:
-        """Queries host information for the specified list of hosts.
+    def _query_host_info(self, host_list):
+        """"""
 
-        Args:
-            host_list(list): host id list
-
-        Returns:
-            The response data obtained from the query.
-        """
         result = {}
-        host_info_list = query_user_hosts(host_list=host_list, fields=["host_id", "host_ip", "host_name", "cluster_id"])
+        query_fields = ["host_id", "host_ip", "host_name", "cluster_id"]
+        host_info_list = query_user_hosts(host_list, query_fields)
 
         if len(host_info_list) != len(host_list):
             return PARAM_ERROR, result
@@ -252,7 +231,7 @@ class VulGetCveTaskHost(BaseResponse):
                 cluster_id=host.get("cluster_id"),
             )
 
-        return result
+        return SUCCEED, result
 
     def _get_cve_task_hosts_for_hp_remove(self, cve_task_hosts_rows, cluster_info) -> dict:
         """
@@ -289,7 +268,11 @@ class VulGetCveTaskHost(BaseResponse):
 
         # get host info
         # host_info_dict: {host_id1: {"host_name": "name1", "host_ip": "1.1.1.1"}
-        host_info_dict = self._query_host_info(list(host_id_list))
+        status, host_info_dict = self._query_host_info(list(host_id_list))
+        if status != SUCCEED:
+            LOGGER.error("Failed to query host information in task")
+            return status, {}
+
         for host_id, info in host_info_dict.items():
             info["cluster_name"] = cluster_info.get(info.get("cluster_id"))
 
@@ -351,7 +334,10 @@ class VulGetCveTaskHost(BaseResponse):
         for row in cve_task_hosts_rows:
             host_id_list.add(row.host_id)
         # host_info_dict: {host_id1: {"host_name": "name1", "host_ip": "1.1.1.1"}
-        host_info_dict = self._query_host_info(list(host_id_list))
+        status, host_info_dict = self._query_host_info(list(host_id_list))
+        if status != SUCCEED:
+            LOGGER.error("Failed to query host information in task")
+            return status, {}
 
         for host_id, info in host_info_dict.items():
             info["cluster_name"] = cluster_info.get(info.get("cluster_id"), {})
@@ -483,9 +469,9 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            security_cvrf_info = parse_security_advisory(file_path)
+            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
             os.remove(file_path)
-            if not all([security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows, security_cvrf_info.cve_pkg_docs]):
+            if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                 return WRONG_FILE_FORMAT
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
@@ -493,7 +479,7 @@ class VulUploadAdvisory(BaseResponse):
             LOGGER.error(error)
             return WRONG_FILE_FORMAT
 
-        status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
+        status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
 
         return status_code
 
@@ -521,10 +507,8 @@ class VulUploadAdvisory(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                security_cvrf_info = parse_security_advisory(file_path)
-                if not all(
-                    [security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows, security_cvrf_info.cve_pkg_docs]
-                ):
+                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
+                if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
@@ -538,7 +522,9 @@ class VulUploadAdvisory(BaseResponse):
                 LOGGER.error(error)
                 continue
             # elasticsearch need 1 second to update doc
-            status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
+            status_code = proxy.save_security_advisory(
+                file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
+            )
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
@@ -693,70 +679,71 @@ class VulExportExcel(BaseResponse):
     Restful interface for export cve to excel
     """
 
-    @staticmethod
-    def _handle(proxy, args):
+    def _handle(self, proxy: HostProxy, args):
         """
-        Handle export csv
+        Handle the processing of exporting files
+
         Returns:
-            dict: result. e.g.
-                {
-                    "status": status,
-                    "fileinfo": {
-                        "filename": filename,
-                        "filepath": "filepath"
-                        }
-                }
+            str: status code
         """
+        file_md5 = None
+        host_info_list = query_user_hosts(
+            host_list=args.get("host_list"), fields=["host_ip", "host_id", "host_name", "cluster_id"]
+        )
+        if not host_info_list:
+            return NO_DATA, file_md5
 
-        if not os.path.exists(CSV_SAVED_PATH):
-            os.makedirs(CSV_SAVED_PATH)
-        filepath = os.path.join(CSV_SAVED_PATH, args["username"])
-        if os.path.exists(filepath):
-            shutil.rmtree(filepath)
-        os.mkdir(filepath)
+        temp_file_path = None
+        try:
+            status, temp_file_path, _ = EmailNoticeManager(g.username, proxy, host_info_list).generate_temp_file()
+            if status != SUCCEED:
+                return status, file_md5
 
-        status, cve_body = proxy.query_host_name_and_related_cves(args["host_list"], args["username"])
-        result = {}
-        if status != SUCCEED:
-            result["status"] = status
-            return result
+            # file_md5 = FileUtils.calculate_hash_code(temp_file_path)
+            # if not file_md5:
+            #     return SERVER_ERROR, file_md5
 
-        filename = "host_cve_info.csv"
-        csv_head = ["host_ip", "host_name", "cve_id", "installed_rpm", "available_rpm", "support_way", "fixed_way"]
+            # file_save_response = FileUtils.upload_file(file_md5, temp_file_path)
+            # if file_save_response.status_code != http.HTTPStatus.OK:
+            #     return SERVER_ERROR, file_md5
 
-        export_csv(cve_body, os.path.join(filepath, filename), csv_head)
+            # create_timestamp = int(time.time())
+            # file_info = FileModel(
+            #     file_name=f"host_cve_info{time.strftime('%Y%m%d%H%M%S', time.localtime(create_timestamp))}.csv",
+            #     file_md5=file_md5,
+            #     username=g.username,
+            #     file_size=os.path.getsize(temp_file_path),
+            #     create_timestamp=create_timestamp,
+            #     expiration_timestamp=create_timestamp + 24 * 60 * 60,
+            # )
 
-        if len(os.listdir(filepath)) == 0:
-            result["status"] = NO_DATA
-            return result
-        if len(os.listdir(filepath)) > FILE_NUMBER:
-            zip_filename, zip_save_path = compress_cve(filepath, "host.zip")
-            if zip_filename and zip_save_path:
-                filename = zip_filename
-                filepath = zip_save_path
-            else:
-                result["status"] = SERVER_ERROR
-                return result
-        result["status"] = SUCCEED
-        file_info = {"filename": filename, "filepath": filepath}
-        result["fileinfo"] = file_info
-        return result
+            # with FileProxy() as file_proxy:
+            #     status = file_proxy.insert_new_file_info(file_info, g.username)
+            #     if status != SUCCEED:
+            #         return SERVER_ERROR, file_md5
 
-    @BaseResponse.handle(proxy=CveProxy, schema=ExportCveExcelSchema)
-    def post(self, callback: CveProxy, **params):
+        except OSError as error:
+            LOGGER.error(error)
+            return SERVER_ERROR, file_md5
+        # finally:
+        #     # Delete the temporary file if it exists
+        #     if temp_file_path and os.path.isfile(temp_file_path):
+        #         os.remove(temp_file_path)
+
+        return SUCCEED, temp_file_path
+
+    @BaseResponse.handle(proxy=HostProxy, schema=ExportCveExcelSchema)
+    def post(self, callback: HostProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data into database
 
         Returns:
             dict: response body
         """
-        result = self._handle(callback, params)
-        if result.get("status") == SUCCEED:
-            fileinfo = result.get("fileinfo")
-            return make_download_response(
-                os.path.join(fileinfo.get("filepath"), fileinfo.get("filename")), fileinfo.get("filename")
-            )
-        return self.response(code=result)
+        status_code, file_path = self._handle(callback, params)
+        if status_code != SUCCEED:
+            return self.response(code=status_code, message="Generating file failed due to internal server error!")
+        return make_download_response(file_path, f"host_cve_info_{time.strftime('%Y%m%d%H%M%S', time.localtime())}.csv")
 
 
 class VulUnfixedCvePackage(BaseResponse):
@@ -772,9 +759,8 @@ class VulUnfixedCvePackage(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code, unfix_cve_packages = callback.get_cve_unfixed_packages(
-            cve_id=params["cve_id"], host_ids=params.get("host_ids"), username=params["username"]
-        )
+        host_ids = query_user_hosts(params.get("host_ids", []))
+        status_code, unfix_cve_packages = callback.get_cve_unfixed_packages(cve_id=params["cve_id"], host_ids=host_ids)
         return self.response(code=status_code, data=unfix_cve_packages)
 
 
@@ -791,9 +777,8 @@ class VulFixedCvePackage(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code, unfix_cve_packages = callback.get_cve_fixed_packages(
-            cve_id=params["cve_id"], host_ids=params.get("host_ids"), username=params["username"]
-        )
+        host_ids = query_user_hosts(params.get("host_ids", []))
+        status_code, unfix_cve_packages = callback.get_cve_fixed_packages(cve_id=params["cve_id"], host_ids=host_ids)
         return self.response(code=status_code, data=unfix_cve_packages)
 
 
@@ -801,6 +786,18 @@ class VulGetCvePackageHost(BaseResponse):
     """
     Restful interface for get cve package host list
     """
+
+    def _handle(self, params, callback: CveProxy):
+        status, response_body = callback.get_cve_packages_host(params)
+        host_list = response_body.get("result", [])
+        if status != SUCCEED or len(host_list) == 0:
+            return status, response_body
+
+        host_list = response_body.get("result")
+        query_fields = ["host_id", "host_ip", "host_name", "cluster_id"]
+        host_infos = query_user_hosts(host_list, query_fields)
+        response_body["result"] = sorted(host_infos, key=lambda x: host_list.index(x["host_id"]))
+        return status, response_body
 
     @BaseResponse.handle(proxy=CveProxy, schema=GetGetCvePackageHostSchema)
     def post(self, callback: CveProxy, **params):
@@ -817,5 +814,38 @@ class VulGetCvePackageHost(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code, hosts = callback.get_cve_packages_host(params)
+        status_code, hosts = self._handle(params, callback)
         return self.response(code=status_code, data=hosts)
+
+
+class VulDownloadFile(BaseResponse):
+    """
+    Restful interface for get cve package host list
+    """
+
+    @BaseResponse.handle(proxy=FileProxy, schema=DownloadFileSchema)
+    def get(self, callback: FileProxy, **params):
+        """ """
+        status, file_info = callback.query_file_info(params.get("file_id"), g.username)
+        if status != SUCCEED:
+            return self.response(code=SERVER_ERROR, message="File download failed")
+        return FileUtils.download_file(file_info.file_md5, **{"file_name": file_info.file_name})
+
+
+class VulGetFileList(BaseResponse):
+    @BaseResponse.handle(proxy=FileProxy)
+    def get(self, callback: FileProxy, **params):
+        status, query_rows = callback.query_file_list(g.username)
+
+        file_list_info = []
+        for row in query_rows:
+            file_list_info.append(
+                {
+                    "id": row.id,
+                    "file_name": row.file_name,
+                    "create_time": row.create_timestamp,
+                    "file_md5": row.file_md5,
+                    "file_size": row.file_size,
+                }
+            )
+        return self.response(code=status, data=file_list_info)

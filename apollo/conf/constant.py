@@ -15,6 +15,15 @@ Time:
 Author:
 Description: manager constant
 """
+import os
+
+from vulcanus.conf.constant import BASE_CONFIG_PATH
+
+# path of apollo configuration
+CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'apollo.ini')
+EXTRA_FILE_SERVICE_PATH = "/opt/aops/scripts/file_service_support"
+FILE_SAVE_PATH = "/opt/aops/file"
+
 # template repo for downloading
 TEMPLATE_REPO_STR = (
     "[aops-update]\n"
@@ -39,6 +48,10 @@ class TaskChannel:
     CVE_ROLLBACK_TASK = 'cve_rollback_task'
     HOTPATCH_REMOVE_TASK = 'hotpatch_remove_task'
     CLUSTER_SYNCHRONIZE_CANCEL_TASK = 'cluster_synchronize_cancel_task'
+    TIMED_SCAN_TASK = "cve_scan"
+    TIMED_CORRECT_TASK = "correct_data"
+    TIMED_SEND_NOTIFICATION = "send_notification"
+    TIMED_DOWNLOAD_SA = "download_sa"
 
 
 class CveHostStatus:
@@ -170,8 +183,16 @@ CSV_SAVED_PATH = "/opt/aops/cve/saved"
 ADVISORY_SAVED_PATH = "/opt/aops/cve/advisory_download"
 TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.yml"
 
+EXECUTE_REPO_SET = '/manage/vulnerabilities/repo/set'
+EXECUTE_CVE_FIX = '/manage/vulnerabilities/cve/fix'
+EXECUTE_CVE_ROLLBACK = '/manage/vulnerabilities/cve/rollback'
+EXECUTE_CVE_SCAN = '/manage/vulnerabilities/cve/scan'
+EXECUTE_HOTPATCH_REMOVE = "/manage/vulnerabilities/cve/hotpatch-remove"
+HOST_STATUS_GET = "/manage/host/status/get"
 
 VUL_CVE_UNFIXED_PACKAGES = "/vulnerabilities/cve/unfixed/packages/get"
 VUL_CVE_FIXED_PACKAGES = "/vulnerabilities/cve/fixed/packages/get"
 VUL_CVE_PACKAGES_HOST = "/vulnerabilities/cve/packages/host/get"
 VUL_GET_TASK_HOST = "/vulnerabilities/task/host/get"
+VUL_DOWNLOAD_FILE = "/vulnerabilities/file/download"
+VUL_GET_FILE_LIST = "/vulnerabilities/file/list/get"

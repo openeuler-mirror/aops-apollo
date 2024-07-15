@@ -17,6 +17,7 @@ Description: For cve related restful interfaces schema
 """
 from marshmallow import Schema, fields, validate
 from vulcanus.restful.serialize.validate import PaginationSchema
+
 from apollo.conf.constant import CveSeverity
 
 
@@ -55,9 +56,10 @@ class CveHostFilterSchema(Schema):
     """
 
     host_name = fields.String(required=False, validate=lambda s: len(s) != 0)
-    host_group = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
+    host_group_ids = fields.List(fields.String(validate=lambda s: len(s) != 0), required=False)
     repo = fields.List(fields.String(validate=lambda s: len(s) != 0, allow_none=True), required=False)
     fixed = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
+    cluster_list = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=False)
 
 
 class GetCveHostsSchema(PaginationSchema):
@@ -95,7 +97,7 @@ class GetCveTaskHostSchema(Schema):
     validators for parameter of /vulnerability/cve/task/host/get
     """
 
-    host_list = fields.List(fields.Integer(), required=False)
+    host_list = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=False)
     cve_list = fields.List(fields.Nested(CveTaskHostSchemaOfCveInfo), required=True, validate=lambda s: len(s) != 0)
     fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
 
@@ -106,7 +108,7 @@ class CveBinaryPackageSchema(Schema):
     """
 
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    host_ids = fields.List(fields.Integer(), required=False)
+    host_ids = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=False)
 
 
 class GetGetCvePackageHostSchema(PaginationSchema):
@@ -120,7 +122,12 @@ class GetGetCvePackageHostSchema(PaginationSchema):
     available_rpm = fields.String(required=False, validate=lambda s: 0 < len(s) <= 100)
     hp_status = fields.String(required=False, validate=lambda s: 0 < len(s) <= 20)
     fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
+    host_ids = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=False)
 
 
 class ExportCveExcelSchema(Schema):
-    host_list = fields.List(fields.Integer(), required=True)
+    host_list = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=True)
+
+
+class DownloadFileSchema(Schema):
+    file_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
