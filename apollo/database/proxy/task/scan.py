@@ -11,53 +11,19 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import threading
-from time import time
 from typing import List
 
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import (
-    DATABASE_INSERT_ERROR,
-    NO_DATA,
-    DATABASE_UPDATE_ERROR,
-    SUCCEED,
-    SERVER_ERROR,
-)
+from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, SUCCEED
 
-from apollo.conf.constant import HostStatus, TaskStatus
-from apollo.database.table import (
-    CveHostAssociation,
-    CveAffectedPkgs,
-    Host,
-)
+from apollo.conf.constant import TaskStatus
 from apollo.database.proxy.task.base import TaskProxy
+from apollo.database.table import CveAffectedPkgs, CveHostAssociation
 
 
 class ScanProxy(TaskProxy):
     lock = threading.Lock()
-
-    def update_host_scan_status(self, status: str, host_list: List[int], username: str = None) -> int:
-        """
-        When the host need to be scanned, init the status to 'scanning',
-        and update the last scan time to current time.
-        Notice, if one host id doesn't exist, all hosts will not be scanned
-        Args:
-            status(str): init or finish
-            host_list (list): host id list, if empty, scan all hosts
-            username (str): user name
-        Returns:
-            int: status code
-        """
-        try:
-            status_code = self._update_host_scan(update_type=status, host_list=host_list, username=username)
-            self.session.commit()
-            LOGGER.debug("Finished init host scan status.")
-            return status_code
-        except SQLAlchemyError as error:
-            self.session.rollback()
-            LOGGER.error(error)
-            LOGGER.error("Init host scan status failed due to internal error.")
-            return DATABASE_UPDATE_ERROR
 
     def _query_unaffected_cve(self, os_version: str, installed_packages: List[str]) -> list:
         """
@@ -83,7 +49,7 @@ class ScanProxy(TaskProxy):
         )
         return installed_packages_cve
 
-    def save_cve_scan_result(self, task_info: dict) -> int:
+    def save_cve_scan_result(self, task_info: dict) -> str:
         """
         Save cve scan result to database.
         Args:
@@ -127,7 +93,7 @@ class ScanProxy(TaskProxy):
                     "reboot": true/false
                 }
         Returns:
-            int: status code
+            str: status code
         """
         try:
             status = task_info["status"]
@@ -136,10 +102,9 @@ class ScanProxy(TaskProxy):
             else:
                 LOGGER.info(f"scan result failed with status {status}.")
 
-            status_code = self._update_host_scan("finish", [task_info["host_id"]], task_info.get("reboot"))
             self.session.commit()
             LOGGER.debug("Finish saving scan result.")
-            return status_code
+            return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
@@ -191,6 +156,7 @@ class ScanProxy(TaskProxy):
         """
 
         host_id = task_info["host_id"]
+        cluster_id = task_info.get("cluster_id")
         installed_packages = [package["name"] for package in task_info["installed_packages"]]
         os_version = task_info["os_version"]
 
@@ -215,6 +181,7 @@ class ScanProxy(TaskProxy):
                     "support_way": unfixed_vulnerability_info.get("support_way") or None,
                     "installed_rpm": unfixed_vulnerability_info.get("installed_rpm") or None,
                     "available_rpm": unfixed_vulnerability_info.get("available_rpm") or None,
+                    "cluster_id": cluster_id,
                 }
             )
 
@@ -228,6 +195,7 @@ class ScanProxy(TaskProxy):
                     "fixed_way": fixed_vulnerability_info.get("fix_way"),
                     "installed_rpm": fixed_vulnerability_info.get("installed_rpm"),
                     "hp_status": fixed_vulnerability_info.get("hp_status"),
+                    "cluster_id": cluster_id,
                 }
             )
         with self.lock:
@@ -279,56 +247,3 @@ class ScanProxy(TaskProxy):
             cve_list = [cve[0] for cve in cves_list_query]
 
         return cve_list
-
-    def _update_host_scan(
-        self, update_type: str, host_list: List[int], reboot: bool = False, username: str = None
-    ) -> int:
-        """
-        Update hosts scan status and last_scan time
-        Args:
-            update_type (str): 'init' or 'finish'
-            host_list (list): host id list
-            reboot (bool): host restart status
-            username (str): user name
-        Returns:
-
-        """
-        if update_type == "init":
-            update_dict = {Host.status: HostStatus.SCANNING, Host.last_scan: int(time())}
-        elif update_type == "finish":
-            update_dict = {Host.status: HostStatus.ONLINE, Host.reboot: reboot}
-        else:
-            LOGGER.error(
-                "Given host scan update type '%s' is not in default type list ['init', 'finish']." % update_type
-            )
-            return SERVER_ERROR
-
-        host_scan_query = self._query_scan_status_and_time(host_list, username)
-        succeed_list = [row.host_id for row in host_scan_query]
-        fail_list = set(host_list) - set(succeed_list)
-        if fail_list:
-            LOGGER.debug("No data found when setting the status of host: %s." % fail_list)
-            if update_type == "init":
-                return NO_DATA
-
-        # update() is not applicable to 'in_' method without synchronize_session=False
-        host_scan_query.update(update_dict, synchronize_session=False)
-        return SUCCEED
-
-    def _query_scan_status_and_time(self, host_list: List[int], username: str):
-        """
-        query host status and last_scan data of specific user
-        Args:
-            host_list (list): host id list, when empty, query all hosts
-            username (str/None): user name
-        Returns:
-            sqlalchemy.orm.query.Query
-        """
-        filters = set()
-        if host_list:
-            filters.add(Host.host_id.in_(host_list))
-        if username:
-            filters.add(Host.user == username)
-
-        hosts_status_query = self.session.query(Host).filter(*filters)
-        return hosts_status_query
