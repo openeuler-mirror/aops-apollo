@@ -21,7 +21,7 @@ import os
 import shutil
 import time
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from flask import g
 from vulcanus.database.helper import judge_return_code
@@ -40,13 +40,10 @@ from apollo.conf import cache
 from apollo.conf.constant import FILE_UPLOAD_PATH
 from apollo.cron.notification import EmailNoticeManager
 from apollo.database.proxy.cve import CveMysqlProxy, CveProxy
-from apollo.database.proxy.file import FileProxy
 from apollo.database.proxy.host import HostProxy
 from apollo.function.customize_exception import ParseAdvisoryError
-from apollo.function.file_utils import FileUtils
 from apollo.function.schema.cve import (
     CveBinaryPackageSchema,
-    DownloadFileSchema,
     ExportCveExcelSchema,
     GetCveHostsSchema,
     GetCveInfoSchema,
@@ -816,36 +813,3 @@ class VulGetCvePackageHost(BaseResponse):
         """
         status_code, hosts = self._handle(params, callback)
         return self.response(code=status_code, data=hosts)
-
-
-class VulDownloadFile(BaseResponse):
-    """
-    Restful interface for get cve package host list
-    """
-
-    @BaseResponse.handle(proxy=FileProxy, schema=DownloadFileSchema)
-    def get(self, callback: FileProxy, **params):
-        """ """
-        status, file_info = callback.query_file_info(params.get("file_id"), g.username)
-        if status != SUCCEED:
-            return self.response(code=SERVER_ERROR, message="File download failed")
-        return FileUtils.download_file(file_info.file_md5, **{"file_name": file_info.file_name})
-
-
-class VulGetFileList(BaseResponse):
-    @BaseResponse.handle(proxy=FileProxy)
-    def get(self, callback: FileProxy, **params):
-        status, query_rows = callback.query_file_list(g.username)
-
-        file_list_info = []
-        for row in query_rows:
-            file_list_info.append(
-                {
-                    "id": row.id,
-                    "file_name": row.file_name,
-                    "create_time": row.create_timestamp,
-                    "file_md5": row.file_md5,
-                    "file_size": row.file_size,
-                }
-            )
-        return self.response(code=status, data=file_list_info)
