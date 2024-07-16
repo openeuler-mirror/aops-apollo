@@ -10,30 +10,22 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-"""
-Time:
-Author:
-Description: 
-"""
-import datetime
 import time
+from typing import Dict, Optional
 
+from vulcanus.cache import RedisError, RedisProxy
+from vulcanus.conf.constant import TIMEOUT
 from vulcanus.database.proxy import connect_database
-from vulcanus.conf.constant import TIMEOUT, URL_FORMAT
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED
-from vulcanus.restful.response import BaseResponse
-from vulcanus.timed import TimedTask
 
-from apollo.conf import configuration
-from apollo.conf.constant import HOST_STATUS_GET
+from apollo.conf import cache
 from apollo.database.proxy.task.base import TaskProxy
 from apollo.database.proxy.task.timed_proxy import TimedProxy
 
 
-class TimedCorrectTask(TimedTask):
+class CorrectTask:
     """
-    Timed correct data tasks
+    correct data tasks
     """
 
     @connect_database()
@@ -41,12 +33,10 @@ class TimedCorrectTask(TimedTask):
         """
         Start the correct after the specified time of day.
         """
-        LOGGER.info(
-            "Begin to correct the status of timeout tasks and scan timeout host in %s.",
-            str(datetime.datetime.now()))
+
         abnormal_task_ids, abnormal_host_ids = self.get_abnormal_task()
         if len(abnormal_host_ids) != 0:
-            self._update_host_status(abnormal_host_ids)
+            self._remove_cached_host_info(abnormal_host_ids)
         if len(abnormal_task_ids) != 0:
             with TimedProxy() as proxy:
                 proxy.timed_correct_error_task_status(abnormal_task_ids)
@@ -77,28 +67,49 @@ class TimedCorrectTask(TimedTask):
             list: The element of each list is the host ID
         """
         with TaskProxy() as proxy:
-            running_tasks, hosts = proxy.get_task_create_time()
+            running_tasks = proxy.get_task_create_time()
 
+        hosts = self._get_scanning_host_info()
         abnormal_tasks = self._abnormal_task(running_tasks)
-        abnormal_hosts = self._abnormal_task(hosts)
 
-        return abnormal_tasks, abnormal_hosts
+        return abnormal_tasks, hosts
 
     @staticmethod
-    def _update_host_status(host_ids):
+    def _get_scanning_host_info() -> Optional[Dict[str, int]]:
         """
-        update host status
-
-        Args:
-            host_ids(list): host id list
+        Query all host IDs and last scan time in scanning state
 
         Returns:
+            Optional[Dict[str, int]]: scanning host id and its scan time timestamp
         """
-        update_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), HOST_STATUS_GET)
-        header = {"exempt_authentication": configuration.individuation.get("EXEMPT_AUTHENTICATION"),
-                  "Content-Type": "application/json; charset=UTF-8"}
+        # example {"host_id1":"scanning timestamp info", "host_id2":"scanning timestamp info}
+        scanning_host_dic: Dict[str, str] = cache.hash(cache.SCANNING_HOST_KEY)
+        return scanning_host_dic or {}
 
-        parameter = {"host_list": host_ids}
-        response = BaseResponse.get_response('POST', update_url, parameter, header)
-        if response.get('label') != SUCCEED:
-            LOGGER.error("Failed to update host status")
+    @staticmethod
+    def _remove_cached_host_info(host_info: Dict[str, int]) -> None:
+        """
+        Remove the host information recorded in the redis cache
+
+        Args:
+            host_info(Dict[str,int]): scanning host information
+
+        Returns:
+            None
+        """
+        if not host_info:
+            return
+
+        current_time = int(time.time())
+        wait_correct_host_id = []
+        for host_id, scan_time in host_info.items():
+            if current_time - int(scan_time) >= TIMEOUT:
+                wait_correct_host_id.append(host_id)
+
+        if not wait_correct_host_id:
+            return
+
+        try:
+            RedisProxy.redis_connect.hdel(cache.SCANNING_HOST_KEY, *wait_correct_host_id)
+        except RedisError as error:
+            LOGGER.error("Failed to update host status: %s", error)

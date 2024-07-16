@@ -21,16 +21,19 @@ try:
     monkey.patch_all()
 except:
     pass
+import _thread
+import socket
 
-from vulcanus import init_application
-from vulcanus.timed import TimedTaskManager
-from vulcanus.log.log import LOGGER
-from vulcanus.database.proxy import ElasticsearchProxy
-from apollo.cron import task_meta
-from apollo.conf.constant import TIMED_TASK_CONFIG_PATH
-from apollo.database.mapping import MAPPINGS
+from apollo.subscribe import TaskCallbackSubscribe
+
 from apollo.conf import configuration
+from apollo.conf.constant import TaskChannel
+from apollo.database.mapping import MAPPINGS
 from apollo.url import URLS
+from vulcanus import init_application
+from vulcanus.database.proxy import ElasticsearchProxy, RedisProxy
+from vulcanus.log.log import LOGGER
+from vulcanus.registry.register_service.zookeeper import ZookeeperRegisterCenter
 
 
 def _init_elasticsearch():
@@ -46,30 +49,32 @@ def _init_elasticsearch():
 
     LOGGER.info("create elasticsearch index succeed")
     # update es settings
-    config = {"max_result_window": configuration.elasticsearch.get('MAX_ES_QUERY_NUM')}
+    config = {"max_result_window": configuration.elasticsearch.max_es_query_num}
     proxy.update_settings(**config)
 
 
-def _init_timed_task(application):
+def register_service():
     """
-    Initialize and create a scheduled task
-
-    Args:
-        application:flask.Application
+    register service
     """
-    timed_task = TimedTaskManager(app=application, config_path=TIMED_TASK_CONFIG_PATH)
-    if not timed_task.timed_config:
-        LOGGER.warning("If you want to start a scheduled task, please add a timed config.")
-        return
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(('8.8.8.8', 80))
+        ip_address = sock.getsockname()[0]
+    finally:
+        sock.close()
 
-    for task_info in timed_task.timed_config.values():
-        task_type = task_info.get('type')
-        if task_type not in task_meta:
-            continue
-        meta_class = task_meta[task_type]
-        timed_task.add_job(meta_class(timed_config=task_info))
+    register_center = ZookeeperRegisterCenter(hosts=f"{configuration.zookeeper.host}:{configuration.zookeeper.port}")
+    if not register_center.connected:
+        register_center.connect()
 
-    timed_task.start()
+    service_data = {"address": ip_address, "port": configuration.uwsgi.port}
+
+    LOGGER.info("register zeus-host-information service")
+    if not register_center.register_service(service_name="apollo", service_info=service_data, ephemeral=True):
+        raise RuntimeError("register apollo service failed")
+
+    LOGGER.info("register apollo service success")
 
 
 def main():
@@ -79,12 +84,28 @@ def main():
     _app = init_application(name="apollo", settings=configuration, register_urls=URLS)
 
     _init_elasticsearch()
-    _init_timed_task(application=_app)
+    register_service()
+    _thread.start_new_thread(
+        TaskCallbackSubscribe(
+            subscribe_client=RedisProxy.redis_connect,
+            channels=[
+                TaskChannel.CVE_FIX_TASK,
+                TaskChannel.CVE_SCAN_TASK,
+                TaskChannel.CVE_ROLLBACK_TASK,
+                TaskChannel.HOTPATCH_REMOVE_TASK,
+                TaskChannel.REPO_SET_TASK,
+                TaskChannel.CLUSTER_SYNCHRONIZE_CANCEL_TASK,
+                TaskChannel.TIMED_SEND_NOTIFICATION,
+                TaskChannel.TIMED_CORRECT_TASK,
+                TaskChannel.TIMED_SCAN_TASK,
+                TaskChannel.TIMED_DOWNLOAD_SA,
+            ],
+        )
+    )
     return _app
 
 
 app = main()
 
-
 if __name__ == "__main__":
-    app.run(host=configuration.apollo.get("IP"), port=configuration.apollo.get("PORT"))
+    app.run(host="0.0.0.0", port=configuration.uwsgi.port, debug=True)

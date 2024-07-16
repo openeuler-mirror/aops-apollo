@@ -15,9 +15,12 @@ Time:
 Author:
 Description: callback function of the cve scanning task.
 """
+from redis.exceptions import RedisError
+from vulcanus.database.proxy import RedisProxy
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, DATABASE_UPDATE_ERROR
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, SUCCEED
 
+from apollo.conf import cache
 from apollo.handler.task_handler.callback import TaskCallback
 
 
@@ -68,11 +71,13 @@ class CveScanCallback(TaskCallback):
                             "hp_status": "ACCEPTED/ACTIVED"
                         }
                     ],
-                }
+                                    }
 
         Returns:
             status_code: cve scan setting status
         """
+        self._remove_cached_host_info(task_result.get("host_id"))
+
         status_code = self.proxy.save_cve_scan_result(task_result)
 
         if status_code != SUCCEED:
@@ -83,3 +88,20 @@ class CveScanCallback(TaskCallback):
             return DATABASE_UPDATE_ERROR
 
         return SUCCEED
+
+    def _remove_cached_host_info(self, host_id: str) -> None:
+        """
+        Remove the host information recorded in the redis cache
+        after the cve scan task is completed.
+
+        Args:
+            host_id (str): host id
+
+        Returns:
+            NoReturn
+        """
+        try:
+            RedisProxy.redis_connect.hdel(cache.SCANNING_HOST_KEY, host_id)
+        except RedisError as error:
+            LOGGER.warning(error)
+            LOGGER.warning("Failed to update scanning host info!")

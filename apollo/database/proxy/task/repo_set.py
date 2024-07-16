@@ -11,7 +11,13 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 from elasticsearch import ElasticsearchException
+from flask import g
 from sqlalchemy.exc import SQLAlchemyError
+
+from apollo.conf.constant import REPO_FILE, TaskStatus, TaskType
+from apollo.database.proxy.task.base import TaskProxy
+from apollo.database.table import Repo, Task, TaskHostRepoAssociation
+from apollo.function.customize_exception import EsOperationError
 from vulcanus.database.helper import sort_and_page
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
@@ -20,22 +26,11 @@ from vulcanus.restful.resp.state import (
     DATABASE_QUERY_ERROR,
     DATABASE_UPDATE_ERROR,
     SUCCEED,
-    PARAM_ERROR,
 )
-
-from apollo.conf.constant import REPO_FILE, TaskStatus, TaskType
-from apollo.database.table import (
-    Repo,
-    Task,
-    TaskHostRepoAssociation,
-    Host,
-)
-from apollo.function.customize_exception import EsOperationError
-from apollo.database.proxy.task.base import TaskProxy
 
 
 class RepoSetProxy(TaskProxy):
-    def generate_repo_task(self, data):
+    def generate_repo_task(self, task_info, host_info):
         """
         For generating, save repo task basic info to mysql, init task info in es.
 
@@ -60,7 +55,7 @@ class RepoSetProxy(TaskProxy):
             int: status code
         """
         try:
-            status_code = self._gen_repo_task(data)
+            status_code = self._gen_repo_task(task_info, host_info)
             if status_code != SUCCEED:
                 return status_code
             self.session.commit()
@@ -72,7 +67,7 @@ class RepoSetProxy(TaskProxy):
             LOGGER.error("Generate repo task failed due to internal error.")
             return DATABASE_INSERT_ERROR
 
-    def _gen_repo_task(self, data):
+    def _gen_repo_task(self, task_info, host_info_list):
         """
         generate repo task. Process data, then:
         1. insert task basic info into mysql Task table
@@ -85,34 +80,26 @@ class RepoSetProxy(TaskProxy):
         Raises:
             EsOperationError
         """
-        task_id = data["task_id"]
-        repo_name = data.pop("repo_name")
+        task_id = task_info.get("task_id")
+        repo_id = task_info.pop("repo_id")
 
         task_repo_host_rows = []
-        host_ids = list(set([host["host_id"] for host in data.pop("info")]))
-        host_list = (
-            self.session.query(Host.host_id, Host.host_name, Host.host_ip).filter(Host.host_id.in_(host_ids)).all()
-        )
-        if len(host_list) != len(host_ids):
-            return PARAM_ERROR
-
-        for host in host_list:
-            host_info = dict(host_id=host.host_id, host_name=host.host_name, host_ip=host.host_ip)
-            task_repo_host_rows.append(self._task_repo_host_row_dict(task_id, repo_name, host_info))
+        for host in host_info_list:
+            task_repo_host_rows.append(self._task_repo_host_row_dict(task_id, repo_id, host))
 
         # insert data into mysql tables
-        data["host_num"] = len(host_ids)
-        self._insert_repo_task_tables(data, task_repo_host_rows)
+        task_info["host_num"] = len(host_info_list)
+        self._insert_repo_task_tables(task_info, task_repo_host_rows)
         return SUCCEED
 
     @staticmethod
-    def _task_repo_host_row_dict(task_id, repo_name, host_info):
+    def _task_repo_host_row_dict(task_id, repo_id, host_info):
         """
         insert repo setting into TaskHostRepoAssociation table
         """
         return {
             "task_id": task_id,
-            "repo_name": repo_name,
+            "repo_id": repo_id,
             "host_id": host_info["host_id"],
             "host_name": host_info["host_name"],
             "host_ip": host_info["host_ip"],
@@ -197,12 +184,12 @@ class RepoSetProxy(TaskProxy):
             int: status code
             dict
         """
-        result = {"total_count": 0, "total_page": 1, "result": []}
+        result = {"total_count": 0, "total_page": 0, "result": []}
 
         task_id = data["task_id"]
         filter_dict = data.get("filter")
         filters = self._get_repo_task_filters(filter_dict)
-        repo_task_query = self._query_repo_task(data["username"], task_id, filters)
+        repo_task_query = self._query_repo_task(data.get("cluster_id_list"), task_id, filters)
 
         total_count = len(repo_task_query.all())
         # NO_DATA code is NOT returned because no data situation here is normal
@@ -220,7 +207,7 @@ class RepoSetProxy(TaskProxy):
 
         return result
 
-    def _query_repo_task(self, username, task_id, filters):
+    def _query_repo_task(self, cluster_id_list, task_id, filters):
         """
         query needed repo task's host info
         Args:
@@ -243,11 +230,13 @@ class RepoSetProxy(TaskProxy):
                 TaskHostRepoAssociation.host_id,
                 TaskHostRepoAssociation.host_name,
                 TaskHostRepoAssociation.host_ip,
-                TaskHostRepoAssociation.repo_name,
                 TaskHostRepoAssociation.status,
+                Repo.repo_name,
+                Repo.repo_id,
             )
             .join(Task, Task.task_id == TaskHostRepoAssociation.task_id)
-            .filter(Task.username == username, TaskHostRepoAssociation.task_id == task_id)
+            .outerjoin(Repo, TaskHostRepoAssociation.repo_id == Repo.repo_id)
+            .filter(Task.cluster_id.in_(cluster_id_list), TaskHostRepoAssociation.task_id == task_id)
             .filter(*filters)
         )
 
@@ -289,6 +278,7 @@ class RepoSetProxy(TaskProxy):
                 "host_name": row.host_name,
                 "host_ip": row.host_ip,
                 "repo_name": row.repo_name,
+                "repo_id": row.repo_id,
                 "status": row.status,
             }
             result.append(host_info)
@@ -327,18 +317,19 @@ class RepoSetProxy(TaskProxy):
         if host_list:
             filters.add(TaskHostRepoAssociation.host_id.in_(host_list))
 
-        status_query = self.session.query(TaskHostRepoAssociation).filter(*filters)
-        status_query.update({TaskHostRepoAssociation.status: status}, synchronize_session=False)
+        self.session.query(TaskHostRepoAssociation).filter(*filters).update(
+            {TaskHostRepoAssociation.status: status}, synchronize_session=False
+        )
 
-    def get_repo_info(self, data: dict):
+    def get_repo_info(self, repo_id: str, cluster_id: str):
         """
         GET repo information
 
         Args:
             data(dict): e.g.
                 {
-                    "repo_name": "repo1",
-                    "username": "admin"
+                    "repo_id": "repo_id",
+                    "cluster_id": "cluster_id"
                 }
         Returns:
             stattus_code: State of the query
@@ -347,11 +338,11 @@ class RepoSetProxy(TaskProxy):
                     "repo_id":"",
                     "repo_name":"",
                     "repo_data":"",
-                    "repo_attr":""
+                    "repo_attr":"",
                 }
         """
         try:
-            status_code, repo_info = self._get_repo_info(data.get("repo_name"), data.get("username"))
+            status_code, repo_info = self._get_repo_info(repo_id, cluster_id)
             LOGGER.debug("Finished getting repo info.")
             return status_code, repo_info
         except SQLAlchemyError as error:
@@ -359,19 +350,17 @@ class RepoSetProxy(TaskProxy):
             LOGGER.error("Getting repo info failed due to internal error.")
             return DATABASE_QUERY_ERROR, None
 
-    def _get_repo_info(self, repo_name, username):
+    def _get_repo_info(self, repo_id, cluster_id):
         """
         Query repo info
         """
-        filters = {Repo.repo_name == repo_name}
-        if username:
-            filters.add(Repo.username == username)
+        filters = {Repo.repo_id == repo_id, Repo.cluster_id == cluster_id}
 
         query_repo_info = (
             self.session.query(Repo.repo_id, Repo.repo_name, Repo.repo_attr, Repo.repo_data).filter(*filters).first()
         )
         if not query_repo_info:
-            LOGGER.debug(f"Repo information does not exist: {repo_name}.")
+            LOGGER.debug(f"Repo information does not exist: {repo_id}.")
             return NO_DATA, None
         repo_info = dict(
             repo_name=query_repo_info.repo_name,
@@ -381,7 +370,7 @@ class RepoSetProxy(TaskProxy):
         )
         return SUCCEED, repo_info
 
-    def get_repo_set_task_template(self, task_id: str, username: str):
+    def get_repo_set_task_template(self, task_id: str, cluster_info: dict):
         """
         Get the task template set by repo
 
@@ -393,69 +382,57 @@ class RepoSetProxy(TaskProxy):
             task: task info
         """
         # query task info
-
-        status_code, task_info = self.get_task_info(data=dict(task_id=task_id, username=username))
+        status_code, task_info = self.get_task_info(task_id=task_id, cluster_info=cluster_info)
         if status_code != SUCCEED:
-            LOGGER.debug(f"Getting task info failed, task id: {task_id}.")
+            LOGGER.error(f"Getting task info failed, task id: {task_id}.")
             return status_code, None
         # query task host
-        status_code, host_info = self.get_repo_task_info(data=dict(username=username, task_id=task_id))
+        status_code, host_info = self.get_repo_task_info(
+            data=dict(cluster_id_list=cluster_info.keys(), task_id=task_id)
+        )
         if status_code != SUCCEED:
-            LOGGER.debug(f"Getting repo task info failed, task id: {task_id}.")
+            LOGGER.error(f"Getting repo task info failed, task id: {task_id}.")
             return status_code, None
-        repo_name = host_info["result"][-1]["repo_name"]
+        repo_id = host_info["result"][-1]["repo_id"]
 
         # query repo info
-        status_code, repo_info = self.get_repo_info(dict(repo_name=repo_name, username=username))
+        status_code, repo_info = self.get_repo_info(repo_id, task_info.get("cluster_id"))
         if status_code != SUCCEED:
-            LOGGER.debug(f"Getting repo info failed, repo name: {repo_name}.")
+            LOGGER.error(f"Getting repo info failed, repo id: {repo_id}.")
             return status_code, None
         task_template = {
             "task_id": task_id,
-            "task_name": task_info["result"]["task_name"],
+            "repo_id": repo_id,
+            "task_name": task_info["task_name"],
             "task_type": TaskType.REPO_SET,
             "check_items": [],
-            "repo_info": {"name": repo_name, "repo_content": repo_info["repo_data"], "dest": REPO_FILE},
+            "repo_info": {"name": repo_info["repo_name"], "repo_content": repo_info["repo_data"], "dest": REPO_FILE},
             "total_hosts": [host["host_id"] for host in host_info["result"]],
         }
 
         return SUCCEED, task_template
 
-    def update_repo_host_status_and_host_reponame(self, data: dict, hosts_id_list: list):
+    def update_host_status_in_tasks(self, task_id: str, task_status: str, host_list: list):
         """
         After repo is successfully set, update the host status and set repo name to the host name
 
         Args:
-            data: e.g
-                {
-                    "task_id":"",
-                    "status":"",
-                    "repo_name":
-                }
-
+            task_id (str)
+            task_status (str)
+            host_list (list[int])
         Returns:
             status_code: update state
         """
         try:
-            self._update_repo_host_status(data["task_id"], hosts_id_list, data["status"])
-            if data["status"] == TaskStatus.SUCCEED:
-                self._update_host_repo(data["repo_name"], hosts_id_list)
+            self._update_repo_host_status(task_id, host_list, task_status)
             self.session.commit()
-            LOGGER.debug("Finished setting repo name to hosts and update repo host state when task finished .")
+            LOGGER.debug("Finished setting repo name to hosts when task finished .")
             return SUCCEED
         except SQLAlchemyError as error:
             self.session.rollback()
             LOGGER.error(error)
             LOGGER.error("Setting repo name to hosts and update repo host state failed due to internal error.")
             return DATABASE_UPDATE_ERROR
-
-    def _update_host_repo(self, repo_name, host_list):
-        """
-        set repo name to relative hosts
-        """
-        self.session.query(Host).filter(Host.host_id.in_(host_list)).update(
-            {Host.repo_name: repo_name}, synchronize_session=False
-        )
 
     def get_task_repo_result(self, data):
         """
@@ -508,15 +485,9 @@ class RepoSetProxy(TaskProxy):
         """
         query repo task result from mysql and es.
         """
-        username = data["username"]
         task_id = data["task_id"]
-        host_list = data["host_list"]
         # task log is in the format of returned dict of func
-        status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
+        status_code, task_log = self.get_task_log_info(task_id=task_id)
         if status_code != SUCCEED:
             return status_code, []
-
-        if host_list and task_log:
-            task_log = [log for log in task_log if log["host_id"] in host_list]
-
         return SUCCEED, task_log

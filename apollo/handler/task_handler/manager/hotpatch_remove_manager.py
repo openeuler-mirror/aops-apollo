@@ -10,13 +10,14 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from vulcanus.conf.constant import URL_FORMAT
+from celery import group
+from celery.exceptions import CeleryError
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED, TASK_EXECUTION_FAIL
-from vulcanus.restful.response import BaseResponse
 
-from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_HOTPATCH_REMOVE_CALLBACK, EXECUTE_HOTPATCH_REMOVE, TaskStatus
+from apollo.conf import celery_client
+from apollo.conf.constant import TaskChannel, TaskStatus
+from apollo.function.utils import query_user_hosts
 from apollo.handler.task_handler.manager import Manager
 
 
@@ -36,8 +37,6 @@ class HotpatchRemoveManager(Manager):
         if status_code != SUCCEED:
             LOGGER.error("There is no data about host info, stop creating a hotpatch remove task.")
             return status_code
-
-        self.task['callback'] = VUL_TASK_HOTPATCH_REMOVE_CALLBACK
 
         return SUCCEED
 
@@ -66,17 +65,44 @@ class HotpatchRemoveManager(Manager):
         Executing hotpatch remove task.
         """
         LOGGER.info("hotpatch remove task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (
-            configuration.zeus.get('IP'),
-            configuration.zeus.get('PORT'),
-            EXECUTE_HOTPATCH_REMOVE,
-        )
-        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
-
-        response = BaseResponse.get_response('POST', manager_url, self.task, header)
-        if response.get('label') != SUCCEED:
+        host_list = self.task.get("total_hosts")
+        query_fields = ["host_id", "host_ip", "host_name", "ssh_user", "ssh_port", "pkey"]
+        host_info_list = query_user_hosts(host_list=host_list, fields=query_fields)
+        if len(host_info_list) != len(host_list):
             LOGGER.error("Hotpatch remove task %s execute failed.", self.task_id)
             self.proxy.init_hotpatch_remove_task(self.task_id, [], TaskStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
 
-        return SUCCEED
+        # Execute tasks by celery
+        celery_tasks = self._generate_celery_tasks(host_info_list)
+        try:
+            group(
+                celery_client.signature(TaskChannel.HOTPATCH_REMOVE_TASK, args=args) for args in celery_tasks
+            ).apply_async()
+            return SUCCEED
+        except CeleryError as error:
+            LOGGER.error(error)
+            LOGGER.error("Hotpatch remove task %s execute failed.", self.task_id)
+            self.proxy.init_hotpatch_remove_task(self.task_id, [], TaskStatus.UNKNOWN)
+            return TASK_EXECUTION_FAIL
+
+    def _generate_celery_tasks(self, host_info_list):
+        host_info_dict = {}
+        for host_info in host_info_list:
+            host_info_dict[host_info.get("host_id")] = host_info
+
+        celery_tasks = []
+        for task in self.task.get("tasks"):
+            celery_tasks.append(
+                (
+                    host_info_dict.get(task["host_id"]),
+                    {
+                        "task_id": self.task_id,
+                        "task_name": task.get("task_name"),
+                        "task_type": task.get("task_type"),
+                        "cves": task.get("cves"),
+                        "check_items": [],
+                    },
+                )
+            )
+        return celery_tasks

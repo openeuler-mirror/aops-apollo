@@ -16,8 +16,12 @@ Author:
 Description: callback function of the cve fixing task.
 """
 import json
-from apollo.handler.task_handler.callback import TaskCallback
+
+from vulcanus.log.log import LOGGER
+from vulcanus.restful.resp.state import DATABASE_UPDATE_ERROR, SUCCEED
+
 from apollo.conf.constant import TaskType
+from apollo.handler.task_handler.callback import TaskCallback
 
 
 class CveFixCallback(TaskCallback):
@@ -25,7 +29,7 @@ class CveFixCallback(TaskCallback):
     Callback function for cve fixing.
     """
 
-    def _save_result_to_es(self, task_id, host_id, task_type, task_result):
+    def _save_result_to_es(self, task_id, host_id, task_type, task_result, username):
         """
         Save the result to es.
 
@@ -70,7 +74,6 @@ class CveFixCallback(TaskCallback):
             "latest_execute_time": task_result.pop("execution_time"),
             "task_result": task_result,
         }
-        username = task_result.pop("username")
         self.proxy.save_task_info(task_id, host_id, log=json.dumps(result), username=username)
 
     def callback(self, task_result: dict) -> str:
@@ -109,11 +112,13 @@ class CveFixCallback(TaskCallback):
         """
         task_id = task_result.pop("task_id")
         host_id = task_result.pop("host_id")
+        status_code, username = self.proxy.get_account_name_by_task_id(task_id)
+        if status_code != SUCCEED:
+            LOGGER.error("Failed to query task info!")
+            return DATABASE_UPDATE_ERROR
+
         self._save_result_to_es(
-            task_id=task_id,
-            host_id=host_id,
-            task_type=TaskType.CVE_FIX,
-            task_result=task_result,
+            task_id=task_id, host_id=host_id, task_type=TaskType.CVE_FIX, task_result=task_result, username=username
         )
         status_code = self.proxy.update_cve_fix_task_host_package_status(task_id, host_id, task_result)
         return status_code

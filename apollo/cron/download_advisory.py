@@ -10,7 +10,6 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import datetime
 import os
 import re
 import shutil
@@ -23,7 +22,6 @@ import sqlalchemy
 from retrying import retry
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import SUCCEED
-from vulcanus.timed import TimedTask
 
 from apollo.conf.constant import ADVISORY_SAVED_PATH
 from apollo.database.proxy.cve import CveProxy
@@ -31,16 +29,15 @@ from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 
 
-class TimedDownloadSATask(TimedTask):
+class DownloadSATask:
     """
-    Timed download sa tasks
+    download sa tasks
     """
 
     save_sa_record = []
 
-    def __init__(self, timed_config):
-        super().__init__(timed_config)
-        self.cvrf_url = self.timed_config.get("meta", dict()).get("cvrf_url")
+    def __init__(self, cvrf: str):
+        self.cvrf_url = cvrf
 
     @property
     def _advisory(self):
@@ -83,7 +80,6 @@ class TimedDownloadSATask(TimedTask):
         to be downloaded incrementally. Download all the security announcements in the list to the local, parse the
         security announcements and store them in the database, and update the data in the history table.
         """
-        LOGGER.info("Begin to download advisory in %s.", str(datetime.datetime.now()))
 
         if not self.cvrf_url:
             LOGGER.error("Please add cvrf_url in configuration file.")
@@ -119,20 +115,18 @@ class TimedDownloadSATask(TimedTask):
             file_path = os.path.join(advisory_dir, file_name)
             advisory_year, advisory_serial_number = re.findall("\d+", file_name)
             try:
-                security_cvrf_info = parse_security_advisory(file_path)
-                security_cvrf_info.sa_year = None
-                security_cvrf_info.sa_number = None
+                cve_rows, cve_pkg_rows, cve_pkg_docs, _, _ = parse_security_advisory(file_path)
             except (KeyError, ParseAdvisoryError) as error:
                 LOGGER.error(error)
                 LOGGER.error("Some error occurred when parse advisory '%s'." % file_name)
                 self._record_download_result(advisory_year, advisory_serial_number, False)
                 continue
 
-            save_status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
+            save_status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs)
             status = True if save_status_code == SUCCEED else False
             self._record_download_result(advisory_year, advisory_serial_number, status)
 
-        proxy.save_advisory_download_record(TimedDownloadSATask.save_sa_record)
+        proxy.save_advisory_download_record(DownloadSATask.save_sa_record)
 
     @staticmethod
     @retry(retry_on_result=lambda result: result is None, stop_max_attempt_number=3)
@@ -163,9 +157,12 @@ class TimedDownloadSATask(TimedTask):
         """
         advisory_year, advisory_serial_number = re.findall("\d+", advisory)
         try:
-            response = TimedDownloadSATask.get_response(f"{self.cvrf_url}/{advisory_year}/{advisory}")
+            response = DownloadSATask.get_response(f"{self.cvrf_url}/{advisory_year}/{advisory}")
             if response:
-                with open(os.path.join(ADVISORY_SAVED_PATH, advisory), "wb") as file:
+                file_path = os.path.join(ADVISORY_SAVED_PATH, advisory)
+                file_permissions = 0o644  # 给指定权限
+                file_descriptor = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, file_permissions)
+                with os.fdopen(file_descriptor, "wb") as file:
                     file.write(response)
                 return
 
@@ -183,7 +180,7 @@ class TimedDownloadSATask(TimedTask):
             list: security url list
         """
         try:
-            response = TimedDownloadSATask.get_response(self._advisory)
+            response = DownloadSATask.get_response(self._advisory)
             if response:
                 sa_list = response.decode("utf-8").replace("\r", "").split("\n")
                 # 2021/cvrf-openEuler-SA-2021-1022.xml, we don't need the first five characters
@@ -192,7 +189,7 @@ class TimedDownloadSATask(TimedTask):
                 return [sa_name[5:] for sa_name in sa_list if sa_name]
 
         except retrying.RetryError:
-            LOGGER.error("Downloading a security bulletin record error: %s" % TimedDownloadSATask.sa_records)
+            LOGGER.error("Downloading a security bulletin record error: %s" % DownloadSATask.sa_records)
 
         return []
 

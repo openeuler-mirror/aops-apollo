@@ -15,14 +15,14 @@ Time:
 Author:
 Description: Task manager for cve fixing
 """
-
-from vulcanus.conf.constant import URL_FORMAT
+from celery import group
+from celery.exceptions import CeleryError
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, TASK_EXECUTION_FAIL
-from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.resp.state import PARAM_ERROR, SUCCEED, TASK_EXECUTION_FAIL
 
-from apollo.conf import configuration
-from apollo.conf.constant import VUL_TASK_CVE_ROLLBACK_CALLBACK, EXECUTE_CVE_ROLLBACK, TaskStatus
+from apollo.conf import celery_client
+from apollo.conf.constant import TaskChannel, TaskStatus
+from apollo.function.utils import query_user_hosts
 from apollo.handler.task_handler.cache import TASK_CACHE
 from apollo.handler.task_handler.manager import Manager
 
@@ -51,7 +51,6 @@ class CveRollbackManager(Manager):
             LOGGER.error("Get rollback task info for execution failed, stop cve rollback.")
             return status_code
 
-        self.task['callback'] = VUL_TASK_CVE_ROLLBACK_CALLBACK
         # save to cache
         TASK_CACHE.put(self.task_id, self.task)
 
@@ -81,14 +80,49 @@ class CveRollbackManager(Manager):
         """
         Executing cve rollback task.
         """
+        # Query host info
+        host_list = self.task.get("total_hosts")
         LOGGER.info("Cve rollback task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_CVE_ROLLBACK)
-        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
-
-        response = BaseResponse.get_response('POST', manager_url, self.task, header)
-        if response.get('label') != SUCCEED:
+        query_fields = ["host_id", "host_ip", "host_name", "ssh_user", "ssh_port", "pkey"]
+        host_info_list = query_user_hosts(host_list, query_fields)
+        if len(host_info_list) != len(host_list):
+            LOGGER.error("Cve rollback task %s execute failed.", self.task_id)
+            self.proxy.update_cve_rollback_task_status(self.task_id, TaskStatus.UNKNOWN)
+            return TASK_EXECUTION_FAIL
+        # Execute tasks by celery
+        celery_tasks = self._generate_celery_tasks(host_info_list)
+        try:
+            group(
+                celery_client.signature(TaskChannel.CVE_ROLLBACK_TASK, args=args) for args in celery_tasks
+            ).apply_async()
+            return SUCCEED
+        except CeleryError as error:
+            LOGGER.error(error)
             LOGGER.error("Cve rollback task %s execute failed.", self.task_id)
             self.proxy.update_cve_rollback_task_status(self.task_id, TaskStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
 
-        return SUCCEED
+    def _generate_celery_tasks(self, host_info_list):
+        host_info_dict = {}
+        for host_info in host_info_list:
+            host_info_dict[host_info.get("host_id")] = host_info
+
+        celery_tasks = []
+        for task_info in self.task.get("tasks"):
+            celery_tasks.append(
+                (
+                    host_info_dict.get(task_info["host_id"]),
+                    {
+                        "task_id": self.task_id,
+                        "task_name": task_info.get("task_name"),
+                        "task_type": task_info.get("task_type"),
+                        "check_items": task_info.get("check_items", []),
+                        "rollback_type": self.task.get("rollback_type"),
+                        "installed_rpm": task_info.get("installed_rpm"),
+                        "target_rpm": task_info.get("target_rpm"),
+                        "dnf_event_start": task_info.get("dnf_event_start"),
+                        "dnf_event_end": task_info.get("dnf_event_end"),
+                    },
+                )
+            )
+        return celery_tasks

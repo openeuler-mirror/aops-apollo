@@ -17,65 +17,47 @@ Description: Handle about task related operation
 """
 import time
 import uuid
-from typing import Dict
-from flask import request
+from typing import Dict, List, Tuple
 
+from flask import g, request
+from vulcanus.conf.constant import UserRoleType
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
+    DATABASE_QUERY_ERROR,
+    DATABASE_UPDATE_ERROR,
+    PARAM_ERROR,
+    PARTIAL_SUCCEED,
     REPEAT_TASK_EXECUTION,
     SUCCEED,
-    PARAM_ERROR,
-    DATABASE_UPDATE_ERROR,
-    PARTIAL_SUCCEED,
+    TASK_EXECUTION_FAIL,
+    PERMESSION_ERROR,
 )
 from vulcanus.restful.response import BaseResponse
 
-from apollo.database.proxy.host import HostProxy
-from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
+from apollo.conf import cache
 from apollo.conf.constant import HostStatus, TaskType
+from apollo.cron.notification import EmailNoticeManager
+from apollo.database.proxy.host import HostProxy
 from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
-from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
 from apollo.database.proxy.task.cve_fix import CveFixTaskProxy
+from apollo.database.proxy.task.cve_rollback import CveRollbackTaskProxy
+from apollo.database.proxy.task.hotpatch_remove import HotpatchRemoveProxy
 from apollo.database.proxy.task.repo_set import RepoSetProxy
 from apollo.database.proxy.task.scan import ScanProxy
 from apollo.function.schema.host import ScanHostSchema
-from apollo.function.schema.task import (
-    GetHotpatchRemoveTaskCveInfoSchema,
-    GetTaskListSchema,
-    GetTaskProgressSchema,
-    GetTaskInfoSchema,
-    GenerateCveTaskSchema,
-    GetCveFixTaskInfoSchema,
-    GetHotpatchRemoveTaskHostCveStatusSchema,
-    GetTaskResultSchema,
-    GenerateRepoTaskSchema,
-    GetRepoTaskInfoSchema,
-    GetRepoTaskResultSchema,
-    ExecuteTaskSchema,
-    DeleteTaskSchema,
-    CveFixCallbackSchema,
-    RepoSetCallbackSchema,
-    CveScanCallbackSchema,
-    CveRollbackCallbackSchema,
-    GenerateCveRollbackTaskSchema,
-    GetCveRollbackTaskInfoSchema,
-    GetCveRollbackTaskRpmInfoSchema,
-    GetCveRollbackTaskResultSchema,
-    GenerateHotpatchRemoveTaskSchema,
-    GetHotpatchRemoveTaskProgressSchema,
-    HotpatchRemoveCallbackSchema,
-    TaskCveRpmInfoSchema,
-)
+from apollo.function.schema.task import *
+from apollo.function.schema.task import GetHotpatchRemoveTaskCveInfoSchema
+from apollo.function.utils import query_user_hosts
 from apollo.handler.task_handler.callback.cve_fix import CveFixCallback
 from apollo.handler.task_handler.callback.cve_rollback import CveRollbackCallback
-from apollo.handler.task_handler.callback.hotpatch_remove import HotpatchRemoveCallback
 from apollo.handler.task_handler.callback.cve_scan import CveScanCallback
+from apollo.handler.task_handler.callback.hotpatch_remove import HotpatchRemoveCallback
 from apollo.handler.task_handler.callback.repo_set import RepoSetCallback
 from apollo.handler.task_handler.manager.cve_fix_manager import CveFixManager
 from apollo.handler.task_handler.manager.cve_rollback_manager import CveRollbackManager
 from apollo.handler.task_handler.manager.hotpatch_remove_manager import HotpatchRemoveManager
 from apollo.handler.task_handler.manager.repo_manager import RepoManager
-from apollo.handler.task_handler.manager.scan_manager import ScanManager, EmailNoticeManager
+from apollo.handler.task_handler.manager.scan_manager import ScanManager
 
 
 class VulScanHost(BaseResponse):
@@ -120,7 +102,7 @@ class VulScanHost(BaseResponse):
 
         return True
 
-    def _handle(self, proxy: HostProxy, args):
+    def _handle(self, proxy: ScanProxy, args):
         """
         Generate scan task according to host info, and run it.
 
@@ -132,27 +114,30 @@ class VulScanHost(BaseResponse):
             int: status code
         """
         # verify host id
-        username = args["username"]
-        host_list = args["host_list"]
-        host_info = proxy.get_user_host_info(username, host_list)
-        if not self._verify_param(host_list, host_info):
+        host_list = args.get("host_list")
+        query_fields = ["host_id", "host_ip", "host_name", "status", "ssh_user", "ssh_port", "pkey"]
+        host_info_list: List[dict] = query_user_hosts(host_list=host_list, fields=query_fields)
+        if not self._verify_param(host_list, host_info_list):
             LOGGER.error("There are some host in %s that can not be scanned.", host_list)
             return PARAM_ERROR
+
         task_id = str(uuid.uuid1()).replace("-", "")
         # init status
-        with ScanProxy() as scan_proxy:
-            cve_scan_manager = ScanManager(task_id, scan_proxy, host_info, username)
-            cve_scan_manager.token = request.headers.get("access_token")
-            cve_scan_manager.create_task()
-            if not cve_scan_manager.pre_handle():
-                return DATABASE_UPDATE_ERROR
+        current_cluster_info = cache.location_cluster
+        if not current_cluster_info:
+            LOGGER.error("Failed to get current cluster info.")
+            return DATABASE_QUERY_ERROR
 
-            # run the task
-            cve_scan_manager.execute_task()
+        cve_scan_manager = ScanManager(task_id, proxy, host_info_list, current_cluster_info.get("cluster_id"))
+        cve_scan_manager.create_task()
+        if not cve_scan_manager.pre_handle():
+            return DATABASE_UPDATE_ERROR
+        # run the task
+        status = cve_scan_manager.execute_task()
 
-        return SUCCEED
+        return status
 
-    @BaseResponse.handle(schema=ScanHostSchema, proxy=HostProxy)
+    @BaseResponse.handle(schema=ScanHostSchema, proxy=ScanProxy)
     def post(self, callback: HostProxy, **params):
         """
         Scan host's cve
@@ -201,7 +186,22 @@ class VulGetTaskList(BaseResponse):
                     ]
                 }
         """
-        status_code, result = callback.get_task_list(params)
+        cluster_info = cache.get_user_clusters()
+
+        user_role = cache.user_role
+        if not user_role:
+            return self.response(code=PERMESSION_ERROR, message="Failed to query user permission information!")
+
+        if user_role == UserRoleType.NORMAL:
+            userinfo_list = cache.get_user_cluster_private_key
+
+            all_username_list = [userinfo.get("cluster_username") for _, userinfo in userinfo_list.items()]
+            all_username_list.append(g.username)
+            if params.get("filter"):
+                params["filter"]["username_list"] = all_username_list
+            else:
+                params["filter"] = {"username_list": all_username_list}
+        status_code, result = callback.get_task_list(params, cluster_info)
         return self.response(code=status_code, data=result)
 
 
@@ -262,8 +262,13 @@ class VulGetTaskInfo(BaseResponse):
                     }
                 }
         """
+        cluster_info = cache.get_user_clusters()
 
-        status_code, result = callback.get_task_info(params)
+        if len(cluster_info) == 0:
+            LOGGER.debug("Failed to query valid user permission information!")
+            return self.response(code=PERMESSION_ERROR, data={})
+
+        status_code, result = callback.get_task_info(params.get("task_id"), cluster_info)
         return self.response(code=status_code, data=result)
 
 
@@ -271,6 +276,59 @@ class VulGenerateCveFixTask(BaseResponse):
     """
     Restful interface for generating a cve fix task.
     """
+
+    def _query_host_info(self, host_list):
+        """"""
+        result = {}
+        query_fields = ["host_id", "host_ip", "host_name"]
+        host_info_list = query_user_hosts(host_list, query_fields)
+
+        if len(host_info_list) != len(host_list):
+            LOGGER.error("Failed to get host info!")
+            return PARAM_ERROR, result
+        for host in host_info_list:
+            result[host.get("host_id")] = dict(
+                host_id=host.get("host_id"), host_ip=host.get("host_ip"), host_name=host.get("host_name")
+            )
+
+        return SUCCEED, result
+
+    def _handle(self, params, proxy):
+        """
+        handle for generate cve fix task
+
+        Args:
+            params (dict): task info including cve id and related host info
+            proxy (CveFixTaskProxy): cve fix task proxy
+
+        Returns:
+            tuple: (status_code, result)
+        """
+        cve_ids = [cve["cve_id"] for cve in params["info"]]
+        if not proxy.validate_cves(cve_id=list(set(cve_ids))):
+            return PARAM_ERROR, {}
+
+        status_code, host_info = self._query_host_info(
+            list(set([host["host_id"] for task_info in params.get("info") for host in task_info["host_info"]]))
+        )
+        if status_code != SUCCEED:
+            LOGGER.error("Failed to get host info!")
+            return status_code, {}
+
+        current_cluster_info = cache.location_cluster
+        if not current_cluster_info:
+            LOGGER.debug("Failed to get current cluster id")
+            return DATABASE_QUERY_ERROR, {}
+
+        params.update(
+            {"cluster_id": current_cluster_info.get("cluster_id"), "host_dict": host_info, "username": g.username}
+        )
+
+        status_code, task = proxy.generate_cve_task(params)
+        if status_code != SUCCEED:
+            LOGGER.error("Generate cve fix task fail, fail to save task info to database.")
+
+        return status_code, task
 
     @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=CveFixTaskProxy)
     def post(self, callback: CveFixTaskProxy, **params):
@@ -295,16 +353,8 @@ class VulGenerateCveFixTask(BaseResponse):
                     "message": "operation succeed"
                 }
         """
-
-        cve_ids = [cve["cve_id"] for cve in params["info"]]
-        if not callback.validate_cves(cve_id=list(set(cve_ids))):
-            return self.response(code=PARAM_ERROR)
-
-        status_code, task = callback.generate_cve_task(params)
-        if status_code != SUCCEED:
-            LOGGER.error("Generate cve fix task fail, fail to save task info to database.")
-
-        return self.response(code=status_code, data=task)
+        status, task = self._handle(params, callback)
+        return self.response(code=status, data=task)
 
 
 class VulGetCveFixTaskInfo(BaseResponse):
@@ -428,6 +478,23 @@ class VulGenerateRepoTask(BaseResponse):
     Restful interface for generating a task which sets repo for host.
     """
 
+    @staticmethod
+    def _query_host_info(host_list: List[int]) -> Tuple[str, list]:
+        """
+        query host info from host service
+
+        Args:
+            host_list: List
+
+        Returns:
+            Tuple[str, list]
+        """
+        query_fields = ["host_id", "host_ip", "host_name"]
+        data = query_user_hosts(host_list=host_list, fields=query_fields)
+        if len(data) != len(host_list):
+            return PARAM_ERROR, []
+        return SUCCEED, data
+
     @BaseResponse.handle(schema=GenerateRepoTaskSchema, proxy=RepoSetProxy)
     def post(self, callback: RepoSetProxy, **params):
         """
@@ -445,17 +512,32 @@ class VulGenerateRepoTask(BaseResponse):
                     "data": {"task_id": "1"}
                 }
         """
+        current_cluster_info = cache.location_cluster
+        if not current_cluster_info:
+            LOGGER.error(
+                "Generate repo setting task fail due to the failure in querying the current cluster information"
+            )
+            return self.response(code=DATABASE_QUERY_ERROR)
+
         task_id = str(uuid.uuid1()).replace("-", "")
         task_info = dict(
             task_id=task_id,
+            task_name=params.get("task_name"),
+            description=params.get("description"),
             task_type=TaskType.REPO_SET,
             create_time=int(time.time()),
-            username=params["username"]
+            repo_id=params.get("repo_id"),
+            cluster_id=current_cluster_info.get("cluster_id"),
+            username=g.username,
         )
-        task_info.update(params)
         data = dict(task_id=task_id)
+        status, host_info = self._query_host_info(params.get("host_list"))
+        if status != SUCCEED:
+            LOGGER.error("Failed to query host info!")
+            return self.response(code=status)
+
         # save task info to database
-        status_code = callback.generate_repo_task(task_info)
+        status_code = callback.generate_repo_task(task_info, host_info)
         if status_code != SUCCEED:
             LOGGER.error("Generate repo setting task fail.")
             data = None
@@ -479,6 +561,11 @@ class VulGetRepoTaskInfo(BaseResponse):
         Returns:
             dict: response body
         """
+        cluster_info = cache.get_user_clusters()
+        if not cluster_info:
+            return self.response(code=PERMESSION_ERROR, message="Failed to query valid user permission information!")
+
+        params["cluster_id_list"] = cluster_info.keys()
         status_code, data = callback.get_repo_task_info(params)
         return self.response(code=status_code, data=data)
 
@@ -512,7 +599,7 @@ class VulExecuteTask(BaseResponse):
         TaskType.CVE_FIX: "_handle_cve_fix",
         TaskType.REPO_SET: "_handle_repo_set",
         TaskType.HOTPATCH_REMOVE: "_handle_hotpatch_remove",
-        TaskType.CVE_ROLLBACK: "_handle_cve_rollback"
+        TaskType.CVE_ROLLBACK: "_handle_cve_rollback",
     }
 
     @staticmethod
@@ -578,7 +665,7 @@ class VulExecuteTask(BaseResponse):
             repo_manager = RepoManager(repo_set_proxy, args["task_id"])
 
             repo_manager.token = args["token"]
-            status_code = repo_manager.create_task(args["username"])
+            status_code = repo_manager.create_task()
             if status_code != SUCCEED:
                 return status_code
 
@@ -623,16 +710,18 @@ class VulExecuteTask(BaseResponse):
         Returns:
             int: status code
         """
-        access_token = request.headers.get("access_token")
-        args["token"] = access_token
+        args["token"] = request.headers.get("access-token")
+
+        cluster_info = cache.get_user_clusters()
+        if cluster_info is None:
+            return TASK_EXECUTION_FAIL
 
         # verify the task:
         # 1.belongs to the user;
         # 2.task type is supported.
-        task_type = proxy.get_task_type(args["task_id"], args["username"])
+        task_type = proxy.get_task_type(args["task_id"], cluster_info.keys())
         if task_type is None or task_type not in self.type_map.keys():
             return PARAM_ERROR
-
         LOGGER.debug(task_type)
 
         if not proxy.check_task_status(args["task_id"], task_type):
@@ -829,8 +918,7 @@ class VulGenerateCveRollbackTask(BaseResponse):
     Restful interface for generating a rollback task to rollback cve fix task.
     """
 
-    @staticmethod
-    def _handle(proxy: CveRollbackTaskProxy, args):
+    def _handle(self, proxy: CveRollbackTaskProxy, args):
         """
         Handle rollback task generating
 
@@ -842,13 +930,19 @@ class VulGenerateCveRollbackTask(BaseResponse):
             int: status code
             dict: body including task id
         """
+        current_cluster_info = cache.location_cluster
+        if not current_cluster_info:
+            LOGGER.error("Failed to get current cluster id.")
+            return DATABASE_QUERY_ERROR, {}, "Failed to get current cluster id."
+
         task_id = str(uuid.uuid1()).replace("-", "")
         task_info = dict(
+            cluster_id=current_cluster_info.get("cluster_id"),
             task_id=task_id,
             fix_task_id=args["fix_task_id"],
             task_type=TaskType.CVE_ROLLBACK,
             create_time=int(time.time()),
-            username=args["username"],
+            username=g.username,
         )
 
         # save task info to database
@@ -1009,27 +1103,47 @@ class VulGenerateHotpatchRemove(BaseResponse):
     Restful interface for generating a cve hotpatch remove task.
     """
 
-    @staticmethod
-    def _handle(task_proxy: HotpatchRemoveProxy, args):
+    def _handle(self, task_proxy: HotpatchRemoveProxy, params: dict):
         """
         Handle hotpatch remove task generating
 
         Args:
-            args (dict): request parameter
+            task_proxy(MySqlProxy)
+            params (dict): request parameter
 
         Returns:
             int: status code
             dict: body including task id
         """
+        # query_host_info
+        host_ids = [tmp["host_id"] for tmp in params.get("info", [])]
+        query_fields = ["host_ip", "host_name", "host_id"]
+        host_info_list = query_user_hosts(host_list=host_ids, fields=query_fields)
+
+        if len(host_info_list) != len(host_ids):
+            LOGGER.error("Failed to some host details info!")
+            return PARAM_ERROR, {}
+
+        # cve check
+        cve_list = [cve["cve_id"] for host in params["info"] for cve in host["cves"]]
+        if not task_proxy.check_cves_and_hotpatch_status(list(set(cve_list))):
+            return PARAM_ERROR, {}
+
+        current_cluster_info = cache.location_cluster
+        if not current_cluster_info:
+            LOGGER.error("Failed to get current cluster info!")
+            return DATABASE_QUERY_ERROR, {}
+
         task_id = str(uuid.uuid1()).replace("-", "")
         task_info = dict(
             task_id=task_id,
             task_type=TaskType.HOTPATCH_REMOVE,
             create_time=int(time.time()),
-            username=args["username"],
+            hosts=host_info_list,
+            cluster_id=current_cluster_info.get("cluster_id"),
+            username=g.username,
         )
-        task_info.update(args)
-
+        task_info.update(params)
         # save task info to database
         status_code = task_proxy.generate_hotpatch_remove_task(task_info)
         if status_code != SUCCEED:
@@ -1053,14 +1167,6 @@ class VulGenerateHotpatchRemove(BaseResponse):
                     "data": {"task_id": "1"}
                 }
         """
-        host_ids = [host["host_id"] for host in params["info"]]
-        if not callback.validate_hosts(host_id=list(set(host_ids)), username=params["username"]):
-            return self.response(code=PARAM_ERROR)
-
-        cve_ids = [cve["cve_id"] for host in params["info"] for cve in host["cves"]]
-        if not callback.validate_cves(cve_id=list(set(cve_ids))):
-            return self.response(code=PARAM_ERROR)
-
         status_code, data = self._handle(callback, params)
         return self.response(code=status_code, data=data)
 
@@ -1116,7 +1222,7 @@ class VulCveScanNotice(BaseResponse):
         """
         Restful interface for email notifications
         """
-        manager = EmailNoticeManager(params["username"], callback)
+        manager = EmailNoticeManager(g.username, callback)
         manager.send_email_to_user()
         return self.response(code=SUCCEED)
 
