@@ -15,15 +15,16 @@ Time:
 Author:
 Description: Task manager for repo setting
 """
-from vulcanus.conf.constant import URL_FORMAT
+from celery import group
+from celery.exceptions import CeleryError
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, PARAM_ERROR, TASK_EXECUTION_FAIL
-from vulcanus.restful.response import BaseResponse
+from vulcanus.restful.resp.state import PARAM_ERROR, SUCCEED, TASK_EXECUTION_FAIL
 
-from apollo.conf import configuration
-from apollo.conf.constant import RepoStatus, VUL_TASK_REPO_SET_CALLBACK, EXECUTE_REPO_SET
-from apollo.handler.task_handler.manager import Manager
+from apollo.conf import cache, celery_client
+from apollo.conf.constant import RepoStatus, TaskChannel
+from apollo.function.utils import query_user_hosts
 from apollo.handler.task_handler.cache import TASK_CACHE
+from apollo.handler.task_handler.manager import Manager
 
 
 class RepoManager(Manager):
@@ -31,7 +32,7 @@ class RepoManager(Manager):
     Manager for repo setting
     """
 
-    def create_task(self, username) -> int:
+    def create_task(self) -> int:
         """
         Create a task template for setting repo
 
@@ -49,12 +50,16 @@ class RepoManager(Manager):
             LOGGER.error("The database proxy need to be inited first.")
             return PARAM_ERROR
 
-        status_code, self.task = self.proxy.get_repo_set_task_template(self.task_id, username)
+        cluster_info = cache.get_user_clusters()
+        if not cluster_info:
+            LOGGER.error("There is no data about cluster info, stop repo set.")
+            return TASK_EXECUTION_FAIL
+
+        status_code, self.task = self.proxy.get_repo_set_task_template(self.task_id, cluster_info)
         if status_code != SUCCEED:
             LOGGER.error("There is no data about host info, stop repo set.")
             return status_code
 
-        self.task['callback'] = VUL_TASK_REPO_SET_CALLBACK
         # save to cache
         TASK_CACHE.put(self.task_id, self.task)
 
@@ -84,14 +89,25 @@ class RepoManager(Manager):
         """
         Execute repo setting task.
         """
+        # Query host info
+        host_list = self.task.get("total_hosts")
         LOGGER.info("Repo setting task %s start to execute.", self.task_id)
-        manager_url = URL_FORMAT % (configuration.zeus.get('IP'), configuration.zeus.get('PORT'), EXECUTE_REPO_SET)
-        header = {"access_token": self.token, "Content-Type": "application/json; charset=UTF-8"}
+        query_fields = ["host_id", "host_ip", "host_name", "ssh_user", "ssh_port", "pkey"]
+        host_info_list = query_user_hosts(host_list=host_list, fields=query_fields)
 
-        response = BaseResponse.get_response('POST', manager_url, self.task, header)
-
-        if response.get('label') != SUCCEED:
+        if len(host_info_list) != len(host_list):
+            LOGGER.error("Failed to get host info!")
             LOGGER.error("Set repo task %s execute failed.", self.task_id)
             self.proxy.set_repo_status(self.task_id, [], RepoStatus.UNKNOWN)
             return TASK_EXECUTION_FAIL
-        return SUCCEED
+
+        # Execute tasks by celery
+        celery_tasks = [(host, self.task) for host in host_info_list]
+        try:
+            group(celery_client.signature(TaskChannel.REPO_SET_TASK, args=args) for args in celery_tasks).apply_async()
+            return SUCCEED
+        except CeleryError as error:
+            LOGGER.error(error)
+            LOGGER.error("Set repo task %s execute failed.", self.task_id)
+            self.proxy.set_repo_status(self.task_id, [], RepoStatus.UNKNOWN)
+            return TASK_EXECUTION_FAIL

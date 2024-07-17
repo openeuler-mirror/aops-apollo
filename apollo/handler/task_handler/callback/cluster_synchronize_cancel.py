@@ -10,24 +10,29 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-"""
-Time:
-Author:
-Description: manager configuration
-"""
-from celery import Celery
-from vulcanus.cache import RedisCacheManage, RedisProxy
-from vulcanus.conf import ConfigHandle
 
-from apollo.conf import default_config
+from apollo.handler.task_handler.callback import TaskCallback
 
-# read manager configuration
-config_obj = ConfigHandle("aops-apollo", default_config)
-configuration = config_obj.parser
 
-if RedisProxy.redis_connect is None:
-    RedisProxy()
-cache = RedisCacheManage(configuration.domain, RedisProxy.redis_connect)
-celery_broker = f"redis://{configuration.redis.host}:{configuration.redis.port}/0"
-celery_backend = f"redis://{configuration.redis.host}:{configuration.redis.port}/1"
-celery_client = Celery('tasks', broker=celery_broker, backend=celery_backend)
+class SynchronizeCancelCallback(TaskCallback):
+    """
+    Callback function for synchronize cancel.
+    """
+
+    def callback(self, task_result: dict) -> str:
+        """
+        cluster synchronize cancel and delete cluster info.
+
+        Args:
+            task_result: e.g
+                {
+                    "cluster_id": "string",
+                    "status": "succeed"
+                }
+
+        Returns:
+            status_code: status_code
+        """
+        cluster_id = task_result.pop("cluster_id")
+        status_code = self.proxy.delete_cluster_info(cluster_id)
+        return status_code

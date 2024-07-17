@@ -19,9 +19,10 @@ import os
 
 from vulcanus.conf.constant import BASE_CONFIG_PATH
 
-
 # path of apollo configuration
 CVE_MANAGER_CONFIG_PATH = os.path.join(BASE_CONFIG_PATH, 'apollo.ini')
+EXTRA_FILE_SERVICE_PATH = "/opt/aops/scripts/file_service_support"
+FILE_SAVE_PATH = "/opt/aops/file"
 
 # template repo for downloading
 TEMPLATE_REPO_STR = (
@@ -33,6 +34,24 @@ TEMPLATE_REPO_STR = (
     "gpgkey=https://repo.openeuler.org/openEuler-22.03-LTS/OS/$basearch/RPM-"
     "GPG-KEY-openEuler"
 )
+
+
+class TaskChannel:
+    """
+    The name of the channel pushed to redis after task execution is completed,
+    and it has the same name as the task registered in celery
+    """
+
+    CVE_SCAN_TASK = 'cve_scan_task'
+    CVE_FIX_TASK = 'cve_fix_task'
+    REPO_SET_TASK = 'repo_set_task'
+    CVE_ROLLBACK_TASK = 'cve_rollback_task'
+    HOTPATCH_REMOVE_TASK = 'hotpatch_remove_task'
+    CLUSTER_SYNCHRONIZE_CANCEL_TASK = 'cluster_synchronize_cancel_task'
+    TIMED_SCAN_TASK = "cve_scan"
+    TIMED_CORRECT_TASK = "correct_data"
+    TIMED_SEND_NOTIFICATION = "send_notification"
+    TIMED_DOWNLOAD_SA = "download_sa"
 
 
 class CveHostStatus:
@@ -95,60 +114,60 @@ class TaskStatus(CveHostStatus):
 
 
 # route of repo related interface
-VUL_REPO_IMPORT = "/vulnerability/repo/import"
-VUL_REPO_GET = "/vulnerability/repo/get"
-VUL_REPO_UPDATE = "/vulnerability/repo/update"
-VUL_REPO_DELETE = "/vulnerability/repo/delete"
-VUL_REPO_TEMPLATE_GET = "/vulnerability/repo/template/get"
+VUL_REPO_IMPORT = "/vulnerabilities/repo/import"
+VUL_REPO_GET = "/vulnerabilities/repo/get"
+VUL_REPO_UPDATE = "/vulnerabilities/repo/update"
+VUL_REPO_DELETE = "/vulnerabilities/repo/delete"
+VUL_REPO_TEMPLATE_GET = "/vulnerabilities/repo/template/get"
 
 # route of cve related interface
-VUL_CVE_OVERVIEW = "/vulnerability/cve/overview"
-VUL_CVE_LIST_GET = "/vulnerability/cve/list/get"
-VUL_CVE_INFO_GET = "/vulnerability/cve/info/get"
-VUL_CVE_HOST_GET = "/vulnerability/cve/host/get"
-VUL_CVE_TASK_HOST_GET = "/vulnerability/cve/task/host/get"
-VUL_CVE_STATUS_SET = "/vulnerability/cve/status/set"
-VUL_CVE_UPLOAD_ADVISORY = "/vulnerability/cve/advisory/upload"
-VUL_CVE_UPLOAD_UNAFFECTED = "/vulnerability/cve/unaffected/upload"
-VUL_EXPORT_EXCEL = "/vulnerability/cve/info/export"
+VUL_CVE_OVERVIEW = "/vulnerabilities/cve/overview"
+VUL_CVE_LIST_GET = "/vulnerabilities/cve/list/get"
+VUL_CVE_INFO_GET = "/vulnerabilities/cve/info/get"
+VUL_CVE_HOST_GET = "/vulnerabilities/cve/host/get"
+VUL_CVE_TASK_HOST_GET = "/vulnerabilities/cve/task/host/get"
+VUL_CVE_STATUS_SET = "/vulnerabilities/cve/status/set"
+VUL_CVE_UPLOAD_ADVISORY = "/vulnerabilities/cve/advisory/upload"
+VUL_CVE_UPLOAD_UNAFFECTED = "/vulnerabilities/cve/unaffected/upload"
+VUL_EXPORT_EXCEL = "/vulnerabilities/cve/info/export"
 
 # route of host related interface
-VUL_HOST_SCAN = "/vulnerability/host/scan"
-VUL_HOST_STATUS_GET = "/vulnerability/host/status/get"
-VUL_HOST_LIST_GET = "/vulnerability/host/list/get"
-VUL_HOST_INFO_GET = "/vulnerability/host/info/get"
-VUL_HOST_CVE_GET = "/vulnerability/host/cve/get"
+VUL_HOST_SCAN = "/vulnerabilities/host/scan"
+VUL_HOST_STATUS_GET = "/vulnerabilities/host/status/get"
+VUL_HOST_LIST_GET = "/vulnerabilities/host/list/get"
+VUL_HOST_INFO_GET = "/vulnerabilities/host/info/get"
+VUL_HOST_CVE_GET = "/vulnerabilities/host/cve/get"
 
 # route of task related interface
-VUL_TASK_LIST_GET = "/vulnerability/task/list/get"
-VUL_TASK_PROGRESS_GET = "/vulnerability/task/progress/get"
-VUL_TASK_INFO_GET = "/vulnerability/task/info/get"
-VUL_TASK_CVE_FIX_GENERATE = "/vulnerability/task/cve-fix/generate"
-VUL_TASK_CVE_FIX_INFO_GET = "/vulnerability/task/cve-fix/info/get"
-VUL_TASK_HOTPATCH_REMOVE_STATUS_GET = "/vulnerability/task/hotpatch-remove/status/get"
-VUL_TASK_CVE_FIX_RESULT_GET = "/vulnerability/task/cve-fix/result/get"
-VUL_TASK_EXECUTE = "/vulnerability/task/execute"
-VUL_TASK_REPO_GENERATE = "/vulnerability/task/repo/generate"
-VUL_TASK_REPO_INFO_GET = "/vulnerability/task/repo/info/get"
-VUL_TASK_REPO_RESULT_GET = "/vulnerability/task/repo/result/get"
-VUL_TASK_DELETE = "/vulnerability/task/delete"
-VUL_TASK_CVE_ROLLBACK_GENERATE = "/vulnerability/task/cve-rollback/generate"
-VUL_TASK_CVE_ROLLBACK_RESULT_GET = "/vulnerability/task/cve-rollback/result/get"
-VUL_TASK_CVE_ROLLBACK_INFO_GET = "/vulnerability/task/cve-rollback/info/get"
-VUL_TASK_CVE_ROLLBACK_RPM_INFO_GET = "/vulnerability/task/cve-rollback/rpm/get"
-VUL_TASK_HOTPATCH_REMOVE_GENERATE = "/vulnerability/task/hotpatch-remove/generate"
-VUL_TASK_CVE_FIX_RPM_INFO_GET = "/vulnerability/task/cve-fix/rpm/get"
-VUL_TASK_HOTPATCH_REMOVE_INFO_GET = "/vulnerability/task/hotpatch-remove/info/get"
-VUL_TASK_HOTPATCH_REMOVE_RESULT_GET = "/vulnerability/task/hotpatch-remove/result/get"
-VUL_TASK_HOTPATCH_REMOVE_PROGRESS_GET = "/vulnerability/task/hotpatch-remove/progress/get"
+VUL_TASK_LIST_GET = "/vulnerabilities/task/list/get"
+VUL_TASK_PROGRESS_GET = "/vulnerabilities/task/progress/get"
+VUL_TASK_INFO_GET = "/vulnerabilities/task/info/get"
+VUL_TASK_CVE_FIX_GENERATE = "/vulnerabilities/task/cve-fix/generate"
+VUL_TASK_CVE_FIX_INFO_GET = "/vulnerabilities/task/cve-fix/info/get"
+VUL_TASK_HOTPATCH_REMOVE_STATUS_GET = "/vulnerabilities/task/hotpatch-remove/status/get"
+VUL_TASK_CVE_FIX_RESULT_GET = "/vulnerabilities/task/cve-fix/result/get"
+VUL_TASK_EXECUTE = "/vulnerabilities/task/execute"
+VUL_TASK_REPO_GENERATE = "/vulnerabilities/task/repo/generate"
+VUL_TASK_REPO_INFO_GET = "/vulnerabilities/task/repo/info/get"
+VUL_TASK_REPO_RESULT_GET = "/vulnerabilities/task/repo/result/get"
+VUL_TASK_DELETE = "/vulnerabilities/task/delete"
+VUL_TASK_CVE_ROLLBACK_GENERATE = "/vulnerabilities/task/cve-rollback/generate"
+VUL_TASK_CVE_ROLLBACK_RESULT_GET = "/vulnerabilities/task/cve-rollback/result/get"
+VUL_TASK_CVE_ROLLBACK_INFO_GET = "/vulnerabilities/task/cve-rollback/info/get"
+VUL_TASK_CVE_ROLLBACK_RPM_INFO_GET = "/vulnerabilities/task/cve-rollback/rpm/get"
+VUL_TASK_HOTPATCH_REMOVE_GENERATE = "/vulnerabilities/task/hotpatch-remove/generate"
+VUL_TASK_CVE_FIX_RPM_INFO_GET = "/vulnerabilities/task/cve-fix/rpm/get"
+VUL_TASK_HOTPATCH_REMOVE_INFO_GET = "/vulnerabilities/task/hotpatch-remove/info/get"
+VUL_TASK_HOTPATCH_REMOVE_RESULT_GET = "/vulnerabilities/task/hotpatch-remove/result/get"
+VUL_TASK_HOTPATCH_REMOVE_PROGRESS_GET = "/vulnerabilities/task/hotpatch-remove/progress/get"
 
 # route of callback
-VUL_TASK_CVE_FIX_CALLBACK = "/vulnerability/task/callback/cve/fix"
-VUL_TASK_CVE_ROLLBACK_CALLBACK = "/vulnerability/task/callback/cve/rollback"
-VUL_TASK_REPO_SET_CALLBACK = "/vulnerability/task/callback/repo/set"
-VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerability/task/callback/cve/scan"
-VUL_TASK_HOTPATCH_REMOVE_CALLBACK = "/vulnerability/task/callback/hotpatch-remove"
-VUL_TASK_CVE_SCAN_NOTICE = "/vulnerability/task/callback/cve/scan/notice"
+VUL_TASK_CVE_FIX_CALLBACK = "/vulnerabilities/task/callback/cve/fix"
+VUL_TASK_CVE_ROLLBACK_CALLBACK = "/vulnerabilities/task/callback/cve/rollback"
+VUL_TASK_REPO_SET_CALLBACK = "/vulnerabilities/task/callback/repo/set"
+VUL_TASK_CVE_SCAN_CALLBACK = "/vulnerabilities/task/callback/cve/scan"
+VUL_TASK_HOTPATCH_REMOVE_CALLBACK = "/vulnerabilities/task/callback/hotpatch-remove"
+VUL_TASK_CVE_SCAN_NOTICE = "/vulnerabilities/task/callback/cve/scan/notice"
 # elasticsearch index
 CVE_INDEX = 'cve'
 TASK_INDEX = "task"
@@ -164,15 +183,16 @@ CSV_SAVED_PATH = "/opt/aops/cve/saved"
 ADVISORY_SAVED_PATH = "/opt/aops/cve/advisory_download"
 TIMED_TASK_CONFIG_PATH = "/etc/aops/apollo_crontab.yml"
 
-
-EXECUTE_REPO_SET = '/manage/vulnerability/repo/set'
-EXECUTE_CVE_FIX = '/manage/vulnerability/cve/fix'
-EXECUTE_CVE_ROLLBACK = '/manage/vulnerability/cve/rollback'
-EXECUTE_CVE_SCAN = '/manage/vulnerability/cve/scan'
-EXECUTE_HOTPATCH_REMOVE = "/manage/vulnerability/cve/hotpatch-remove"
+EXECUTE_REPO_SET = '/manage/vulnerabilities/repo/set'
+EXECUTE_CVE_FIX = '/manage/vulnerabilities/cve/fix'
+EXECUTE_CVE_ROLLBACK = '/manage/vulnerabilities/cve/rollback'
+EXECUTE_CVE_SCAN = '/manage/vulnerabilities/cve/scan'
+EXECUTE_HOTPATCH_REMOVE = "/manage/vulnerabilities/cve/hotpatch-remove"
 HOST_STATUS_GET = "/manage/host/status/get"
 
-VUL_CVE_UNFIXED_PACKAGES = "/vulnerability/cve/unfixed/packages/get"
-VUL_CVE_FIXED_PACKAGES = "/vulnerability/cve/fixed/packages/get"
-VUL_CVE_PACKAGES_HOST = "/vulnerability/cve/packages/host/get"
-VUL_GET_TASK_HOST = "/vulnerability/task/host/get"
+VUL_CVE_UNFIXED_PACKAGES = "/vulnerabilities/cve/unfixed/packages/get"
+VUL_CVE_FIXED_PACKAGES = "/vulnerabilities/cve/fixed/packages/get"
+VUL_CVE_PACKAGES_HOST = "/vulnerabilities/cve/packages/host/get"
+VUL_GET_TASK_HOST = "/vulnerabilities/task/host/get"
+VUL_DOWNLOAD_FILE = "/vulnerabilities/file/download"
+VUL_GET_FILE_LIST = "/vulnerabilities/file/list/get"

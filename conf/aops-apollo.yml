@@ -1,0 +1,6 @@
+uwsgi:
+  daemonize: /var/log/aops/uwsgi/apollo.log
+  http_timeout: 600
+  processes: 1
+  gevent: 100
+  port: 11116

@@ -15,11 +15,16 @@ Time:
 Author:
 Description: Handle about repo related operation
 """
-from flask import jsonify
+from urllib.parse import urlencode
+
+from flask import jsonify, g
+from vulcanus.conf.constant import HOSTS_FILTER, UserRoleType
+from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp import make_response
-from vulcanus.restful.resp.state import SUCCEED
+from vulcanus.restful.resp.state import SUCCEED, DATA_DEPENDENCY_ERROR, DATABASE_QUERY_ERROR, PERMESSION_ERROR
 from vulcanus.restful.response import BaseResponse
 
+from apollo.conf import configuration, cache
 from apollo.database.proxy.repo import RepoProxy
 from apollo.function.schema.repo import ImportYumRepoSchema, UpdateYumRepoSchema, GetYumRepoSchema, DeleteYumRepoSchema
 from apollo.handler.repo_handler.helper import get_template_stream_response
@@ -43,6 +48,15 @@ class VulImportYumRepo(BaseResponse):
             dict: response body
 
         """
+        if cache.user_role != UserRoleType.ADMINISTRATOR:
+            return self.response(code=PERMESSION_ERROR, message="No permission to add new repo!")
+
+        current_cluster_info = cache.location_cluster
+        if not current_cluster_info:
+            LOGGER.debug("Failed to get current cluster id")
+            return self.response(code=DATABASE_QUERY_ERROR)
+
+        params["cluster_id"] = current_cluster_info.get("cluster_id")
         status_code = callback.import_repo(params)
         return self.response(code=status_code)
 
@@ -74,6 +88,33 @@ class VulGetYumRepo(BaseResponse):
     Restful interface for getting yum repo
     """
 
+    def _handle(self, params: dict, proxy: RepoProxy):
+        """
+        Query repo info handle
+        """
+        cluster_info_dic = cache.get_user_clusters()
+        if cluster_info_dic is None:
+            return DATABASE_QUERY_ERROR, []
+
+        cluster_list = []
+        if params.get("search_key"):
+            for cluster_id, info in cluster_info_dic.items():
+                if params.get("search_key") in info.get("cluster_name"):
+                    cluster_list.append(cluster_id)
+        else:
+            cluster_list = list(cluster_info_dic.keys())
+
+        if not cluster_list:
+            return SUCCEED, []
+
+        status_code, result = proxy.get_repo(params.get("repo_id_list", []), cluster_list)
+        if status_code != SUCCEED:
+            return status_code, []
+
+        for repo in result:
+            repo["cluster_name"] = cluster_info_dic.get(repo.get("cluster_id"))
+        return status_code, result
+
     @BaseResponse.handle(schema=GetYumRepoSchema, proxy=RepoProxy)
     def post(self, callback: RepoProxy, **params):
         """
@@ -86,7 +127,7 @@ class VulGetYumRepo(BaseResponse):
             dict: response body
 
         """
-        status_code, result = callback.get_repo(params)
+        status_code, result = self._handle(params, callback)
         return self.response(code=status_code, data=result)
 
 
@@ -94,6 +135,54 @@ class VulDeleteYumRepo(BaseResponse):
     """
     Restful interface for deleting yum repo
     """
+
+    def _query_repo_in_use(self):
+        """
+        Query which repositories have been applied
+        """
+        request_args = {"fields": ["repo_id"]}
+        url = f"http://{configuration.domain}{HOSTS_FILTER}?{urlencode(request_args)}"
+        response_data = self.get_response(method="Get", url=url, header=g.headers)
+        status = response_data.get("label")
+        if status != SUCCEED:
+            LOGGER.error("Failed to query repo in use.")
+            return status, set()
+
+        repo_in_use = set()
+        for repo in response_data.get("data", []):
+            repo_id = repo.get("repo_id")
+            if repo_id is not None:
+                repo_in_use.add(repo_id)
+
+        return response_data.get("label"), repo_in_use
+
+    def _handle(self, repo_id_list, proxy: RepoProxy):
+        """
+        Delete repo handle
+        """
+        user_role = cache.user_role
+        if not user_role:
+            return self.response(code=PERMESSION_ERROR, message="Failed to query user permission information!")
+
+        if user_role != UserRoleType.ADMINISTRATOR:
+            return self.response(code=PERMESSION_ERROR, message="No permission to delete repo!")
+        # query repo in use
+        status, repo_in_use = self._query_repo_in_use()
+        if status != SUCCEED:
+            LOGGER.error("Failed to query repo in use.")
+            return self.response(code=status, message="Failed to query repo in use.")
+
+        dependency_data = repo_in_use.intersection(set(repo_id_list))
+        if dependency_data:
+            LOGGER.debug(f"Repos are still in use when deleting repo: {dependency_data}.")
+            return self.response(code=DATA_DEPENDENCY_ERROR, message="Some repos are still in use.")
+
+        user_cluster_info = cache.get_user_clusters()
+        if not user_cluster_info:
+            LOGGER.error("Failed to get user cluster info.")
+            return self.response(code=DATABASE_QUERY_ERROR, message="Failed to get user cluster info.")
+
+        return self.response(code=proxy.delete_repo(repo_id_list, user_cluster_info.keys()))
 
     @BaseResponse.handle(schema=DeleteYumRepoSchema, proxy=RepoProxy)
     def delete(self, callback: RepoProxy, **params):
@@ -107,8 +196,7 @@ class VulDeleteYumRepo(BaseResponse):
             dict: response body
 
         """
-        status_code = callback.delete_repo(params)
-        return self.response(code=status_code)
+        return self._handle(params.get("repo_id_list"), callback)
 
 
 class VulGetRepoTemplate(BaseResponse):

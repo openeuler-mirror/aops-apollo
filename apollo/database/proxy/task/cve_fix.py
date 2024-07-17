@@ -16,16 +16,21 @@ Author:
 Description: vulnerability related database operation
 """
 import copy
-from collections import defaultdict
 import time
-from typing import Dict, Tuple
 import uuid
+from collections import defaultdict
+from typing import Dict, Tuple
 
 import sqlalchemy.orm
-from sqlalchemy.sql import or_
 from elasticsearch import ElasticsearchException
+from flask import g
 from sqlalchemy import func, case
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql import or_
+
+from apollo.conf.constant import TaskStatus, TaskType
+from apollo.database.proxy.task.base import TaskProxy
+from apollo.database.table import Task, CveFixTask, CveHostAssociation
 from vulcanus.database.helper import sort_and_page
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
@@ -34,17 +39,7 @@ from vulcanus.restful.resp.state import (
     DATABASE_QUERY_ERROR,
     DATABASE_UPDATE_ERROR,
     SUCCEED,
-    PARAM_ERROR,
 )
-
-from apollo.conf.constant import TaskStatus, TaskType
-from apollo.database.table import (
-    Task,
-    CveFixTask,
-    CveHostAssociation,
-    Host,
-)
-from apollo.database.proxy.task.base import TaskProxy
 
 
 class CveFixTaskProxy(TaskProxy):
@@ -118,19 +113,12 @@ class CveFixTaskProxy(TaskProxy):
         Args:
             data (dict): cve task info
 
+        Returns:
+            Tuple[str, list]: A tuple containing the status and task info list
         """
+        host_dict = data.pop("host_dict")
         fix_host_rpm_info = data.pop("info")
         wait_fix_rpms = dict()
-        host_id_set = set([host["host_id"] for task_info in fix_host_rpm_info for host in task_info["host_info"]])
-        _hosts = (
-            self.session.query(Host.host_id, Host.host_name, Host.host_ip).filter(Host.host_id.in_(host_id_set)).all()
-        )
-        host_dict = {
-            host.host_id: dict(host_name=host.host_name, host_ip=host.host_ip, host_id=host.host_id) for host in _hosts
-        }
-        if len(host_dict.keys()) != len(host_id_set):
-            LOGGER.error("Host id is different.")
-            return PARAM_ERROR, dict()
 
         for task_info in fix_host_rpm_info:
             wait_fix_rpms[task_info["cve_id"]] = dict(rpms=task_info.get("rpms", []), hosts=list(host_dict.keys()))
@@ -650,7 +638,7 @@ class CveFixTaskProxy(TaskProxy):
             task_id (str): task_id
 
         Returns:
-            int: status code
+            str: status code
             dict: e.g.
                 {
                     "task_id": "2",
@@ -747,7 +735,7 @@ class CveFixTaskProxy(TaskProxy):
             task_id (str): task id
             status (str): cve status
         Returns:
-            int: status code
+            str: status code
         """
         try:
             self.session.query(CveFixTask).filter(CveFixTask.task_id == task_id).update(
@@ -780,7 +768,7 @@ class CveFixTaskProxy(TaskProxy):
                 }
 
         Returns:
-            int: status code
+            str: status code
             dict: task's cve info. e.g.
                 {
                     "total_count": 1,
@@ -811,13 +799,11 @@ class CveFixTaskProxy(TaskProxy):
             data (dict): query condition
 
         Returns:
-            int: status code
+            str: status code
             dict
         """
-        result = {"total_count": 0, "total_page": 1, "result": []}
-        task_info = (
-            self.session.query(Task).filter(Task.task_id == data["task_id"], Task.username == data["username"]).first()
-        )
+        result = {"total_count": 0, "total_page": 0, "result": []}
+        task_info = self.session.query(Task).filter(Task.task_id == data["task_id"]).first()
         if not task_info:
             return result
         filters = self._get_cve_task_filters(data.get("filter", dict()), data["task_id"])
@@ -967,7 +953,7 @@ class CveFixTaskProxy(TaskProxy):
                 }
 
         Returns:
-            int: status code
+            str: status code
             list: query result. e.g.
                 [{
                     "host_id": "2",
@@ -1010,10 +996,9 @@ class CveFixTaskProxy(TaskProxy):
         """
         query cve fix task result from mysql and es.
         """
-        username = data["username"]
         task_id = data["task_id"]
         # task log is in the format of returned dict of func
-        status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
+        status_code, task_log = self.get_task_log_info(task_id=task_id)
         if status_code != SUCCEED:
             return status_code, []
 

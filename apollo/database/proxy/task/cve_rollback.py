@@ -10,14 +10,17 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from typing import Tuple
+from typing import Tuple, Optional
 
 import sqlalchemy.orm
-from sqlalchemy import or_, func, case
-
-from sqlalchemy.exc import SQLAlchemyError
 from elasticsearch import ElasticsearchException
+from flask import g
+from sqlalchemy import or_, func, case
+from sqlalchemy.exc import SQLAlchemyError
 
+from apollo.conf.constant import TaskType, TaskStatus
+from apollo.database.proxy.task.base import TaskProxy
+from apollo.database.table import Task, CveRollbackTask, CveFixTask
 from vulcanus.database.helper import sort_and_page
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
@@ -26,17 +29,13 @@ from vulcanus.restful.resp.state import (
     SUCCEED,
     PARAM_ERROR,
     DATABASE_UPDATE_ERROR,
-    DATABASE_QUERY_ERROR
+    DATABASE_QUERY_ERROR,
 )
-
-from apollo.conf.constant import TaskType, TaskStatus
-from apollo.database.proxy.task.base import TaskProxy
-from apollo.database.table import Task, Host, CveRollbackTask, CveFixTask
 
 
 class CveRollbackTaskProxy(TaskProxy):
 
-    def generate_cve_rollback_task(self, data: dict) -> Tuple[int, str or None]:
+    def generate_cve_rollback_task(self, data: dict) -> Tuple[int, Optional[str]]:
         """
         For generating, save cve rollback task basic info to mysql, init task info in es.
 
@@ -66,7 +65,7 @@ class CveRollbackTaskProxy(TaskProxy):
             LOGGER.error("Generating cve task failed due to internal error.")
             return DATABASE_INSERT_ERROR, None
 
-    def _generate_cve_rollback_task(self, data) -> Tuple[int, str or None]:
+    def _generate_cve_rollback_task(self, data) -> Tuple[int, Optional[str]]:
         """
         generate cve rollback task:
         1. check the task to be rolled back valid or not
@@ -82,23 +81,22 @@ class CveRollbackTaskProxy(TaskProxy):
             LOGGER.error(msg)
             return PARAM_ERROR, msg
 
-        fix_task_info = self.session.query(CveFixTask).filter(
-            CveFixTask.task_id == fix_task_id).all()
+        fix_task_info = self.session.query(CveFixTask).filter(CveFixTask.task_id == fix_task_id).all()
         if not fix_task_info:
             msg = "No data found when getting the info of cve task for rollback: %s." % fix_task_id
             LOGGER.error(msg)
             return NO_DATA, msg
 
-        host_list = [row.host_id for row in fix_task_info]
-        exist_host_query = self.session.query(Host.host_id).filter(Host.host_id.in_(host_list))
-        exist_host_list = [row.host_id for row in exist_host_query]
-        fail_list = list(set(host_list) - set(exist_host_list))
-        # no need to generate task when any host doesn't exist
-        if fail_list:
-            msg = "Some hosts of cve task '%s' for rollback don't exist." % fix_task_id
-            LOGGER.debug(msg)
-            LOGGER.debug(','.join(fail_list))
-            return PARAM_ERROR, msg
+        # host_list = [row.host_id for row in fix_task_info]
+        # exist_host_query = self.session.query(Host.host_id).filter(Host.host_id.in_(host_list))
+        # exist_host_list = [row.host_id for row in exist_host_query]
+        # fail_list = list(set(host_list) - set(exist_host_list))
+        # # no need to generate task when any host doesn't exist
+        # if fail_list:
+        #     msg = "Some hosts of cve task '%s' for rollback don't exist." % fix_task_id
+        #     LOGGER.debug(msg)
+        #     LOGGER.debug(','.join(fail_list))
+        #     return PARAM_ERROR, msg
 
         task_table_row = self._gen_task_row(data, fix_task_basic_info)
         rollback_task_table_rows = self._gen_cve_rollback_task_rows(data["task_id"], fix_task_id, fix_task_info)
@@ -112,13 +110,14 @@ class CveRollbackTaskProxy(TaskProxy):
         fix_task_name = cve_fix_task_info.task_name
         host_num = cve_fix_task_info.host_num
         task_data = {
-            "username": data["username"],
+            "cluster_id": data["cluster_id"],
             "task_id": data["task_id"],
             "task_type": data["task_type"],
             "create_time": data["create_time"],
             "task_name": "回滚: %s" % fix_task_name,
             "description": "原CVE修复任务描述: %s" % fix_task_description,
-            "host_num": host_num
+            "host_num": host_num,
+            "username": data.get("username"),
         }
         return task_data
 
@@ -138,7 +137,7 @@ class CveRollbackTaskProxy(TaskProxy):
                 "target_rpm": row.installed_rpm,
                 "status": TaskStatus.UNKNOWN,
                 "dnf_event_start": row.dnf_event_start,
-                "dnf_event_end": row.dnf_event_end
+                "dnf_event_end": row.dnf_event_end,
             }
             rollback_task_rows.append(rollback_task_row)
         return rollback_task_rows
@@ -194,13 +193,12 @@ class CveRollbackTaskProxy(TaskProxy):
         Returns:
             dict
         """
-        result = {"total_count": 0, "total_page": 1, "result": []}
+        result = {"total_count": 0, "total_page": 0, "result": []}
 
         task_id = data["task_id"]
-        username = data["username"]
         filter_dict = data.get("filter", {})
         needed_status, host_filters = self._get_cve_rollback_task_filters(filter_dict)
-        cve_rollback_task_host_query = self._query_cve_rollback_task_host(username, task_id, needed_status, host_filters)
+        cve_rollback_task_host_query = self._query_cve_rollback_task_host(task_id, needed_status, host_filters)
 
         total_count = cve_rollback_task_host_query.count()
         if not total_count:
@@ -208,11 +206,7 @@ class CveRollbackTaskProxy(TaskProxy):
 
         page, per_page = data.get('page'), data.get('per_page')
         processed_result, total_page = sort_and_page(
-            query_result=cve_rollback_task_host_query,
-            column=None,
-            direction=None,
-            per_page=per_page,
-            page=page
+            query_result=cve_rollback_task_host_query, column=None, direction=None, per_page=per_page, page=page
         )
         host_info_list = self._process_cve_rollback_task_host(cve_rollback_task_host_query)
 
@@ -250,7 +244,7 @@ class CveRollbackTaskProxy(TaskProxy):
         needed_status = filter_dict.get("status", [])
         return needed_status, filters
 
-    def _query_cve_rollback_task_host(self, username, task_id, needed_status, host_filters):
+    def _query_cve_rollback_task_host(self, task_id, needed_status, host_filters):
         """
         query needed cve rollback task's host info
         Args:
@@ -279,47 +273,37 @@ class CveRollbackTaskProxy(TaskProxy):
                 func.group_concat(func.distinct(CveRollbackTask.cves)).label("cves"),
             )
             .outerjoin(Task, Task.task_id == CveRollbackTask.task_id)
-            .filter(Task.username == username)
             .filter(CveRollbackTask.task_id == task_id)
             .filter(*host_filters)
-            .group_by(
-                CveRollbackTask.host_id,
-                CveRollbackTask.host_ip,
-                CveRollbackTask.host_name
-            )
+            .group_by(CveRollbackTask.host_id, CveRollbackTask.host_ip, CveRollbackTask.host_name)
             .subquery()
         )
-        cve_rollback_task_status_subquery = (
-            self.session.query(
-                cve_rollback_task_subquery.c.host_id,
-                cve_rollback_task_subquery.c.host_name,
-                cve_rollback_task_subquery.c.host_ip,
-                case(
-                    [
-                        (cve_rollback_task_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
-                        (cve_rollback_task_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
-                        (cve_rollback_task_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN)
-                    ],
-                    else_=TaskStatus.SUCCEED,
-                ).label("status"),
-                cve_rollback_task_subquery.c.cves
-            ).subquery()
-        )
+        cve_rollback_task_status_subquery = self.session.query(
+            cve_rollback_task_subquery.c.host_id,
+            cve_rollback_task_subquery.c.host_name,
+            cve_rollback_task_subquery.c.host_ip,
+            case(
+                [
+                    (cve_rollback_task_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
+                    (cve_rollback_task_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
+                    (cve_rollback_task_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN),
+                ],
+                else_=TaskStatus.SUCCEED,
+            ).label("status"),
+            cve_rollback_task_subquery.c.cves,
+        ).subquery()
 
         status_filters = set()
         if needed_status:
             status_filters = {cve_rollback_task_status_subquery.c.status.in_(needed_status)}
 
-        cve_rollback_task_query = (
-            self.session.query(
-                cve_rollback_task_status_subquery.c.host_id,
-                cve_rollback_task_status_subquery.c.host_ip,
-                cve_rollback_task_status_subquery.c.host_name,
-                cve_rollback_task_status_subquery.c.status,
-                cve_rollback_task_status_subquery.c.cves,
-            )
-            .filter(*status_filters)
-        )
+        cve_rollback_task_query = self.session.query(
+            cve_rollback_task_status_subquery.c.host_id,
+            cve_rollback_task_status_subquery.c.host_ip,
+            cve_rollback_task_status_subquery.c.host_name,
+            cve_rollback_task_status_subquery.c.status,
+            cve_rollback_task_status_subquery.c.cves,
+        ).filter(*status_filters)
         return cve_rollback_task_query
 
     @staticmethod
@@ -354,7 +338,7 @@ class CveRollbackTaskProxy(TaskProxy):
                 "host_name": row.host_name,
                 "host_ip": row.host_ip,
                 "cve_num": cve_num,
-                "status": row.status
+                "status": row.status,
             }
             result.append(host_info)
         return result
@@ -423,16 +407,20 @@ class CveRollbackTaskProxy(TaskProxy):
             LOGGER.debug("Multiple data found when getting the rollback_type of cve rollback task: %s." % task_id)
             return DATABASE_QUERY_ERROR, {}
 
-        rollback_detail = []
+        rollback_detail, total_hosts = [], []
         # right now, assume each host only has one action in a rollback task
         for row in rollback_task_info:
-            rollback_detail.append({
-                "host_id": row.host_id,
-                "installed_rpm": row.installed_rpm,
-                "target_rpm": row.target_rpm,
-                "dnf_event_start": row.dnf_event_start,
-                "dnf_event_end": row.dnf_event_end
-            })
+            rollback_detail.append(
+                {
+                    "host_id": row.host_id,
+                    "installed_rpm": row.installed_rpm,
+                    "target_rpm": row.target_rpm,
+                    "dnf_event_start": row.dnf_event_start,
+                    "dnf_event_end": row.dnf_event_end,
+                }
+            )
+            if row.host_id not in total_hosts:
+                total_hosts.append(row.host_id)
 
         task_info = {
             "task_id": basic_task.task_id,
@@ -441,7 +429,8 @@ class CveRollbackTaskProxy(TaskProxy):
             "check_items": basic_task.check_items.split(',') if basic_task.check_items else [],
             "fix_task_id": fix_task_id.pop(),
             "rollback_type": rollback_type.pop(),
-            "tasks": rollback_detail
+            "tasks": rollback_detail,
+            "total_hosts": total_hosts,
         }
         return SUCCEED, task_info
 
@@ -458,11 +447,7 @@ class CveRollbackTaskProxy(TaskProxy):
         filters = set()
         if host_id:
             filters = {CveRollbackTask.host_id == host_id}
-        task_query = (
-            self.session.query(CveRollbackTask)
-            .filter(CveRollbackTask.task_id == task_id)
-            .filter(*filters)
-        )
+        task_query = self.session.query(CveRollbackTask).filter(CveRollbackTask.task_id == task_id).filter(*filters)
         return task_query
 
     def update_cve_rollback_task_status(self, task_id, status, host_id=None) -> str:
@@ -533,7 +518,7 @@ class CveRollbackTaskProxy(TaskProxy):
                 "installed_rpm": row.installed_rpm,
                 "target_rpm": row.target_rpm,
                 "cves": row.cves,
-                "status": row.status
+                "status": row.status,
             }
             result.append(rpm_info)
         return result
@@ -592,10 +577,9 @@ class CveRollbackTaskProxy(TaskProxy):
         """
         query cve rollback task result from es.
         """
-        username = data["username"]
         task_id = data["task_id"]
         # task log is in the format of returned dict of func
-        status_code, task_log = self.get_task_log_info(task_id=task_id, username=username)
+        status_code, task_log = self.get_task_log_info(task_id=task_id)
         if status_code != SUCCEED:
             return status_code, []
 

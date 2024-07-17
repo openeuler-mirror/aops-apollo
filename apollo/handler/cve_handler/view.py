@@ -15,32 +15,46 @@ Time:
 Author:
 Description: Handle about cve related operation
 """
+import copy
 import glob
 import os
 import shutil
+import time
+from collections import defaultdict
+from typing import List, Optional
 
+from flask import g
 from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import SUCCEED, DATABASE_INSERT_ERROR, WRONG_FILE_FORMAT, NO_DATA, SERVER_ERROR
+from vulcanus.restful.resp.state import (
+    DATABASE_INSERT_ERROR,
+    NO_DATA,
+    PARAM_ERROR,
+    SERVER_ERROR,
+    SUCCEED,
+    WRONG_FILE_FORMAT,
+)
 from vulcanus.restful.response import BaseResponse
 
-from apollo.conf.constant import FILE_UPLOAD_PATH, CSV_SAVED_PATH, FILE_NUMBER
-from apollo.database.proxy.cve import CveProxy, CveMysqlProxy
+from apollo.conf import cache
+from apollo.conf.constant import FILE_UPLOAD_PATH
+from apollo.cron.notification import EmailNoticeManager
+from apollo.database.proxy.cve import CveMysqlProxy, CveProxy
+from apollo.database.proxy.host import HostProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import (
     CveBinaryPackageSchema,
-    GetCveListSchema,
-    GetCveInfoSchema,
+    ExportCveExcelSchema,
     GetCveHostsSchema,
+    GetCveInfoSchema,
+    GetCveListSchema,
     GetCveTaskHostSchema,
     GetGetCvePackageHostSchema,
-    ExportCveExcelSchema,
 )
-from apollo.function.utils import make_download_response
-from apollo.handler.cve_handler.manager.compress_manager import unzip, compress_cve
+from apollo.function.utils import make_download_response, query_user_hosts, paginate_data
+from apollo.handler.cve_handler.manager.compress_manager import unzip
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
-from apollo.handler.cve_handler.manager.save_to_csv import export_csv
 
 
 class VulGetCveOverview(BaseResponse):
@@ -59,7 +73,7 @@ class VulGetCveOverview(BaseResponse):
             dict: response body
 
         """
-        status_code, result = callback.get_cve_overview(params)
+        status_code, result = callback.get_cve_overview(query_user_hosts())
         return self.response(code=status_code, data=result)
 
 
@@ -84,6 +98,9 @@ class VulGetCveList(BaseResponse):
             dict: response body
 
         """
+        result = {"total_count": 0, "total_page": 0, "result": []}
+
+        params["host_list"] = query_user_hosts()
         status_code, result = callback.get_cve_list(params)
         return self.response(code=status_code, data=result)
 
@@ -114,6 +131,58 @@ class VulGetCveHosts(BaseResponse):
     Restful interface for getting hosts info of a cve
     """
 
+    def _query_host_info(self, host_list: List[str], filters: Optional[dict] = None):
+        """Queries host information for the specified list of hosts.
+
+        Args:
+            filters(Optional[dict]): Optional filters to apply to the query.
+
+        Returns:
+            The response data obtained from the query.
+        """
+        if not filters:
+            filters = {}
+        filters.pop("fixed", None)
+        query_fields = ["host_id", "host_ip", "host_name", "last_scan", "repo_id", "host_group_name", "cluster_id"]
+        return query_user_hosts(host_list=host_list, fields=query_fields, **filters)
+
+    def _handle(self, params, proxy: CveMysqlProxy):
+        """
+        Handles the query for CVE-related host information.
+        """
+        # 1. Query host ids related to the CVE ID
+        status_code, query_rows = proxy.query_host_id_list_related_to_cve(
+            params.get("cve_id"), params.get("filter", {}).get("fixed", False)
+        )
+        if status_code != SUCCEED:
+            return status_code, {}
+        host_list = [row.host_id for row in query_rows]
+        if not host_list:
+            return status_code, {"total_count": 0, "total_page": 0, "result": []}
+        # 2. Query all host info
+        host_info_list = self._query_host_info(host_list, params.get("filter"))
+        # 3. Sort all data based on sorting rules
+        user_clusters_info = cache.get_user_clusters()
+        for host in host_info_list:
+            host["cluster_name"] = user_clusters_info.get(host["cluster_id"])
+        sort_field = params.get("sort")
+        direction = params.get("direction") == "desc"
+        if sort_field:
+            host_info_list = sorted(host_info_list, key=lambda host: host[sort_field], reverse=not direction)
+        # 5. Paginate the data
+        page = params.get("page")
+        per_page = params.get("per_page")
+
+        if page and per_page:
+            total_count, total_page, paginated_data = paginate_data(host_info_list, per_page, page)
+        else:
+            total_count = len(host_info_list)
+            total_page = 1
+            paginated_data = host_info_list
+        # 6. Return the target data
+        result = {"total_count": total_count, "total_page": total_page, "result": paginated_data}
+        return SUCCEED, result
+
     @BaseResponse.handle(schema=GetCveHostsSchema, proxy=CveMysqlProxy)
     def post(self, callback: CveMysqlProxy, **params):
         """
@@ -131,7 +200,8 @@ class VulGetCveHosts(BaseResponse):
             dict: response body
 
         """
-        status_code, result = callback.get_cve_host(params)
+        # Get all host id related to cve
+        status_code, result = self._handle(params, callback)
         return self.response(code=status_code, data=result)
 
 
@@ -139,6 +209,194 @@ class VulGetCveTaskHost(BaseResponse):
     """
     Restful interface for getting each CVE's hosts' basic info (id, ip, name)
     """
+
+    def _query_host_info(self, host_list):
+        """"""
+
+        result = {}
+        query_fields = ["host_id", "host_ip", "host_name", "cluster_id"]
+        host_info_list = query_user_hosts(host_list, query_fields)
+
+        if len(host_info_list) != len(host_list):
+            return PARAM_ERROR, result
+
+        for host in host_info_list:
+            result[host.get("host_id")] = dict(
+                host_id=host.get("host_id"),
+                host_ip=host.get("host_ip"),
+                host_name=host.get("host_name"),
+                cluster_id=host.get("cluster_id"),
+            )
+
+        return SUCCEED, result
+
+    def _get_cve_task_hosts_for_hp_remove(self, cve_task_hosts_rows, cluster_info) -> dict:
+        """
+        get cve task hosts data for previous remove_hp task. This is a temporary function ,
+        going to be changed in 10.30 given hotpatch of cve
+
+        Args:
+            cve_task_hosts_rows (sqlalchemy.orm.query.Query): rows of cve host pkg info
+
+        Returns:
+            dict: each CVE's host info  e.g.
+                {
+                    "CVE-2023-25180": {
+                        "package": "glibc,kernel",
+                        "hosts": [{
+                            "host_id": 1100,
+                            "host_ip": "172.168.120.151",
+                            "host_name": "host2_12006",
+                            "hotpatch": True // The param only exist if input fixed is True
+                        }]
+                    }
+                }
+        """
+        cve_host_dict = defaultdict(dict)
+        host_id_list = set()
+        # cve_host_dict: {"cve-2022-1111": {host_id1: True, host_id2: False}}
+        for row in cve_task_hosts_rows:
+            pkg_fixed_by_hp = True if row.fixed_way == "hotpatch" else False
+            host_id_list.add(row.host_id)
+            if row.host_id not in cve_host_dict[row.cve_id]:
+                cve_host_dict[row.cve_id][row.host_id] = pkg_fixed_by_hp
+            else:
+                cve_host_dict[row.cve_id][row.host_id] |= pkg_fixed_by_hp
+
+        # get host info
+        # host_info_dict: {host_id1: {"host_name": "name1", "host_ip": "1.1.1.1"}
+        status, host_info_dict = self._query_host_info(list(host_id_list))
+        if status != SUCCEED:
+            LOGGER.error("Failed to query host information in task")
+            return status, {}
+
+        for host_id, info in host_info_dict.items():
+            info["cluster_name"] = cluster_info.get(info.get("cluster_id"))
+
+        # query cve affected source package
+        queried_cve_list = list(cve_host_dict.keys())
+        cve_pkg_dict = self.proxy._get_cve_source_pkg(queried_cve_list)
+
+        result = {}
+        for cve_id, host_hp_info in cve_host_dict.items():
+            host_info_list = []
+            for host_id, cve_fixed_by_hp in host_hp_info.items():
+                host_info = copy.deepcopy(host_info_dict[host_id])
+                host_info["hotpatch"] = cve_fixed_by_hp
+                host_info_list.append(host_info)
+            result[cve_id] = {"package": cve_pkg_dict[cve_id], "hosts": host_info_list}
+
+        return SUCCEED, result
+
+    def _get_cve_task_hosts_for_cve_fix(
+        self, cve_id_list: list, cve_info_list: list, cve_task_hosts_rows, cluster_info
+    ) -> dict:
+        """
+        get cve task hosts data for previous cve_fix task.
+        Args:
+            cve_id_list (list): list of cve id
+            cve_info_list (list): list of cve info.  e.g.
+                [{
+                    "cve_id": "CVE-2023-1",
+                    "rpms": [{
+                        "installed_rpm": "pkg1",
+                        "available_rpm": "pkg1-1",
+                        "fix_way":"hotpatch"
+                    }]
+                },
+                {
+                    "cve_id": "CVE-2023-2",
+                    "rpms": []
+                }]
+            cve_task_hosts_rows (sqlalchemy.orm.query.Query): rows of cve host pkg info
+
+        Returns:
+            dict: each CVE's host info  e.g.
+                {
+                    "CVE-2023-25180": {
+                        "package": "glibc,kernel",
+                        "hosts": [{
+                            "host_id": 1100,
+                            "host_ip": "172.168.120.151",
+                            "host_name": "host2_12006"
+                        }]
+                    }
+                }
+        """
+        # query cve affected source pacakge
+        cve_pkg_dict = self.proxy._get_cve_source_pkg(cve_id_list)
+
+        # get host info
+        host_id_list = set()
+        for row in cve_task_hosts_rows:
+            host_id_list.add(row.host_id)
+        # host_info_dict: {host_id1: {"host_name": "name1", "host_ip": "1.1.1.1"}
+        status, host_info_dict = self._query_host_info(list(host_id_list))
+        if status != SUCCEED:
+            LOGGER.error("Failed to query host information in task")
+            return status, {}
+
+        for host_id, info in host_info_dict.items():
+            info["cluster_name"] = cluster_info.get(info.get("cluster_id"), {})
+
+        result = {}
+        for cve_info in cve_info_list:
+            cve_id = cve_info["cve_id"]
+            if cve_info.get("rpms"):
+                host_id_set = set()
+                for rpm_info in cve_info["rpms"]:
+                    filtered_rows = filter(
+                        lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id
+                        and cve_host_rpm.installed_rpm == rpm_info["installed_rpm"]
+                        and cve_host_rpm.available_rpm == rpm_info["available_rpm"],
+                        cve_task_hosts_rows,
+                    )
+                    host_id_set |= set([row.host_id for row in filtered_rows])
+                affected_host_id = list(host_id_set)
+            else:
+                filtered_rows = filter(lambda cve_host_rpm: cve_host_rpm.cve_id == cve_id, cve_task_hosts_rows)
+                affected_host_id = list(set([row.host_id for row in filtered_rows]))
+
+            host_info_list = []
+            for host_id in affected_host_id:
+                host_info_list.append(host_info_dict[host_id])
+
+            result[cve_id] = {"package": cve_pkg_dict[cve_id], "hosts": host_info_list}
+
+        return SUCCEED, result
+
+    def _handle(self, data):
+        """
+        handle function
+        """
+        result = {}
+        cluster_info = cache.get_user_clusters()
+        data["host_list"] = query_user_hosts(data.get("host_list", []))
+        status_code, query_rows = self.proxy.get_cve_task_hosts(data)
+        if status_code != SUCCEED:
+            LOGGER.error("Failed to query cve task hosts.")
+            return status_code, result
+
+        cve_info_list = data["cve_list"]
+        cve_id_list = [cve_info["cve_id"] for cve_info in cve_info_list]
+        if data["fixed"]:
+            status_code, result = self._get_cve_task_hosts_for_hp_remove(query_rows, cluster_info)
+        else:
+            status_code, result = self._get_cve_task_hosts_for_cve_fix(
+                cve_id_list, cve_info_list, query_rows, cluster_info
+            )
+
+        if status_code != SUCCEED:
+            return status_code, result
+
+        succeed_list = list(result.keys())
+        fail_list = list(set(cve_id_list) - set(succeed_list))
+        if fail_list:
+            LOGGER.debug("No data found when getting the task hosts of cve: %s." % fail_list)
+
+        status_dict = {"succeed_list": succeed_list, "fail_list": fail_list}
+        status_code = judge_return_code(status_dict, NO_DATA)
+        return status_code, result
 
     @BaseResponse.handle(schema=GetCveTaskHostSchema, proxy=CveMysqlProxy)
     def post(self, callback: CveMysqlProxy, **params):
@@ -167,7 +425,8 @@ class VulGetCveTaskHost(BaseResponse):
             dict: response body
 
         """
-        status_code, result = callback.get_cve_task_hosts(params)
+        self.proxy: CveMysqlProxy = callback
+        status_code, result = self._handle(params)
         return self.response(code=status_code, data=result)
 
 
@@ -207,9 +466,9 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            security_cvrf_info = parse_security_advisory(file_path)
+            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
             os.remove(file_path)
-            if not all([security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows, security_cvrf_info.cve_pkg_docs]):
+            if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                 return WRONG_FILE_FORMAT
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
@@ -217,7 +476,7 @@ class VulUploadAdvisory(BaseResponse):
             LOGGER.error(error)
             return WRONG_FILE_FORMAT
 
-        status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
+        status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
 
         return status_code
 
@@ -245,9 +504,8 @@ class VulUploadAdvisory(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                security_cvrf_info = parse_security_advisory(file_path)
-                if not all([security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows,
-                            security_cvrf_info.cve_pkg_docs]):
+                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
+                if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
@@ -261,7 +519,9 @@ class VulUploadAdvisory(BaseResponse):
                 LOGGER.error(error)
                 continue
             # elasticsearch need 1 second to update doc
-            status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
+            status_code = proxy.save_security_advisory(
+                file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
+            )
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
@@ -416,69 +676,71 @@ class VulExportExcel(BaseResponse):
     Restful interface for export cve to excel
     """
 
-    @staticmethod
-    def _handle(proxy, args):
+    def _handle(self, proxy: HostProxy, args):
         """
-        Handle export csv
+        Handle the processing of exporting files
+
         Returns:
-            dict: result. e.g.
-                {
-                    "status": status,
-                    "fileinfo": {
-                        "filename": filename,
-                        "filepath": "filepath"
-                        }
-                }
+            str: status code
         """
+        file_md5 = None
+        host_info_list = query_user_hosts(
+            host_list=args.get("host_list"), fields=["host_ip", "host_id", "host_name", "cluster_id"]
+        )
+        if not host_info_list:
+            return NO_DATA, file_md5
 
-        if not os.path.exists(CSV_SAVED_PATH):
-            os.makedirs(CSV_SAVED_PATH)
-        filepath = os.path.join(CSV_SAVED_PATH, args["username"])
-        if os.path.exists(filepath):
-            shutil.rmtree(filepath)
-        os.mkdir(filepath)
+        temp_file_path = None
+        try:
+            status, temp_file_path, _ = EmailNoticeManager(g.username, proxy, host_info_list).generate_temp_file()
+            if status != SUCCEED:
+                return status, file_md5
 
-        status, cve_body = proxy.query_host_name_and_related_cves(args["host_list"], args["username"])
-        result = {}
-        if status != SUCCEED:
-            result["status"] = status
-            return result
+            # file_md5 = FileUtils.calculate_hash_code(temp_file_path)
+            # if not file_md5:
+            #     return SERVER_ERROR, file_md5
 
-        filename = "host_cve_info.csv"
-        csv_head = ["host_ip", "host_name", "cve_id", "installed_rpm", "available_rpm", "support_way", "fixed_way"]
+            # file_save_response = FileUtils.upload_file(file_md5, temp_file_path)
+            # if file_save_response.status_code != http.HTTPStatus.OK:
+            #     return SERVER_ERROR, file_md5
 
-        export_csv(cve_body, os.path.join(filepath, filename), csv_head)
+            # create_timestamp = int(time.time())
+            # file_info = FileModel(
+            #     file_name=f"host_cve_info{time.strftime('%Y%m%d%H%M%S', time.localtime(create_timestamp))}.csv",
+            #     file_md5=file_md5,
+            #     username=g.username,
+            #     file_size=os.path.getsize(temp_file_path),
+            #     create_timestamp=create_timestamp,
+            #     expiration_timestamp=create_timestamp + 24 * 60 * 60,
+            # )
 
-        if len(os.listdir(filepath)) == 0:
-            result["status"] = NO_DATA
-            return result
-        if len(os.listdir(filepath)) > FILE_NUMBER:
-            zip_filename, zip_save_path = compress_cve(filepath, "host.zip")
-            if zip_filename and zip_save_path:
-                filename = zip_filename
-                filepath = zip_save_path
-            else:
-                result["status"] = SERVER_ERROR
-                return result
-        result["status"] = SUCCEED
-        file_info = {"filename": filename, "filepath": filepath}
-        result["fileinfo"] = file_info
-        return result
+            # with FileProxy() as file_proxy:
+            #     status = file_proxy.insert_new_file_info(file_info, g.username)
+            #     if status != SUCCEED:
+            #         return SERVER_ERROR, file_md5
 
-    @BaseResponse.handle(proxy=CveProxy, schema=ExportCveExcelSchema)
-    def post(self, callback: CveProxy, **params):
+        except OSError as error:
+            LOGGER.error(error)
+            return SERVER_ERROR, file_md5
+        # finally:
+        #     # Delete the temporary file if it exists
+        #     if temp_file_path and os.path.isfile(temp_file_path):
+        #         os.remove(temp_file_path)
+
+        return SUCCEED, temp_file_path
+
+    @BaseResponse.handle(proxy=HostProxy, schema=ExportCveExcelSchema)
+    def post(self, callback: HostProxy, **params):
         """
         Get rar/zip/rar compressed package or single xml file, decompress and insert data into database
 
         Returns:
             dict: response body
         """
-        result = self._handle(callback, params)
-        if result.get("status") == SUCCEED:
-            fileinfo = result.get("fileinfo")
-            return make_download_response(os.path.join(fileinfo.get("filepath"), fileinfo.get("filename")),
-                                          fileinfo.get("filename"))
-        return self.response(code=result)
+        status_code, file_path = self._handle(callback, params)
+        if status_code != SUCCEED:
+            return self.response(code=status_code, message="Generating file failed due to internal server error!")
+        return make_download_response(file_path, f"host_cve_info_{time.strftime('%Y%m%d%H%M%S', time.localtime())}.csv")
 
 
 class VulUnfixedCvePackage(BaseResponse):
@@ -494,9 +756,8 @@ class VulUnfixedCvePackage(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code, unfix_cve_packages = callback.get_cve_unfixed_packages(
-            cve_id=params["cve_id"], host_ids=params.get("host_ids"), username=params["username"]
-        )
+        host_ids = query_user_hosts(params.get("host_ids", []))
+        status_code, unfix_cve_packages = callback.get_cve_unfixed_packages(cve_id=params["cve_id"], host_ids=host_ids)
         return self.response(code=status_code, data=unfix_cve_packages)
 
 
@@ -513,9 +774,8 @@ class VulFixedCvePackage(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code, unfix_cve_packages = callback.get_cve_fixed_packages(
-            cve_id=params["cve_id"], host_ids=params.get("host_ids"), username=params["username"]
-        )
+        host_ids = query_user_hosts(params.get("host_ids", []))
+        status_code, unfix_cve_packages = callback.get_cve_fixed_packages(cve_id=params["cve_id"], host_ids=host_ids)
         return self.response(code=status_code, data=unfix_cve_packages)
 
 
@@ -523,6 +783,18 @@ class VulGetCvePackageHost(BaseResponse):
     """
     Restful interface for get cve package host list
     """
+
+    def _handle(self, params, callback: CveProxy):
+        status, response_body = callback.get_cve_packages_host(params)
+        host_list = response_body.get("result", [])
+        if status != SUCCEED or len(host_list) == 0:
+            return status, response_body
+
+        host_list = response_body.get("result")
+        query_fields = ["host_id", "host_ip", "host_name", "cluster_id"]
+        host_infos = query_user_hosts(host_list, query_fields)
+        response_body["result"] = sorted(host_infos, key=lambda x: host_list.index(x["host_id"]))
+        return status, response_body
 
     @BaseResponse.handle(proxy=CveProxy, schema=GetGetCvePackageHostSchema)
     def post(self, callback: CveProxy, **params):
@@ -539,5 +811,5 @@ class VulGetCvePackageHost(BaseResponse):
         Returns:
             dict: response body
         """
-        status_code, hosts = callback.get_cve_packages_host(params)
+        status_code, hosts = self._handle(params, callback)
         return self.response(code=status_code, data=hosts)
