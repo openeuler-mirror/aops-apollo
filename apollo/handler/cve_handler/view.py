@@ -466,9 +466,9 @@ class VulUploadAdvisory(BaseResponse):
     def _save_single_advisory(proxy, file_path):
         file_name = os.path.basename(file_path)
         try:
-            cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
+            security_cvrf_info = parse_security_advisory(file_path)
             os.remove(file_path)
-            if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
+            if not all([security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows, security_cvrf_info.cve_pkg_docs]):
                 return WRONG_FILE_FORMAT
         except (KeyError, ParseAdvisoryError) as error:
             os.remove(file_path)
@@ -476,7 +476,7 @@ class VulUploadAdvisory(BaseResponse):
             LOGGER.error(error)
             return WRONG_FILE_FORMAT
 
-        status_code = proxy.save_security_advisory(file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number)
+        status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
 
         return status_code
 
@@ -504,8 +504,10 @@ class VulUploadAdvisory(BaseResponse):
                 shutil.rmtree(folder_path)
                 return WRONG_FILE_FORMAT
             try:
-                cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number = parse_security_advisory(file_path)
-                if not all([cve_rows, cve_pkg_rows, cve_pkg_docs]):
+                security_cvrf_info = parse_security_advisory(file_path)
+                if not all(
+                    [security_cvrf_info.cve_rows, security_cvrf_info.cve_pkg_rows, security_cvrf_info.cve_pkg_docs]
+                ):
                     shutil.rmtree(folder_path)
                     return WRONG_FILE_FORMAT
             except (KeyError, ParseAdvisoryError) as error:
@@ -519,9 +521,7 @@ class VulUploadAdvisory(BaseResponse):
                 LOGGER.error(error)
                 continue
             # elasticsearch need 1 second to update doc
-            status_code = proxy.save_security_advisory(
-                file_name, cve_rows, cve_pkg_rows, cve_pkg_docs, sa_year, sa_number
-            )
+            status_code = proxy.save_security_advisory(file_name, security_cvrf_info)
             if status_code != SUCCEED:
                 fail_list.append(file_name)
             else:
