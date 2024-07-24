@@ -121,7 +121,8 @@ class CveFixTaskProxy(TaskProxy):
         wait_fix_rpms = dict()
 
         for task_info in fix_host_rpm_info:
-            wait_fix_rpms[task_info["cve_id"]] = dict(rpms=task_info.get("rpms", []), hosts=list(host_dict.keys()))
+            host_list = [host_info["host_id"] for host_info in task_info["host_info"]]
+            wait_fix_rpms[task_info["cve_id"]] = dict(rpms=task_info.get("rpms", []), hosts=host_list)
 
         hotpatch_fix_rpms, coldpatch_fix_rpms = self._get_cold_and_hotpatch_fix_rpm(wait_fix_rpms, data["takeover"])
         fix_tasks = []
