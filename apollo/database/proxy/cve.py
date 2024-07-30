@@ -1012,6 +1012,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         """
         query_body = self._general_body()
         query_body['query']['bool']['must'].append({"terms": {"_id": cve_list}})
+        query_body['size'] = len(cve_list)
         operation_code, res = self.query(CVE_INDEX, query_body, source=True)
 
         if not operation_code:
