@@ -14,7 +14,7 @@ from typing import Tuple, Optional
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
-from flask import g
+from flask import request
 from sqlalchemy import or_, func, case
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -106,16 +106,30 @@ class CveRollbackTaskProxy(TaskProxy):
 
     @staticmethod
     def _gen_task_row(data: dict, cve_fix_task_info: sqlalchemy.orm.Query) -> dict:
+        lang_info = request.headers.get("Accept-Language")
+        if lang_info:
+            lang = lang_info.split(',')[0].split(';')[0]
+        else:
+            lang = "en"
+
         fix_task_description = cve_fix_task_info.description
         fix_task_name = cve_fix_task_info.task_name
         host_num = cve_fix_task_info.host_num
+
+        if lang.startswith("en"):
+            task_name = "ROLLBACK_TASK: %s" % fix_task_name
+            description = "ORIGIN_TASK_DESCRIPTION: %s" % fix_task_description
+        else:
+            task_name = "回滚: %s" % fix_task_name
+            description = "原CVE修复任务描述: %s" % fix_task_description
+
         task_data = {
             "cluster_id": data["cluster_id"],
             "task_id": data["task_id"],
             "task_type": data["task_type"],
             "create_time": data["create_time"],
-            "task_name": "回滚: %s" % fix_task_name,
-            "description": "原CVE修复任务描述: %s" % fix_task_description,
+            "task_name": task_name,
+            "description": description,
             "host_num": host_num,
             "username": data.get("username"),
         }
