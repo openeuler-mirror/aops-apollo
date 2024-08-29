@@ -23,7 +23,7 @@ from typing import Dict, Tuple
 
 import sqlalchemy.orm
 from elasticsearch import ElasticsearchException
-from flask import g
+from flask import request
 from sqlalchemy import func, case
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import or_
@@ -462,6 +462,11 @@ class CveFixTaskProxy(TaskProxy):
                 }
 
         """
+        lang_info = request.headers.get("Accept-Language")
+        if lang_info:
+            lang = lang_info.split(',')[0].split(';')[0]
+        else:
+            lang = "en"
         task_id = str(uuid.uuid1()).replace('-', '')
         task_info = copy.deepcopy(data)
         task_info['task_id'] = task_id
@@ -470,8 +475,17 @@ class CveFixTaskProxy(TaskProxy):
         task_info["check_items"] = ",".join(task_info["check_items"])
         task_info["host_num"] = len(wait_fix_rpms.keys())
         task_info["fix_type"] = fix_way
+
+        prefix_map = {
+            "zh": {"hotpatch": "热补丁修复", "coldpatch": "冷补丁修复"},
+            "en": {"hotpatch": "Livepatch Upgrade", "coldpatch": "Normal Upgrade"},
+        }
         if subtask:
-            task_prefix = "冷补丁修复：" if fix_way == "coldpatch" else "热补丁修复："
+            task_prefix = (
+                f"{prefix_map['en'].get(fix_way,'coldpatch')}："
+                if lang.startswith("en")
+                else f"{prefix_map['zh'].get(fix_way,'coldpatch')}："
+            )
             task_info["description"] = task_prefix + task_info["description"]
             task_info["task_name"] = task_prefix + task_info["task_name"]
             task_info["takeover"] = False if fix_way == "coldpatch" else task_info["takeover"]

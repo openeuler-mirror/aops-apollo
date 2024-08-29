@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `cve`  (
 CREATE TABLE IF NOT EXISTS `vul_task` (
   `task_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  `description` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `description` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `task_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `latest_execute_time` int(11) NULL DEFAULT NULL,
   `create_time` int(11) NULL DEFAULT NULL,

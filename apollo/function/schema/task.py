@@ -91,7 +91,7 @@ class GenerateCveTaskSchema(Schema):
     """
 
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
+    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     accepted = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
     check_items = fields.List(fields.String(required=True, validate=lambda s: 0 < len(s) <= 32), required=False)
     takeover = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
@@ -178,7 +178,7 @@ class GenerateRepoTaskSchema(Schema):
     """
 
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
+    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     repo_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 36)
     host_list = fields.List(fields.String(required=True, validate=lambda s: 0 < len(s) <= 36), required=True)
 
@@ -367,7 +367,7 @@ class HotpatchRemoveInfoSchema(Schema):
 
 class GenerateHotpatchRemoveTaskSchema(Schema):
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 50)
+    description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     info = fields.List(fields.Nested(HotpatchRemoveInfoSchema), required=True, validate=lambda s: len(s) > 0)
 
 
