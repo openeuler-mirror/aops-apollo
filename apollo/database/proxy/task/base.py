@@ -504,6 +504,7 @@ class TaskMysqlProxy(MysqlProxy):
             "takeover": row.takeover,
             "cluster_id": row.cluster_id,
             "cluster_name": cluster_dict_info.get(row.cluster_id),
+            "task_type": row.task_type,
         }
         return task_info
 

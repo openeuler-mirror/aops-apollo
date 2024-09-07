@@ -89,7 +89,7 @@ class CveTaskHostSchemaOfCveInfo(Schema):
     """
 
     cve_id = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
-    rpms = fields.List(fields.Nested(PackageInfoSchema), required=True)
+    rpms = fields.List(fields.Nested(PackageInfoSchema), required=False, missing=[])
 
 
 class GetCveTaskHostSchema(Schema):

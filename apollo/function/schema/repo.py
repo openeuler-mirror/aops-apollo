@@ -34,7 +34,6 @@ class GetYumRepoSchema(Schema):
     """
 
     repo_id_list = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36), required=False)
-    search_key = fields.String(required=False, validate=lambda s: 0 < len(s) <= 32)
 
 
 class UpdateYumRepoSchema(Schema):

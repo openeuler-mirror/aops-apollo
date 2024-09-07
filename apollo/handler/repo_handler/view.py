@@ -93,21 +93,10 @@ class VulGetYumRepo(BaseResponse):
         Query repo info handle
         """
         cluster_info_dic = cache.get_user_clusters()
-        if cluster_info_dic is None:
-            return DATABASE_QUERY_ERROR, []
-
-        cluster_list = []
-        if params.get("search_key"):
-            for cluster_id, info in cluster_info_dic.items():
-                if params.get("search_key") in info.get("cluster_name"):
-                    cluster_list.append(cluster_id)
-        else:
-            cluster_list = list(cluster_info_dic.keys())
-
-        if not cluster_list:
+        if not cluster_info_dic:
             return SUCCEED, []
 
-        status_code, result = proxy.get_repo(params.get("repo_id_list", []), cluster_list)
+        status_code, result = proxy.get_repo(params.get("repo_id_list", []), list(cluster_info_dic.keys()))
         if status_code != SUCCEED:
             return status_code, []
 
