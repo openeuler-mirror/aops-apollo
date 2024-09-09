@@ -37,7 +37,9 @@ class ScanHostSchema(Schema):
     validators for parameter of /vulnerability/host/scan
     """
 
-    host_list = fields.List(fields.String(validate=lambda s: 0 < len(s) <= 36, required=True), required=True)
+    host_list = fields.List(
+        fields.String(validate=lambda s: 0 < len(s) <= 36, required=True), required=False, missing=[]
+    )
     filter = fields.Nested(ScanHostFilterSchema, required=False)
 
 
