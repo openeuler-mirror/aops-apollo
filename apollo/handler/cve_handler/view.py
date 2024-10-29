@@ -168,7 +168,11 @@ class VulGetCveHosts(BaseResponse):
         sort_field = params.get("sort")
         direction = params.get("direction") == "desc"
         if sort_field:
-            host_info_list = sorted(host_info_list, key=lambda host: host[sort_field], reverse=not direction)
+            host_info_list = sorted(
+                host_info_list,
+                key=lambda host: host[sort_field] if host[sort_field] is not None else 0,
+                reverse=not direction,
+            )
         # 5. Paginate the data
         page = params.get("page")
         per_page = params.get("per_page")
