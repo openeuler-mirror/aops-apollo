@@ -93,7 +93,9 @@ class GenerateCveTaskSchema(Schema):
     task_name = fields.String(required=True, validate=lambda s: 0 < len(s) <= 20)
     description = fields.String(required=True, validate=lambda s: 0 < len(s) <= 100)
     accepted = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
-    check_items = fields.List(fields.String(required=True, validate=lambda s: 0 < len(s) <= 32), required=False)
+    check_items = fields.List(
+        fields.String(required=True, validate=lambda s: 0 < len(s) <= 32), required=False, missing=[]
+    )
     takeover = fields.Boolean(required=True, validate=validate.OneOf([True, False]))
     info = fields.List(fields.Nested(CveInfoDictSchema), required=True, validate=lambda s: len(s) > 0)
 
