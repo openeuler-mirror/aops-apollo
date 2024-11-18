@@ -4,3 +4,4 @@ uwsgi:
   processes: 1
   gevent: 100
   port: 11116
+  buffer_size: 32768
