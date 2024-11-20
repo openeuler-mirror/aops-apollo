@@ -308,7 +308,7 @@ def main():
         '--reference-type', type=str, required=True, choices=['cve', 'bugfix', 'feature'], help='(cve/bugfix/feature)'
     )
     parser.add_argument('--reference-id', type=str, nargs='+', required=True)
-    # optional paramters
+    # optional parameters
     parser.add_argument('--description', type=str, required=False)
     parser.add_argument(
         '--severity',
