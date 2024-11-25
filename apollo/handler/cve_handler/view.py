@@ -43,15 +43,17 @@ from apollo.database.proxy.cve import CveMysqlProxy, CveProxy
 from apollo.database.proxy.host import HostProxy
 from apollo.function.customize_exception import ParseAdvisoryError
 from apollo.function.schema.cve import (
+    AiCvesFilterSchema,
     CveBinaryPackageSchema,
     ExportCveExcelSchema,
+    GetAiCvesSchema,
     GetCveHostsSchema,
     GetCveInfoSchema,
     GetCveListSchema,
     GetCveTaskHostSchema,
     GetGetCvePackageHostSchema,
 )
-from apollo.function.utils import make_download_response, query_user_hosts, paginate_data
+from apollo.function.utils import make_download_response, paginate_data, query_user_hosts
 from apollo.handler.cve_handler.manager.compress_manager import unzip
 from apollo.handler.cve_handler.manager.parse_advisory import parse_security_advisory
 from apollo.handler.cve_handler.manager.parse_unaffected import parse_unaffected_cve
@@ -813,3 +815,41 @@ class VulGetCvePackageHost(BaseResponse):
         """
         status_code, hosts = self._handle(params, callback)
         return self.response(code=status_code, data=hosts)
+
+
+class AiCveList(BaseResponse):
+    """
+    Restful interface for get ai cve list
+    """
+
+    @BaseResponse.handle(proxy=CveProxy, schema=GetAiCvesSchema)
+    def get(self, callback: CveProxy, **params):
+        """
+        Get the CVEs that AI recommends to be fixed
+
+        Args:
+            page (int): current page in front (optional)
+            per_page (int): host number of each page (optional)
+
+        Returns:
+            dict: response body
+        """
+        status_code, cves = callback.get_ai_cves(data=params)
+        return self.response(code=status_code, data=cves)
+
+
+class RecommendedCves(BaseResponse):
+    """
+    Restful interface for get recommended cves
+    """
+
+    @BaseResponse.handle(proxy=CveProxy, schema=AiCvesFilterSchema)
+    def get(self, callback: CveProxy, **params):
+        """
+        Get the CVEs that AI recommends to be fixed
+
+        Returns:
+            dict: response body
+        """
+        status_code, cves = callback.get_ai_recommends_cves(data=params)
+        return self.response(code=status_code, data=cves)

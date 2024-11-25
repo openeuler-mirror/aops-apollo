@@ -19,6 +19,7 @@ from marshmallow import Schema, fields, validate
 from vulcanus.restful.serialize.validate import PaginationSchema
 
 from apollo.conf.constant import CveSeverity
+from apollo.database.table import Cve
 
 
 class CveListFilterSchema(Schema):
@@ -131,3 +132,33 @@ class ExportCveExcelSchema(Schema):
 
 class DownloadFileSchema(Schema):
     file_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=True)
+
+
+class AiCvesResponseSchema(Schema):
+    package = fields.String()
+    contain_hot_patch = fields.Boolean()
+
+    class Meta:
+        model = Cve
+        fields = ("cve_id", "publish_time", "severity", "cvss_score", "package", "description", "contain_hot_patch")
+
+
+class AiCvesFilterSchema(Schema):
+    """
+    filter schema of ai cve list getting interface
+    """
+
+    fixed = fields.Boolean(required=True, default=False, validate=validate.OneOf([True, False]))
+    cluster_id = fields.String(validate=lambda s: 0 < len(s) <= 36, required=False)
+    severity = fields.String(required=False, validate=validate.OneOf(["Critical", "High", "Medium", "Low"]))
+    min_score = fields.Float(required=False, validate=validate.Range(min=0, max=10))
+    max_score = fields.Float(required=False, validate=validate.Range(min=0, max=10))
+    hot_patch = fields.Boolean(required=False, validate=validate.OneOf([True, False]))
+
+
+class GetAiCvesSchema(PaginationSchema):
+    """
+    validators for parameter of /vulnerabilities/cves
+    """
+
+    filter = fields.Nested(AiCvesFilterSchema, required=False)
