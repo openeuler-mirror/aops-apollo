@@ -20,16 +20,19 @@ from collections import defaultdict
 from typing import Tuple
 
 from elasticsearch import ElasticsearchException
-from sqlalchemy import func, tuple_, case, and_
+from sqlalchemy import and_, case, func, tuple_
 from sqlalchemy.exc import SQLAlchemyError
-
-from apollo.database.mapping import CVE_INDEX
-from apollo.database.table import Cve, CveHostAssociation, CveAffectedPkgs, AdvisoryDownloadRecord
-from apollo.function.customize_exception import EsOperationError
 from vulcanus.database.helper import sort_and_page
-from vulcanus.database.proxy import MysqlProxy, ElasticsearchProxy
+from vulcanus.database.proxy import ElasticsearchProxy, MysqlProxy
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, SUCCEED
+from vulcanus.restful.resp.state import (DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA,
+                                         SUCCEED)
+
+from apollo.conf import cache
+from apollo.database.mapping import CVE_INDEX
+from apollo.database.table import AdvisoryDownloadRecord, Cve, CveAffectedPkgs, CveHostAssociation
+from apollo.function.customize_exception import EsOperationError
+from apollo.function.schema.cve import AiCvesResponseSchema
 
 
 class CveMysqlProxy(MysqlProxy):
@@ -1345,3 +1348,244 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             .group_by(CveHostAssociation.host_id)
         )
         return host_id_subquery
+
+    def get_ai_cves(self, data):
+        """
+        Get the CVEs that AI to be fixed
+
+        Args:
+            data(dict): parameter, e.g.
+                {
+                    "page": 1,
+                    "per_page": 10,
+                    "filter": {
+                        "fixed": false,
+                        "cluster_id": "xxx",
+                        "severity": "xxx",
+                        "min_score": 7,
+                        "max_score": 10,
+                        "hot_patch": true
+                    }
+                }
+
+        Returns:
+            str: status code
+            dict: query result. e.g.
+                {
+                    "total_count": 1,
+                    "total_page": 1,
+                    "cve_info": [
+                        {
+                            "cve_id": "CVE-2020-36777",
+                            "cvss_score": "3.3",
+                            "description": "",
+                            "package": "kernel",
+                            "publish_time": "2024-04-12",
+                            "severity": "Low",
+                            "contain_hot_patch": true
+                        }
+                    ]
+                }
+        """
+        cves = dict()
+        try:
+            cves = self._query_ai_cves(data)
+            LOGGER.debug("Finished getting cve list by ai.")
+            return SUCCEED, cves
+        except (SQLAlchemyError, ElasticsearchException, EsOperationError) as error:
+            LOGGER.error(error)
+            LOGGER.error("Getting cve list failed due to internal error.")
+            return DATABASE_QUERY_ERROR, cves
+
+    def _query_ai_cves_filters(self, data, unfixed_cve_subquery):
+        filters = set()
+        if data.get("severity"):
+            filters.add(Cve.severity == data.get("severity"))
+        if all([data.get("min_score"), data.get("max_score")]):
+            filters.add(Cve.cvss_score.between(data.get("min_score"), data.get("max_score")))
+        elif data.get("min_score"):
+            filters.add(Cve.cvss_score >= data.get("min_score"))
+        elif data.get("max_score"):
+            filters.add(Cve.cvss_score <= data.get("max_score"))
+        if "hot_patch" in data:
+            filters.add(unfixed_cve_subquery.c.contain_hot_patch == data.get("hot_patch"))
+        return filters
+
+    def _query_ai_cves(self, data):
+        """
+        Get processed cve list from database.
+
+        Returns:
+            cve list
+        """
+        cves = {"cve_info": None, "total_count": 0, "total_page": 0}
+        filter_data = data.get("filter", dict())
+        filters = {CveHostAssociation.fixed == filter_data.get("fixed", False)}
+        if filter_data.get("cluster_id"):
+            filters.add(CveHostAssociation.cluster_id == filter_data.get("cluster_id"))
+        # query unfixed cve ids
+        unfixed_cve_subquery = (
+            self.session.query(
+                CveHostAssociation.cve_id,
+                case(
+                    [(func.count(case([(CveHostAssociation.support_way == 'hotpatch', 1)])) > 0, True)], else_=False
+                ).label('contain_hot_patch'),
+            )
+            .filter(*filters)
+            .group_by(CveHostAssociation.cve_id)
+            .subquery()
+        )
+
+        cve_package_subquery = (
+            self.session.query(
+                CveAffectedPkgs.cve_id,
+                func.group_concat(func.distinct(CveAffectedPkgs.package), SEPARATOR=",").label("package"),
+            )
+            .group_by(CveAffectedPkgs.cve_id)
+            .distinct()
+            .subquery()
+        )
+
+        cves_query = (
+            self.session.query(
+                unfixed_cve_subquery.c.cve_id,
+                unfixed_cve_subquery.c.contain_hot_patch,
+                cve_package_subquery.c.package,
+                Cve.cvss_score,
+                Cve.publish_time,
+                Cve.severity,
+            )
+            .outerjoin(cve_package_subquery, unfixed_cve_subquery.c.cve_id == cve_package_subquery.c.cve_id)
+            .outerjoin(Cve, Cve.cve_id == unfixed_cve_subquery.c.cve_id)
+            .filter(*self._query_ai_cves_filters(filter_data, unfixed_cve_subquery))
+            .order_by(Cve.cvss_score.desc(), Cve.publish_time.asc())
+        )
+        page, per_page = data.get('page'), data.get('per_page')
+        total_count = cves_query.count()
+        if not total_count:
+            return cves
+        cves_page, total_page = sort_and_page(cves_query, None, None, per_page, page)
+
+        cves['cve_info'] = AiCvesResponseSchema(many=True).dump(cves_page)
+        cves['total_page'] = total_page
+        cves['total_count'] = total_count
+        return cves
+
+    def _query_ai_recommends_cves_filters(self, data):
+        filters = set()
+        if "fixed" in data:
+            filters.add(CveHostAssociation.fixed == data["fixed"])
+        if data.get("cluster_id"):
+            filters.add(CveHostAssociation.cluster_id == data["cluster_id"])
+        if data.get("severity"):
+            filters.add(Cve.severity == data["severity"])
+        if all([data.get("min_score"), data.get("max_score")]):
+            filters.add(Cve.cvss_score.between(data.get("min_score"), data.get("max_score")))
+        elif data.get("min_score"):
+            filters.add(Cve.cvss_score >= data.get("min_score"))
+        elif data.get("max_score"):
+            filters.add(Cve.cvss_score <= data.get("max_score"))
+        if "hot_patch" in data:
+            filters.add(
+                CveHostAssociation.support_way == "hotpatch"
+                if data["hot_patch"]
+                else CveHostAssociation.support_way == "coldpatch"
+            )
+        return filters
+
+    def get_ai_recommends_cves(self, data):
+        """
+        Get AI recommends cves
+
+        Returns:
+            str: status code
+            dict: query result. e.g.
+            {
+                "recommend_cve_num": 2,
+                "packages": [
+                    "kernel"
+                ],
+                "severity_proportion": [
+                    {
+                        "severity": "High",
+                        "num": 1
+                    },
+                    {
+                        "label": "Meidum",
+                        "num": 1
+                    }
+                ],
+                "recommend_cves": [
+                    "CVE-2020-36777",
+                    "CVE-2020-36717"
+                ]
+            }
+        """
+        try:
+            ai_recommends_cves = dict(
+                recommend_cve_num=0,
+                packages=None,
+                severity_proportion=list(),
+                recommend_cves=list(),
+                cluster_cve_num=list(),
+            )
+            filters = self._query_ai_recommends_cves_filters(data)
+            match_cves = (
+                self.session.query(
+                    CveHostAssociation.cve_id,
+                    CveHostAssociation.cluster_id,
+                    case(
+                        [(func.count(case([(CveHostAssociation.support_way == 'hotpatch', 1)])) > 0, True)], else_=False
+                    ).label('hotpatch'),
+                )
+                .join(Cve, Cve.cve_id == CveHostAssociation.cve_id)
+                .filter(*filters)
+                .group_by(CveHostAssociation.cve_id, CveHostAssociation.cluster_id)
+                .all()
+            )
+            if not match_cves:
+                return SUCCEED, ai_recommends_cves
+            cluster_cves = defaultdict(list)
+            for cve in match_cves:
+                cluster_cves[cve.cluster_id].append(cve)
+                if cve.cve_id not in ai_recommends_cves["recommend_cves"]:
+                    ai_recommends_cves["recommend_cves"].append(cve.cve_id)
+            ai_recommends_cves["recommend_cve_num"] = len(ai_recommends_cves["recommend_cves"])
+            ai_recommends_cves["cluster_cve_num"] = self.get_cluster_cve_info(cluster_cves)
+            cve_packages = (
+                self.session.query(CveAffectedPkgs.package)
+                .filter(CveAffectedPkgs.cve_id.in_(ai_recommends_cves["recommend_cves"]))
+                .distinct()
+                .all()
+            )
+            if cve_packages:
+                ai_recommends_cves["packages"] = list(set([cve_pkg.package for cve_pkg in cve_packages]))
+
+            cve_severity = (
+                self.session.query(Cve.severity, func.count(Cve.severity).label("num"))
+                .filter(Cve.cve_id.in_(ai_recommends_cves["recommend_cves"]))
+                .group_by(Cve.severity)
+                .all()
+            )
+            for severity in cve_severity:
+                severity_name = "Unknown" if severity.severity == "None" else severity.severity
+                ai_recommends_cves["severity_proportion"].append(dict(severity=severity_name, num=severity.num))
+
+            return SUCCEED, ai_recommends_cves
+        except SQLAlchemyError as error:
+            LOGGER.error(error)
+            return DATABASE_QUERY_ERROR, ai_recommends_cves
+
+    def get_cluster_cve_info(self, clusters_cves: dict):
+        clusters = []
+        for cluster_id, cves in clusters_cves.items():
+            cluster = cache.clusters.get(cluster_id)
+            clusters.append(
+                {
+                    "cluster_id": cluster_id,
+                    "cluster_name": cluster.get("cluster_name") if cluster else None,
+                    "cve_num": len(cves),
+                    "hot_patch_num": len([cve for cve in cves if cve.hotpatch]),
+                }
+            )
+        return clusters
