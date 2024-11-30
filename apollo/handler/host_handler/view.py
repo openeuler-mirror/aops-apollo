@@ -155,7 +155,7 @@ class VulGetHostList(BaseResponse):
             sort_direction = data.get("direction")
             host_info_list = sorted(
                 host_info_list,
-                key=lambda x: x[sort_key],
+                key=lambda x: x[sort_key] if x[sort_key] is not None else 0,
                 reverse=sort_direction == "desc",
             )
         per_page = data.get("per_page")
