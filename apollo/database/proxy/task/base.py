@@ -353,7 +353,7 @@ class TaskMysqlProxy(MysqlProxy):
         succeed_list = list(result.keys())
         fail_list = list(set(task_list) - set(succeed_list))
         if fail_list:
-            LOGGER.error("CVE task '%s' exist but status data is not record." % fail_list)
+            LOGGER.error("CVE task '%s' exists but status data is not record." % fail_list)
         return result
 
     def _query_cve_series_task_host_status(self, task_list: list, task_table):
@@ -421,7 +421,7 @@ class TaskMysqlProxy(MysqlProxy):
         succeed_list = list(result.keys())
         fail_list = list(set(task_list) - set(succeed_list))
         if fail_list:
-            LOGGER.error("Repo task '%s' exist but status data is not record." % fail_list)
+            LOGGER.error("Repo task '%s' exists but status data is not record." % fail_list)
         return result
 
     def _query_repo_task_host(self, task_list):
