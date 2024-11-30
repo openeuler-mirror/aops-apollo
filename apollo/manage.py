@@ -13,7 +13,7 @@
 """
 Time:
 Author:
-Description: Manager that start aops-manager
+Description: Manager that starts aops-manager
 """
 try:
     from gevent import monkey
