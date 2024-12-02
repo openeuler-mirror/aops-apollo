@@ -20,10 +20,12 @@ import glob
 import os
 import shutil
 import time
+import uuid
 from collections import defaultdict
 from typing import List, Optional
 
-from flask import g
+from flask import g, request
+from werkzeug.utils import secure_filename
 from vulcanus.database.helper import judge_return_code
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import (
@@ -430,7 +432,36 @@ class VulGetCveTaskHost(BaseResponse):
         return self.response(code=status_code, data=result)
 
 
-class VulUploadAdvisory(BaseResponse):
+class FileUpload:
+    @classmethod
+    def _upload_file(cls, save_path, file_key="file"):
+        """
+        upload file to save_path
+        Args:
+            save_path (str): path the file to be saved
+            file_key (str): body key for the file
+
+        Returns:
+            int: verify status code
+            str: file_path
+            str: file_name
+        """
+
+        file_name = ""
+        file = request.files.get(file_key)
+        if file is None or not file.filename:
+            return PARAM_ERROR, "", file_name
+        username = g.username
+        filename = secure_filename(file.filename)
+        file_name = str(uuid.uuid4()) + "." + filename.rsplit('.', 1)[-1]
+        if not os.path.exists(os.path.join(save_path, username)):
+            os.makedirs(os.path.join(save_path, username))
+        file_path = os.path.join(save_path, username, file_name)
+        file.save(file_path)
+        return SUCCEED, file_path, file_name
+
+
+class VulUploadAdvisory(BaseResponse, FileUpload):
     """
     Restful interface for importing security advisory xml (compressed files or single file)
     """
@@ -442,12 +473,10 @@ class VulUploadAdvisory(BaseResponse):
             int: status code
         """
         save_path = FILE_UPLOAD_PATH
-        status, username, file_name = self.verify_upload_request(save_path)
+        status, file_path, file_name = self._upload_file(save_path)
 
         if status != SUCCEED:
             return status
-
-        file_path = os.path.join(save_path, username, file_name)
 
         suffix = file_name.split('.')[-1]
         if suffix == "xml":
@@ -548,7 +577,7 @@ class VulUploadAdvisory(BaseResponse):
         return self.response(code=self._handle(callback))
 
 
-class VulUploadUnaffected(BaseResponse):
+class VulUploadUnaffected(BaseResponse, FileUpload):
     """
     Restful interface for importing unaffected cve xml (compressed files or single file)
     """
@@ -560,12 +589,10 @@ class VulUploadUnaffected(BaseResponse):
             int: status code
         """
         save_path = FILE_UPLOAD_PATH
-        status, username, file_name = self.verify_upload_request(save_path)
+        status, file_path, file_name = self._upload_file(save_path)
 
         if status != SUCCEED:
             return status
-
-        file_path = os.path.join(save_path, username, file_name)
 
         suffix = file_name.split('.')[-1]
         if suffix == "xml":
