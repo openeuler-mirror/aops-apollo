@@ -144,11 +144,11 @@ class DownloadSATask:
             response = urllib.request.urlopen(url, timeout=30)
             return response.read()
         except urllib.error.HTTPError as e:
-            LOGGER.info("Exception HTTPError %s" % e)
+            LOGGER.error("Exception HTTPError %s" % e)
             return None
         except urllib.error.URLError as e:
-            LOGGER.info("Exception URLError %s" % e)
-            return ""
+            LOGGER.error("Exception URLError %s" % e)
+            return None
 
     def download_security_advisory(self, advisory: str):
         """
