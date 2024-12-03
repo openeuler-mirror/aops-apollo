@@ -117,8 +117,8 @@ class CveRollbackTaskProxy(TaskProxy):
         host_num = cve_fix_task_info.host_num
 
         if lang.startswith("en"):
-            task_name = "ROLLBACK_TASK: %s" % fix_task_name
-            description = "ORIGIN_TASK_DESCRIPTION: %s" % fix_task_description
+            task_name = "Rollback task: %s" % fix_task_name
+            description = "Origin task description: %s" % fix_task_description
         else:
             task_name = "回滚: %s" % fix_task_name
             description = "原CVE修复任务描述: %s" % fix_task_description
