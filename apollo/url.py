@@ -31,6 +31,7 @@ from apollo.conf.constant import (
     VUL_GET_AI_CVES,
     VUL_GET_AI_RECOMMENDED_CVES,
     VUL_GET_TASK_HOST,
+    VUL_CVE_SUMMARY,
     VUL_HOST_CVE_GET,
     VUL_HOST_INFO_GET,
     VUL_HOST_LIST_GET,
@@ -97,6 +98,7 @@ SPECIFIC_URLS = {
         (cve_view.VulGetCvePackageHost, VUL_CVE_PACKAGES_HOST),
         (cve_view.AiCveList, VUL_GET_AI_CVES),
         (cve_view.RecommendedCves, VUL_GET_AI_RECOMMENDED_CVES),
+        (cve_view.VulGetCveSummary, VUL_CVE_SUMMARY),
     ],
     "CVE_HOST_URLS": [
         (cve_host_view.VulGetHostStatus, VUL_HOST_STATUS_GET),
