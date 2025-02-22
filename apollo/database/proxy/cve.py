@@ -18,16 +18,21 @@ Description: Host table operation
 import math
 from collections import defaultdict
 from typing import Tuple
+from urllib.parse import urlencode
+from flask import g
 
 from elasticsearch import ElasticsearchException
 from sqlalchemy import and_, case, func, tuple_
 from sqlalchemy.exc import SQLAlchemyError
+from vulcanus.conf.constant import HOSTS_FILTER
 from vulcanus.database.helper import sort_and_page
 from vulcanus.database.proxy import ElasticsearchProxy, MysqlProxy
 from vulcanus.log.log import LOGGER
 from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, SUCCEED
+from vulcanus.restful.response import BaseResponse
 
-from apollo.conf import cache
+from apollo.conf import cache, configuration
+from apollo.conf.constant import HostStatus, CveSeverity
 from apollo.database.mapping import CVE_INDEX
 from apollo.database.table import AdvisoryDownloadRecord, Cve, CveAffectedPkgs, CveHostAssociation
 from apollo.function.customize_exception import EsOperationError
@@ -1454,8 +1459,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 Cve.publish_time,
                 Cve.severity,
             )
-            .join(cve_package_subquery, unfixed_cve_subquery.c.cve_id == cve_package_subquery.c.cve_id)
-            .join(Cve, unfixed_cve_subquery.c.cve_id == Cve.cve_id)
+            .outerjoin(cve_package_subquery, unfixed_cve_subquery.c.cve_id == cve_package_subquery.c.cve_id)
+            .outerjoin(Cve, Cve.cve_id == unfixed_cve_subquery.c.cve_id)
             .filter(*self._query_ai_cves_filters(filter_data, unfixed_cve_subquery))
             .order_by(Cve.cvss_score.desc(), Cve.publish_time.asc())
         )
@@ -1537,7 +1542,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                         [(func.count(case([(CveHostAssociation.support_way == 'hotpatch', 1)])) > 0, True)], else_=False
                     ).label('hotpatch'),
                 )
-                .join(Cve, CveHostAssociation.cve_id == Cve.cve_id)
+                .join(Cve, Cve.cve_id == CveHostAssociation.cve_id)
                 .filter(*filters)
                 .group_by(CveHostAssociation.cve_id, CveHostAssociation.cluster_id)
                 .all()
@@ -1588,3 +1593,141 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 }
             )
         return clusters
+
+    def get_cves_summary(self):
+        """
+        Get cve summary
+        Returns:
+            str: status code
+            dict: query result. e.g.
+                {
+                    "cluster_summary": {
+                        "cluster_num": x,
+                        "host_group_num": x,
+                        "host_num": x,
+                        "online_host_num": x,
+                        "offline_host_num": x,
+                        "cluster_cve_status": [
+                            {
+                                "cluster_id": "",
+                                "cluster_name": "",
+                                "fixed_cve_num": x,
+                                "unfixed_cve_num": x
+                            },
+                            {
+                                "cluster_id": "",
+                                "cluster_name": "",
+                                "fixed_cve_num": x,
+                                "unfixed_cve_num": x
+                            }
+                        ]
+                    },
+                    "cve_summary": {
+                        "critical_num": x,
+                        "high_num": x,
+                        "medium_num": x,
+                        "low_num": x,
+                        "unknown_num": x
+                    }
+                }
+        """
+        result = {}
+        try:
+            hosts = self._query_user_host()
+            online_host_num, offline_host_num = self._query_host_status_num(hosts)
+
+            host_id_list = [host["host_id"] for host in hosts]
+            cve_host_association_query = self.session.query(CveHostAssociation.cluster_id, CveHostAssociation.host_id,
+                                                            CveHostAssociation.cve_id, CveHostAssociation.fixed,
+                                                            CveHostAssociation.cve_id).filter(
+                CveHostAssociation.host_id.in_(host_id_list)).all()
+            clusters = cache.get_user_clusters()
+            host_group = cache.get_user_group_hosts()
+            cluster_cve_status = self._query_cluster_cve_status(clusters, cve_host_association_query)
+            cluster_summary = {
+                "cluster_num": len(clusters),
+                "host_group_num": len(host_group),
+                "host_num": len(hosts),
+                "online_host_num": online_host_num,
+                "offline_host_num": offline_host_num,
+                "cluster_cve_status": cluster_cve_status
+            }
+            cve_id_list = list(set([cve["cve_id"] for cve in cve_host_association_query]))
+            cve_summary = self._query_cve_severity(cve_id_list)
+            result = {
+                "cluster_summary": cluster_summary,
+                "cve_summary": cve_summary,
+            }
+            LOGGER.debug("Finished getting cve summary.")
+            return SUCCEED, result
+        except (SQLAlchemyError) as error:
+            LOGGER.error(error)
+            LOGGER.error("Getting cve summary failed due to internal error.")
+            return DATABASE_QUERY_ERROR, result
+
+    @staticmethod
+    def _query_user_host():
+        local_cluster_info = cache.location_cluster
+        request_args = {
+            "cluster_list": [local_cluster_info.get("cluster_id")],
+            "fields": ["host_id", "cluster_id", "host_ip", "host_name", "status"],
+        }
+        url = f"http://{configuration.domain}{HOSTS_FILTER}?{urlencode(request_args)}"
+        response_data = BaseResponse.get_response(method="GET", url=url, header=g.headers)
+        if response_data.get("label") != SUCCEED:
+            LOGGER.warning(f"Failed to query host information during timed scanning task.")
+        return response_data.get("data")
+
+    @staticmethod
+    def _query_host_status_num(hosts):
+        online_host_num = 0
+        offline_host_num = 0
+        for host in hosts:
+            if host.get("status") == HostStatus.ONLINE or host.get("status") == HostStatus.SCANNING:
+                online_host_num = online_host_num + 1
+            else:
+                offline_host_num = offline_host_num + 1
+        return online_host_num, offline_host_num
+
+    @staticmethod
+    def _query_cluster_cve_status(clusters, cve_host_association_query):
+        cluster_cve_status = []
+        for cluster_id in clusters.keys():
+            cve_status = {
+                "cluster_id": cluster_id,
+                "cluster_name": clusters.get(cluster_id),
+                "fixed_cve_num": 0,
+                "unfixed_cve_num": 0
+            }
+            for cve in cve_host_association_query:
+                if cluster_id != cve.cluster_id:
+                    continue
+                if cve.fixed:
+                    cve_status["fixed_cve_num"] = cve_status["fixed_cve_num"] + 1
+                else:
+                    cve_status["unfixed_cve_num"] = cve_status["unfixed_cve_num"] + 1
+            cluster_cve_status.append(cve_status)
+        return cluster_cve_status
+
+    def _query_cve_severity(self, cve_id_list):
+        cve_query = self.session.query(Cve.cve_id, Cve.severity).filter(Cve.cve_id.in_(cve_id_list)).all()
+        cve_severity = {
+            CveSeverity.CRITICAL: 0,
+            CveSeverity.HIGH: 0,
+            CveSeverity.MEDIUM: 0,
+            CveSeverity.LOW: 0,
+            CveSeverity.UNKNOWN: 0,
+        }
+        for cve in cve_query:
+            if cve.severity not in cve_severity:
+                cve_severity[CveSeverity.UNKNOWN] = cve_severity[CveSeverity.UNKNOWN] + 1
+                continue
+            cve_severity[cve.severity] = cve_severity[cve.severity] + 1
+        cve_severity_summary = {
+            "critical_num": cve_severity[CveSeverity.CRITICAL],
+            "high_num": cve_severity[CveSeverity.HIGH],
+            "medium_num": cve_severity[CveSeverity.MEDIUM],
+            "low_num": cve_severity[CveSeverity.LOW],
+            "unknown_num": cve_severity[CveSeverity.UNKNOWN]
+        }
+        return cve_severity_summary

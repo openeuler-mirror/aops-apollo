@@ -884,3 +884,18 @@ class RecommendedCves(BaseResponse):
         """
         status_code, cves = callback.get_ai_recommends_cves(data=params)
         return self.response(code=status_code, data=cves)
+
+
+class VulGetCveSummary(BaseResponse):
+    """
+    Restful interface for get cve summary
+    """
+    @BaseResponse.handle(proxy=CveProxy)
+    def get(self, callback: CveProxy):
+        """
+        Get cve summary
+        Returns:
+            dict: response body
+        """
+        status_code, summary = callback.get_cves_summary()
+        return self.response(code=status_code, data=summary)
