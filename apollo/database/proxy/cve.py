@@ -25,8 +25,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.database.helper import sort_and_page
 from vulcanus.database.proxy import ElasticsearchProxy, MysqlProxy
 from vulcanus.log.log import LOGGER
-from vulcanus.restful.resp.state import (DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA,
-                                         SUCCEED)
+from vulcanus.restful.resp.state import DATABASE_INSERT_ERROR, DATABASE_QUERY_ERROR, NO_DATA, SUCCEED
 
 from apollo.conf import cache
 from apollo.database.mapping import CVE_INDEX
@@ -1455,8 +1454,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 Cve.publish_time,
                 Cve.severity,
             )
-            .outerjoin(cve_package_subquery, unfixed_cve_subquery.c.cve_id == cve_package_subquery.c.cve_id)
-            .outerjoin(Cve, Cve.cve_id == unfixed_cve_subquery.c.cve_id)
+            .join(cve_package_subquery, unfixed_cve_subquery.c.cve_id == cve_package_subquery.c.cve_id)
+            .join(Cve, unfixed_cve_subquery.c.cve_id == Cve.cve_id)
             .filter(*self._query_ai_cves_filters(filter_data, unfixed_cve_subquery))
             .order_by(Cve.cvss_score.desc(), Cve.publish_time.asc())
         )
@@ -1538,7 +1537,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                         [(func.count(case([(CveHostAssociation.support_way == 'hotpatch', 1)])) > 0, True)], else_=False
                     ).label('hotpatch'),
                 )
-                .join(Cve, Cve.cve_id == CveHostAssociation.cve_id)
+                .join(Cve, CveHostAssociation.cve_id == Cve.cve_id)
                 .filter(*filters)
                 .group_by(CveHostAssociation.cve_id, CveHostAssociation.cluster_id)
                 .all()

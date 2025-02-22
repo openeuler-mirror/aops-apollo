@@ -19,6 +19,8 @@ import time
 import uuid
 from typing import Dict, List, Tuple
 
+from celery import group
+from celery.exceptions import CeleryError
 from flask import g, request
 from vulcanus.conf.constant import UserRoleType
 from vulcanus.log.log import LOGGER
@@ -27,15 +29,15 @@ from vulcanus.restful.resp.state import (
     DATABASE_UPDATE_ERROR,
     PARAM_ERROR,
     PARTIAL_SUCCEED,
+    PERMESSION_ERROR,
     REPEAT_TASK_EXECUTION,
     SUCCEED,
     TASK_EXECUTION_FAIL,
-    PERMESSION_ERROR,
 )
 from vulcanus.restful.response import BaseResponse
 
-from apollo.conf import cache
-from apollo.conf.constant import HostStatus, TaskType
+from apollo.conf import cache, celery_client
+from apollo.conf.constant import HostStatus, TaskChannel, TaskType
 from apollo.cron.notification import EmailNoticeManager
 from apollo.database.proxy.host import HostProxy
 from apollo.database.proxy.task.base import TaskMysqlProxy, TaskProxy
@@ -1366,3 +1368,82 @@ class VulGetTaskHost(BaseResponse):
         """
         status_code, data = callback.get_task_hosts(params["task_id"])
         return self.response(code=status_code, data=data)
+
+
+class VulGenerateCveFixAndExecute(VulGenerateCveFixTask):
+
+    def _handle_fix_task(self, execute_queue: list):
+
+        args = (execute_queue, request.headers.get("access-token"))
+        try:
+            group(celery_client.signature(TaskChannel.CVE_FIX_AND_EXECUTE_TASK, args=args)).apply_async()
+            return SUCCEED
+        except CeleryError as error:
+            LOGGER.error(error)
+            LOGGER.error("Failed to execute CVE fix task with ID: %s", self.task_id)
+            return TASK_EXECUTION_FAIL
+
+    @BaseResponse.handle(schema=GenerateCveTaskSchema, proxy=CveFixTaskProxy)
+    def post(self, callback: TaskProxy, **params):
+        """
+        Args:
+            callback(TaskProxy): task proxy
+            params(dict): e.g. {"cve_id": "xxx", "host_id": "xxx"}
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "data": {
+                        "task_id": "xxx"
+                    }
+                }
+        """
+        # e.g.
+        # data = [
+        #        {
+        #             "task_id": "8878b35288df11eeb0815254001a9e0d",
+        #             "fix_way": "hotpatch/coldpatch"
+        #        }
+        #      ]
+        status_code, data = self._handle(params, callback)
+        if status_code != SUCCEED:
+            return self.response(code=status_code)
+        # start execute task
+        execute_queue = []
+        for task in data:
+            if task["fix_way"] == "hotpatch":
+                execute_queue.insert(0, task["task_id"])
+            elif task["fix_way"] == "coldpatch":
+                execute_queue.append(task["task_id"])
+        status_code = self._handle_fix_task(execute_queue)
+        return self.response(code=status_code, data=data)
+
+
+class VulTaskExecuteStatus(BaseResponse):
+    """
+    Restful api for get task execute status
+    """
+
+    @BaseResponse.handle(schema=ExecuteTaskSchema, proxy=TaskProxy)
+    def get(self, callback: TaskProxy, **params):
+        """
+        Args:
+            callback(TaskProxy): task proxy
+            params(dict): e.g. {"task_id": "xxx"}
+
+        Returns:
+            dict: response body, e.g.
+                {
+                    "code": 200,
+                    "msg": "",
+                    "data": true/false
+                }
+        """
+        cluster_info = cache.get_user_clusters()
+        if not cluster_info:
+            return self.response(code=PERMESSION_ERROR)
+
+        task_type = callback.get_task_type(params["task_id"], cluster_info.keys())
+        running = callback.check_task_status(params["task_id"], task_type)
+        return self.response(code=SUCCEED, data=running)

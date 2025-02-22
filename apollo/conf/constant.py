@@ -52,6 +52,7 @@ class TaskChannel:
     TIMED_CORRECT_TASK = "correct_data"
     TIMED_SEND_NOTIFICATION = "send_notification"
     TIMED_DOWNLOAD_SA = "download_sa"
+    CVE_FIX_AND_EXECUTE_TASK = 'cve_fix_and_execute_task'
 
 
 class CveHostStatus:
@@ -198,3 +199,5 @@ VUL_DOWNLOAD_FILE = "/vulnerabilities/file/download"
 VUL_GET_FILE_LIST = "/vulnerabilities/file/list/get"
 VUL_GET_AI_CVES = "/vulnerabilities/cves"
 VUL_GET_AI_RECOMMENDED_CVES = "/vulnerabilities/cves/recommended"
+VUL_GENERATE_CVEFIX_AND_EXECUTE = "/vulnerabilities/task/cve-fix/generate/execute"
+VUL_TASK_EXECUTE_STATUS = "/vulnerabilities/task/execute/running"
