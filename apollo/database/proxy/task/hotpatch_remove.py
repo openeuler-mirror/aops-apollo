@@ -686,9 +686,9 @@ class HotpatchRemoveProxy(TaskProxy):
         task_query = (
             self.session.query(
                 HotpatchRemoveTask.cve_id,
-                func.sum(case([(HotpatchRemoveTask.status == TaskStatus.RUNNING, 1)], else_=0)).label("running"),
-                func.sum(case([(HotpatchRemoveTask.status == TaskStatus.UNKNOWN, 1)], else_=0)).label("unknown"),
-                func.sum(case([(HotpatchRemoveTask.status == TaskStatus.FAIL, 1)], else_=0)).label("fail"),
+                func.sum(case((HotpatchRemoveTask.status == TaskStatus.RUNNING, 1), else_=0)).label("running"),
+                func.sum(case((HotpatchRemoveTask.status == TaskStatus.UNKNOWN, 1), else_=0)).label("unknown"),
+                func.sum(case((HotpatchRemoveTask.status == TaskStatus.FAIL, 1), else_=0)).label("fail"),
                 func.count().label("total"),
             )
             .join(Task, Task.task_id == HotpatchRemoveTask.task_id)
