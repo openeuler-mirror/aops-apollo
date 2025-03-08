@@ -898,11 +898,9 @@ class CveFixTaskProxy(TaskProxy):
             task_cve_fix_subquery.c.host_ip,
             task_cve_fix_subquery.c.host_name,
             case(
-                [
-                    (task_cve_fix_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
-                    (task_cve_fix_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
-                    (task_cve_fix_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN),
-                ],
+                (task_cve_fix_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
+                (task_cve_fix_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
+                (task_cve_fix_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN),
                 else_=TaskStatus.SUCCEED,
             ).label("status"),
             task_cve_fix_subquery.c.cves,

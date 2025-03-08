@@ -297,11 +297,9 @@ class CveRollbackTaskProxy(TaskProxy):
             cve_rollback_task_subquery.c.host_name,
             cve_rollback_task_subquery.c.host_ip,
             case(
-                [
-                    (cve_rollback_task_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
-                    (cve_rollback_task_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
-                    (cve_rollback_task_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN),
-                ],
+                (cve_rollback_task_subquery.c.status.contains(TaskStatus.RUNNING), TaskStatus.RUNNING),
+                (cve_rollback_task_subquery.c.status.contains(TaskStatus.FAIL), TaskStatus.FAIL),
+                (cve_rollback_task_subquery.c.status.contains(TaskStatus.UNKNOWN), TaskStatus.UNKNOWN),
                 else_=TaskStatus.SUCCEED,
             ).label("status"),
             cve_rollback_task_subquery.c.cves,

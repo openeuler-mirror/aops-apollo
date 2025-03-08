@@ -184,7 +184,7 @@ class HostProxy(MysqlProxy, CveEsProxy):
         cve_affected_pkg_subquery = (
             self.session.query(
                 CveAffectedPkgs.cve_id,
-                func.group_concat(func.distinct(CveAffectedPkgs.package), SEPARATOR=",").label("package"),
+                func.group_concat(func.distinct(CveAffectedPkgs.package), ",").label("package"),
             )
             .group_by(CveAffectedPkgs.cve_id)
             .distinct()
@@ -196,11 +196,11 @@ class HostProxy(MysqlProxy, CveEsProxy):
         host_cve_query = (
             self.session.query(
                 CveHostAssociation.cve_id,
-                case([(Cve.publish_time == None, "")], else_=Cve.publish_time).label("publish_time"),
-                case([(Cve.severity == None, "")], else_=Cve.severity).label("severity"),
-                case([(Cve.cvss_score == None, "")], else_=Cve.cvss_score).label("cvss_score"),
+                case((Cve.publish_time == None, ""), else_=Cve.publish_time).label("publish_time"),
+                case((Cve.severity == None, ""), else_=Cve.severity).label("severity"),
+                case((Cve.cvss_score == None, ""), else_=Cve.cvss_score).label("cvss_score"),
                 case(
-                    [(cve_affected_pkg_subquery.c.package == None, "")], else_=cve_affected_pkg_subquery.c.package
+                    (cve_affected_pkg_subquery.c.package == None, ""), else_=cve_affected_pkg_subquery.c.package
                 ).label("package"),
             )
             .select_from(CveHostAssociation)
@@ -280,9 +280,9 @@ class HostProxy(MysqlProxy, CveEsProxy):
                 CveHostAssociation.installed_rpm,
                 CveHostAssociation.available_rpm,
                 CveHostAssociation.support_way,
-                case([(Cve.cvss_score == None, "-")], else_=Cve.cvss_score).label("cvss_score"),
-                case([(Cve.severity == None, "-")], else_=Cve.severity).label("severity"),
-                case([(CveAffectedPkgs.package == None, "-")], else_=CveAffectedPkgs.package).label("package"),
+                case((Cve.cvss_score == None, "-"), else_=Cve.cvss_score).label("cvss_score"),
+                case((Cve.severity == None, "-"), else_=Cve.severity).label("severity"),
+                case((CveAffectedPkgs.package == None, "-"), else_=CveAffectedPkgs.package).label("package"),
             )
             .outerjoin(Cve, Cve.cve_id == CveHostAssociation.cve_id)
             .outerjoin(CveAffectedPkgs, CveAffectedPkgs.cve_id == CveHostAssociation.cve_id)

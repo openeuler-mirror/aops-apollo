@@ -22,7 +22,7 @@ from urllib.parse import urlencode
 from flask import g
 
 from elasticsearch import ElasticsearchException
-from sqlalchemy import and_, case, func, tuple_
+from sqlalchemy import and_, case, func, tuple_, text
 from sqlalchemy.exc import SQLAlchemyError
 from vulcanus.conf.constant import HOSTS_FILTER
 from vulcanus.database.helper import sort_and_page
@@ -82,8 +82,8 @@ class CveMysqlProxy(MysqlProxy):
             dict
         """
         result = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Unknown": 0}
-        cve_overview = self.session.execute(
-            "CALL GET_CVE_OVERVIEW_PRO(:host_list)",
+        cve_overview = self.session.execute(text(
+            "CALL GET_CVE_OVERVIEW_PRO(:host_list)"),
             {"host_list": ','.join([f"'{item}'" for item in host_list]) if host_list else None},
         ).fetchall()
 
@@ -539,8 +539,8 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             filters["severity"] = None
 
         # Call stored procedure: GET_CVE_LIST_PRO
-        pro_result_set = self.session.execute(
-            "CALL GET_CVE_LIST_PRO(:search_key,:severity,:fixed,:affected,:order_by_filed,:order_by,:start_limt,:limt_size,:host_list)",
+        pro_result_set = self.session.execute(text(
+            "CALL GET_CVE_LIST_PRO(:search_key,:severity,:fixed,:affected,:order_by_filed,:order_by,:start_limt,:limt_size,:host_list)"),
             filters,
         )
         cursor = pro_result_set.cursor
@@ -653,10 +653,10 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         """
         cve_info = (
             self.session.query(
-                case([(Cve.cve_id == None, "")], else_=Cve.cve_id).label("cve_id"),
-                case([(Cve.publish_time == None, "")], else_=Cve.publish_time).label("publish_time"),
-                case([(Cve.severity == None, "")], else_=Cve.severity).label("severity"),
-                case([(Cve.cvss_score == None, "")], else_=Cve.cvss_score).label("cvss_score"),
+                case((Cve.cve_id == None, ""), else_=Cve.cve_id).label("cve_id"),
+                case((Cve.publish_time == None, ""), else_=Cve.publish_time).label("publish_time"),
+                case((Cve.severity == None, ""), else_=Cve.severity).label("severity"),
+                case((Cve.cvss_score == None, ""), else_=Cve.cvss_score).label("cvss_score"),
             )
             .filter(Cve.cve_id == cve_id)
             .first()
@@ -1432,7 +1432,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             self.session.query(
                 CveHostAssociation.cve_id,
                 case(
-                    [(func.count(case([(CveHostAssociation.support_way == 'hotpatch', 1)])) > 0, True)], else_=False
+                    (func.count(case((CveHostAssociation.support_way == 'hotpatch', 1))) > 0, True), else_=False
                 ).label('contain_hot_patch'),
             )
             .filter(*filters)
@@ -1443,7 +1443,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
         cve_package_subquery = (
             self.session.query(
                 CveAffectedPkgs.cve_id,
-                func.group_concat(func.distinct(CveAffectedPkgs.package), SEPARATOR=",").label("package"),
+                func.group_concat(func.distinct(CveAffectedPkgs.package), ",").label("package"),
             )
             .group_by(CveAffectedPkgs.cve_id)
             .distinct()
@@ -1539,7 +1539,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                     CveHostAssociation.cve_id,
                     CveHostAssociation.cluster_id,
                     case(
-                        [(func.count(case([(CveHostAssociation.support_way == 'hotpatch', 1)])) > 0, True)], else_=False
+                        (func.count(case((CveHostAssociation.support_way == 'hotpatch', 1))) > 0, True), else_=False
                     ).label('hotpatch'),
                 )
                 .join(Cve, Cve.cve_id == CveHostAssociation.cve_id)
@@ -1652,7 +1652,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
                 "offline_host_num": offline_host_num,
                 "cluster_cve_status": cluster_cve_status
             }
-            cve_id_list = list(set([cve["cve_id"] for cve in cve_host_association_query]))
+            cve_id_list = list(set([cve.cve_id for cve in cve_host_association_query]))
             cve_summary = self._query_cve_severity(cve_id_list)
             result = {
                 "cluster_summary": cluster_summary,
