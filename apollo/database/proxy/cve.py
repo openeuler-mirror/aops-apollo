@@ -1640,7 +1640,7 @@ class CveProxy(CveMysqlProxy, CveEsProxy):
             cve_host_association_query = self.session.query(CveHostAssociation.cluster_id, CveHostAssociation.host_id,
                                                             CveHostAssociation.cve_id, CveHostAssociation.fixed,
                                                             CveHostAssociation.cve_id).filter(
-                CveHostAssociation.host_id.in_(host_id_list)).all()
+                CveHostAssociation.host_id.in_(host_id_list), CveHostAssociation.fixed == False).all()
             clusters = cache.get_user_clusters()
             host_group = cache.get_user_group_hosts()
             cluster_cve_status = self._query_cluster_cve_status(clusters, cve_host_association_query)
