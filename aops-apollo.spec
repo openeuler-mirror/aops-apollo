@@ -3,7 +3,7 @@ Version:	v2.0.0
 Release:	1
 Summary:	Cve management service, monitor machine vulnerabilities and provide fix functions.
 License:	MulanPSL2
-URL:		https://gitee.com/openeuler/%{name}
+URL:		https://atomgit.com/openeuler/%{name}
 Source0:	%{name}-%{version}.tar.gz
 
 BuildRequires:  python3-setuptools
