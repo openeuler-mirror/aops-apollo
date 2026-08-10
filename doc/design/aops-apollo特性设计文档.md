@@ -1029,7 +1029,7 @@ CVE-3  xxx  A-hotpatch-1.1-HP002
 
 ## 3.7、热补丁工具
 
-由[syscare项目](https://atomgit.com/src-openeuler/syscare)实现。
+由[syscare项目](https://gitee.com/src-openeuler/syscare)实现。
 
 
 
