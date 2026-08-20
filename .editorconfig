@@ -1,0 +1,22 @@
+# 与 Shfmt/Prettier 配合
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{sh,bash,zsh}]
+indent_style = space
+indent_size = 2
+
+# 无扩展名的 shell 可执行脚本（aops-apollo）不会被上面的通配段匹配，
+# shfmt 会退回默认 tab；按文件名单独声明保留项目缩进风格：
+[aops-apollo]
+indent_style = space
+indent_size = 2
+
+[*.{js,jsx,ts,tsx,json,md,yaml,yml}]
+indent_style = space
+indent_size = 2
