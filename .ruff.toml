@@ -1,0 +1,19 @@
+# 仓库无 pyproject.toml 时的最小 Ruff 配置
+target-version = "py39"   # setup.py 未声明 python_requires，按存量兼容默认 py39
+line-length = 100
+extend-exclude = ["generated/", "vendor/", "third_party/"]
+
+[lint]
+# 存量仓库默认只开错误类规则；按基线预检结果收紧
+select = ["E", "F", "I"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+# 中文/全角标点注释仓库：RUF001/002/003 会把「，」等判为模糊字符，属误报；
+# 后续把 "RUF" 加回 select 时这三条已在此豁免
+# 收紧路径：清理 PR 后按阶段加回 B → UP/SIM → RUF（规则分批启用）
+
+[lint.per-file-ignores]
+# 存量 Flask 视图/测试的 `from ... import *` 遗留模式（F403/F405 为 import-star 限制，
+# 非运行时缺陷）；重构去掉 import * 后可移除本条豁免
+"apollo/handler/task_handler/view.py" = ["F403", "F405"]
+"apollo/tests/handler/cve/test_view.py" = ["F403", "F405"]
+"apollo/tests/handler/task/test_view.py" = ["F403", "F405"]

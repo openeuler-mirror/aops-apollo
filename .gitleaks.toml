@@ -1,0 +1,15 @@
+# Gitleaks 配置：基于内置默认规则集扩展（useDefault 必须保留，
+# 否则本文件会整体覆盖默认规则导致检测空转）
+[extend]
+useDefault = true
+
+# 仅当需要 allowlist/自定义规则时在此追加，例如：
+# [allowlist]
+# description = "测试与文档中的示例密钥"
+# regexes = [
+#   '''EXAMPLE[A-Z0-9_]+''',
+# ]
+# paths = [
+#   "tests/",
+#   "docs/",
+# ]
