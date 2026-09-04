@@ -1,6 +1,7 @@
 [English](./README_EN.md) | 简体中文
 
 # aops-apollo
+[English](./README_EN.md) | 简体中文
 
 #### 介绍
 Cve management service, monitor machine vulnerabilities and provide fix functions.
