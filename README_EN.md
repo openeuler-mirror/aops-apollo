@@ -1,7 +1,6 @@
 English | [简体中文](./README.md)
 
 # aops-apollo
-English | [简体中文](./README.md)
 
 ## Overview
 
